@@ -1,0 +1,2 @@
+type ExpertCardProps = { expert: { id: string; headline: string; user: { name: string | null }; services: { priceCents: number }[] } };
+export function ExpertCard({ expert }: ExpertCardProps) { const min = expert.services.length ? Math.min(...expert.services.map(s => s.priceCents)) / 100 : 0; return <a href={`/experts/${expert.id}`} className="rounded-2xl border p-6 hover:shadow"><h2 className="font-semibold">{expert.user.name ?? "Expert"}</h2><p className="mt-2 text-sm text-gray-600">{expert.headline}</p><p className="mt-4 text-sm">From €{min}</p></a>; }

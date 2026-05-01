@@ -1,0 +1,1 @@
+export function FeaturedExperts() { return <section className="mx-auto max-w-6xl px-6 py-12"><h2 className="text-2xl font-bold">Featured experts</h2><p className="mt-3 text-gray-600">Seed your first experts with npm run seed.</p></section>; }

@@ -1,0 +1,89 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+type WorkspaceNavProps = {
+  role: string | null;
+};
+
+type NavItem = {
+  href: string;
+  label: string;
+};
+
+const expertLinks: NavItem[] = [
+  { href: "/expert", label: "Overview" },
+  { href: "/expert/bookings", label: "Bookings" },
+  { href: "/expert/availability", label: "Availability" },
+  { href: "/expert/earnings", label: "Earnings" },
+  { href: "/expert/settings", label: "Settings" },
+];
+
+const buyerLinks: NavItem[] = [
+  { href: "/buyer", label: "Overview" },
+  { href: "/dashboard/bookings", label: "Bookings" },
+  { href: "/buyer/settings", label: "Settings" },
+];
+
+const adminLinks: NavItem[] = [
+  { href: "/admin", label: "Overview" },
+  { href: "/admin/experts", label: "Experts" },
+  { href: "/admin/metrics", label: "Metrics" },
+];
+
+export function WorkspaceNav({ role }: WorkspaceNavProps) {
+  const pathname = usePathname();
+
+  let title = "";
+  let links: NavItem[] = [];
+
+  if (pathname.startsWith("/expert") && (role === "EXPERT" || role === "ADMIN")) {
+    title = "Expert workspace";
+    links = expertLinks;
+  } else if (
+    (pathname.startsWith("/buyer") || pathname.startsWith("/dashboard")) &&
+    role
+  ) {
+    title = "Client workspace";
+    links = buyerLinks;
+  } else if (pathname.startsWith("/admin") && role === "ADMIN") {
+    title = "Admin workspace";
+    links = adminLinks;
+  }
+
+  if (links.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="border-b border-[#e8e1d8] bg-white/80 backdrop-blur-sm">
+      <div className="container-page flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#6f6a63]">
+          {title}
+        </p>
+
+        <div className="flex gap-2 overflow-x-auto">
+          {links.map((item) => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-black transition ${
+                  isActive
+                    ? "bg-[#151515] text-white"
+                    : "border border-[#e8e1d8] bg-white text-[#6f6a63] hover:bg-[#f7f4ef] hover:text-[#151515]"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

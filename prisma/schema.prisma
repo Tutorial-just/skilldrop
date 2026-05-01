@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  avatarUrl String?
+  role      UserRole @default(BUYER)
+
+  expertProfile ExpertProfile?
+  bookings      Booking[] @relation("BuyerBookings")
+  reviews       Review[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  BUYER
+  EXPERT
+  ADMIN
+}
+
+model ExpertProfile {
+  id          String @id @default(cuid())
+  userId      String @unique
+  user        User   @relation(fields: [userId], references: [id])
+
+  headline    String
+  bio         String
+  country     String?
+  timezone    String
+  languages   String[]
+  skills      String[]
+  tags      String[] @default([])
+  status      ExpertStatus @default(PENDING)
+
+  isVerified       Boolean   @default(false)
+  verifiedAt       DateTime?
+  verificationNote String?
+
+  rating        Float @default(0)
+  totalReviews  Int   @default(0)
+  totalSessions Int   @default(0)
+
+  stripeAccountId String?
+
+  services     Service[]
+  availability Availability[]
+  bookings     Booking[] @relation("ExpertBookings")
+  reviews      Review[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ExpertStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  icon        String?
+  isActive    Boolean @default(true)
+
+  services Service[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Service {
+  id              String @id @default(cuid())
+  expertId        String
+  expert          ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
+
+  title           String
+  description     String
+  durationMinutes Int
+  priceCents      Int
+  currency        String @default("EUR")
+  isActive        Boolean @default(true)
+
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Availability {
+  id        String @id @default(cuid())
+
+  expertId  String
+  expert    ExpertProfile @relation(fields: [expertId], references: [id])
+
+  startTime DateTime
+  endTime   DateTime
+  isBooked  Boolean @default(false)
+
+  booking   Booking?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Booking {
+  id        String @id @default(cuid())
+
+  buyerId   String
+  buyer     User @relation("BuyerBookings", fields: [buyerId], references: [id])
+
+  expertId  String
+  expert    ExpertProfile @relation("ExpertBookings", fields: [expertId], references: [id])
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  availabilityId String?       @unique
+  availability   Availability? @relation(fields: [availabilityId], references: [id])
+
+  startTime DateTime
+  endTime   DateTime
+  status    BookingStatus @default(PENDING)
+
+  priceCents Int
+  currency   String @default("EUR")
+
+  stripeCheckoutSessionId String?
+
+  review   Review?
+  callRoom CallRoom?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum BookingStatus {
+  PENDING
+  PAID
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  DISPUTED
+}
+
+model Review {
+  id        String @id @default(cuid())
+
+  bookingId String @unique
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  buyerId String
+  buyer   User @relation(fields: [buyerId], references: [id])
+
+  expertId String
+  expert   ExpertProfile @relation(fields: [expertId], references: [id])
+
+  rating  Int
+  comment String?
+
+  createdAt DateTime @default(now())
+}
+model CallRoom {
+  id        String         @id @default(cuid())
+  bookingId String        @unique
+  booking   Booking       @relation(fields: [bookingId], references: [id])
+
+  provider  String        @default("DAILY")
+  roomName  String
+  roomUrl   String
+  status    CallRoomStatus @default(CREATED)
+
+  startsAt  DateTime?
+  endsAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum CallRoomStatus {
+  CREATED
+  LIVE
+  ENDED
+}

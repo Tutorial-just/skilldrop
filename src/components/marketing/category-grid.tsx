@@ -1,0 +1,1 @@
+const categories = ["CV Review", "LinkedIn Review", "Mock Interview"]; export function CategoryGrid() { return <section className="mx-auto max-w-6xl px-6 py-12"><h2 className="text-2xl font-bold">Popular help</h2><div className="mt-6 grid gap-4 md:grid-cols-3">{categories.map(c => <div key={c} className="rounded-2xl border p-6 font-medium">{c}</div>)}</div></section>; }

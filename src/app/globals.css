@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f4ef;
+  --foreground: #151515;
+  --muted: #6f6a63;
+  --card: #ffffff;
+  --border: #e8e1d8;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --accent: #f97316;
+  --soft-blue: #eef4ff;
+  --soft-orange: #fff3e8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  color: var(--foreground);
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 30%),
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.10), transparent 28%),
+    var(--background);
+  min-height: 100vh;
+}
+
+::selection {
+  background: var(--foreground);
+  color: #ffffff;
+}
+
+.container-page {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 70px rgba(21, 21, 21, 0.06);
+}
+
+.card-hover {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(37, 99, 235, 0.28);
+  box-shadow: 0 30px 90px rgba(21, 21, 21, 0.10);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+.input-field {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid #e8e1d8;
+  background: #ffffff;
+  padding: 1rem 1.25rem;
+  color: #151515;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.input-field:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+.input-field::placeholder {
+  color: #9a948b;
+}
+@media (max-width: 640px) {
+  .container-page {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .card {
+    box-shadow: 0 18px 50px rgba(21, 21, 21, 0.05);
+  }
+}
