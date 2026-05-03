@@ -1,94 +1,141 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Bookmark,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Compass,
+  Euro,
+  HeartHandshake,
+  Lightbulb,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Video,
+  WalletCards,
+  XCircle,
+} from "lucide-react";
+
+import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
-import { RingStat } from "@/components/dashboard/ring-stat";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
-const problemChips = [
-  "CV review",
-  "Mock interview",
-  "LinkedIn",
-  "Remote jobs",
-  "React interview",
-  "Portfolio feedback",
-];
-
-const categories = [
+const helpCategories = [
   {
-    title: "CV Review",
-    href: "/categories/cv-review",
-    icon: "📄",
-    text: "Improve your CV before applications.",
+    title: "Life advice",
+    text: "Talk with someone who can help you think clearly.",
+    href: "/experts?q=life advice",
+    icon: HeartHandshake,
   },
   {
-    title: "Mock Interview",
-    href: "/categories/mock-interview",
-    icon: "🎤",
-    text: "Practice before the real interview.",
+    title: "Moving abroad",
+    text: "Ask about documents, first steps and local life.",
+    href: "/experts?q=moving abroad",
+    icon: Compass,
   },
   {
-    title: "LinkedIn Review",
-    href: "/categories/linkedin-review",
-    icon: "💼",
-    text: "Improve how recruiters see you.",
+    title: "Languages",
+    text: "Find people who can translate, explain or practice.",
+    href: "/experts?q=translation language",
+    icon: Sparkles,
   },
   {
-    title: "Remote Jobs",
-    href: "/categories/remote-jobs",
-    icon: "🌍",
-    text: "Prepare for international roles.",
+    title: "Career",
+    text: "Get advice about work, choices and next steps.",
+    href: "/experts?q=career",
+    icon: WalletCards,
   },
 ];
 
 export default async function BuyerDashboardPage() {
-  const [bookings, experts] = await Promise.all([
-    prisma.booking.findMany({
-      include: {
-        buyer: true,
-        expert: {
-          include: {
-            user: true,
-          },
-        },
-        service: true,
-        review: true,
-      },
-      orderBy: {
-        startTime: "asc",
-      },
-      take: 8,
-    }),
+  const { user } = await requireRole(["buyer", "admin"]);
 
-    prisma.expertProfile.findMany({
-      where: {
-        status: "APPROVED",
-      },
-      include: {
-        user: true,
-        services: {
-          where: {
-            isActive: true,
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    redirect("/sign-in");
+  }
+
+  const buyer = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+    include: {
+      savedExperts: {
+        include: {
+          expert: {
+            include: {
+              user: true,
+              services: {
+                where: {
+                  isActive: true,
+                },
+                orderBy: {
+                  priceCents: "asc",
+                },
+                take: 1,
+              },
+              availability: {
+                where: {
+                  startTime: {
+                    gte: new Date(),
+                  },
+                  isBooked: false,
+                },
+                orderBy: {
+                  startTime: "asc",
+                },
+                take: 1,
+              },
+            },
           },
-          orderBy: {
-            priceCents: "asc",
-          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 3,
+      },
+    },
+  });
+
+  if (!buyer) {
+    redirect("/sign-in");
+  }
+
+  const now = new Date();
+
+  const bookings = await prisma.booking.findMany({
+    where: {
+      buyerId: buyer.id,
+    },
+    include: {
+      expert: {
+        include: {
+          user: true,
         },
       },
-      orderBy: [
-        {
-          isVerified: "desc",
-        },
-        {
-          rating: "desc",
-        },
-      ],
-      take: 4,
-    }),
-  ]);
+      service: true,
+      callRoom: true,
+      review: true,
+    },
+    orderBy: {
+      startTime: "asc",
+    },
+    take: 30,
+  });
 
   const upcomingBookings = bookings.filter(
     (booking) =>
+      booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
-      booking.status !== "COMPLETED" &&
-      booking.startTime >= new Date(),
+      booking.status !== "REFUNDED" &&
+      booking.status !== "COMPLETED",
   );
 
   const completedBookings = bookings.filter(
@@ -96,543 +143,1078 @@ export default async function BuyerDashboardPage() {
   );
 
   const cancelledBookings = bookings.filter(
-    (booking) => booking.status === "CANCELLED",
+    (booking) => booking.status === "CANCELLED" || booking.status === "REFUNDED",
   );
 
-  const reviewedBookings = bookings.filter((booking) => booking.review);
+  const waitingReviewBookings = bookings.filter(
+    (booking) => booking.status === "COMPLETED" && !booking.review,
+  );
 
-  const nextBooking = upcomingBookings[0];
+  const nextBooking = upcomingBookings[0] ?? null;
+  const nextThreeBookings = upcomingBookings.slice(0, 3);
+  const recentBookings = [...bookings]
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    .slice(0, 4);
 
-  const progressScore = calculateProgressScore({
-    totalBookings: bookings.length,
-    completedBookings: completedBookings.length,
-    reviewedBookings: reviewedBookings.length,
+  const totalBookedCents = bookings
+    .filter(
+      (booking) =>
+        booking.status !== "CANCELLED" && booking.status !== "REFUNDED",
+    )
+    .reduce((sum, booking) => sum + booking.priceCents, 0);
+
+  const recommendedExperts = await prisma.expertProfile.findMany({
+    where: {
+      status: "APPROVED",
+      services: {
+        some: {
+          isActive: true,
+        },
+      },
+      availability: {
+        some: {
+          startTime: {
+            gte: now,
+          },
+          isBooked: false,
+        },
+      },
+    },
+    include: {
+      user: true,
+      services: {
+        where: {
+          isActive: true,
+        },
+        orderBy: {
+          priceCents: "asc",
+        },
+        take: 1,
+      },
+      availability: {
+        where: {
+          startTime: {
+            gte: now,
+          },
+          isBooked: false,
+        },
+        orderBy: {
+          startTime: "asc",
+        },
+        take: 3,
+      },
+    },
+    orderBy: [
+      {
+        isVerified: "desc",
+      },
+      {
+        rating: "desc",
+      },
+      {
+        totalSessions: "desc",
+      },
+    ],
+    take: 4,
   });
 
-  const completionRate =
-    bookings.length > 0
-      ? Math.round((completedBookings.length / bookings.length) * 100)
-      : 0;
-
-  const reviewRate =
-    completedBookings.length > 0
-      ? Math.round((reviewedBookings.length / completedBookings.length) * 100)
-      : 0;
+  const buyerReadiness = calculateBuyerReadiness({
+    hasUpcoming: upcomingBookings.length > 0,
+    hasCompleted: completedBookings.length > 0,
+    hasSavedExperts: buyer.savedExperts.length > 0,
+    hasReviewWaiting: waitingReviewBookings.length > 0,
+    hasExpertsAvailable: recommendedExperts.length > 0,
+  });
 
   return (
-    <main className="container-page py-10">
-      <section className="rounded-[2rem] bg-[#151515] p-6 text-white sm:rounded-[2.5rem] md:p-10">
-        <div className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
-          <div>
-            <p className="text-sm font-black text-[#f97316]">
-              Client workspace
-            </p>
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
 
-            <h1 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">
-              Find expert help for your next move.
-            </h1>
+        <div className="relative p-6 md:p-8 lg:p-10">
+          <div className="grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
+            <div>
+              <Badge variant="primary">
+                <Sparkles size={14} />
+                Client workspace
+              </Badge>
 
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-white/60">
-              Search by problem, skill, country, language or career goal. Start
-              with one clear question and book a focused session.
-            </p>
+              <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+                Welcome back, {buyer.name ?? "friend"}.
+              </h1>
 
-            <form
-              action="/experts"
-              className="mt-8 rounded-[2rem] bg-white p-3 text-[#151515]"
-            >
-              <div className="flex flex-col gap-3 md:flex-row">
-                <input
-                  name="query"
-                  placeholder="Try: CV for Germany, React interview, LinkedIn..."
-                  className="min-h-14 flex-1 rounded-[1.5rem] bg-[#f7f4ef] px-5 text-sm font-medium outline-none placeholder:text-[#9a948b]"
-                />
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                Manage your calls, saved experts, reviews and next helpful
+                session from one place.
+              </p>
+            </div>
 
-                <button
-                  type="submit"
-                  className="rounded-[1.5rem] bg-[#2563eb] px-7 py-4 text-sm font-black text-white transition hover:bg-[#1d4ed8]"
-                >
-                  Search
-                </button>
-              </div>
-            </form>
+            <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
+              <ButtonLink href="/experts">
+                <Search size={18} />
+                Find help
+              </ButtonLink>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              {problemChips.map((chip) => (
-                <Link
-                  key={chip}
-                  href={`/experts?query=${encodeURIComponent(chip)}`}
-                  className="rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-white/75 transition hover:bg-white hover:text-[#151515]"
-                >
-                  {chip}
-                </Link>
-              ))}
+              <ButtonLink href="/buyer/bookings" variant="secondary">
+                My bookings
+                <ArrowRight size={18} />
+              </ButtonLink>
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-5 text-[#151515]">
-            <p className="text-sm font-black text-[#2563eb]">Next session</p>
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              icon={Video}
+              label="Upcoming"
+              value={String(upcomingBookings.length)}
+              hint="Scheduled calls"
+            />
 
-            {nextBooking ? (
-              <div>
-                <h2 className="mt-3 text-2xl font-black">
-                  {nextBooking.service.title}
-                </h2>
+            <MetricCard
+              icon={Bookmark}
+              label="Saved"
+              value={String(buyer.savedExperts.length)}
+              hint="Experts saved"
+            />
 
-                <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                  With {nextBooking.expert.user.name}
-                </p>
+            <MetricCard
+              icon={Star}
+              label="Reviews"
+              value={String(waitingReviewBookings.length)}
+              hint="Waiting feedback"
+            />
 
-                <p className="mt-4 rounded-[1.25rem] bg-[#f7f4ef] px-4 py-3 text-sm font-black">
-                  {new Intl.DateTimeFormat("en", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(nextBooking.startTime)}
-                </p>
-
-                <Link
-                  href={`/dashboard/bookings/${nextBooking.id}`}
-                  className="mt-4 block rounded-full bg-[#151515] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-                >
-                  Open session
-                </Link>
-              </div>
-            ) : (
-              <div>
-                <h2 className="mt-3 text-2xl font-black">
-                  No session booked yet
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                  Book your first expert session and start getting practical
-                  feedback.
-                </p>
-
-                <Link
-                  href="/experts"
-                  className="mt-4 block rounded-full bg-[#151515] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-                >
-                  Find experts
-                </Link>
-              </div>
-            )}
+            <MetricCard
+              icon={Euro}
+              label="Total booked"
+              value={formatMoney(totalBookedCents)}
+              hint="Non-cancelled calls"
+            />
           </div>
         </div>
-
-        <div className="mt-8 grid gap-3 md:grid-cols-4">
-          <DashboardStat label="Upcoming" value={`${upcomingBookings.length}`} />
-          <DashboardStat label="Completed" value={`${completedBookings.length}`} />
-          <DashboardStat label="Reviewed" value={`${reviewedBookings.length}`} />
-          <DashboardStat label="Cancelled" value={`${cancelledBookings.length}`} />
-        </div>
       </section>
 
-      <section className="mt-8 grid gap-5 lg:grid-cols-3">
-        <RingStat
-          label="Client progress"
-          value={progressScore}
-          description="Based on booking your first session, completing it and leaving a review."
-          tone="blue"
-        />
+      <section className="p-6 md:p-8 lg:p-10">
+        <div className="grid gap-6">
+          <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+            <Card className="p-5 md:p-6">
+              {nextBooking ? (
+                <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+                  <div>
+                    <Badge variant="success">
+                      <Video size={14} />
+                      Next call
+                    </Badge>
 
-        <RingStat
-          label="Completion rate"
-          value={completionRate}
-          description="How many of your bookings were completed successfully."
-          tone={completionRate >= 50 ? "green" : "orange"}
-        />
+                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                      Your next session is ready.
+                    </h2>
 
-        <RingStat
-          label="Review rate"
-          value={reviewRate}
-          description="Reviews help experts grow and improve marketplace trust."
-          tone={reviewRate >= 50 ? "green" : "dark"}
-        />
-      </section>
+                    <p className="mt-3 leading-7 text-muted">
+                      Join on time, prepare one clear question and get the most
+                      out of your call.
+                    </p>
 
-      <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-8">
-          <section>
-            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <h2 className="text-2xl font-black">Start with a problem</h2>
-                <p className="mt-1 text-sm text-[#6f6a63]">
-                  Choose the type of help you need.
-                </p>
-              </div>
+                    <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                      {nextBooking.callRoom?.roomUrl ? (
+                        <Link
+                          href={nextBooking.callRoom.roomUrl}
+                          className="btn btn-primary"
+                        >
+                          Join call
+                          <Video size={18} />
+                        </Link>
+                      ) : null}
 
-              <Link
-                href="/categories"
-                className="w-fit rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                View all
-              </Link>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              {categories.map((category) => (
-                <Link
-                  key={category.href}
-                  href={category.href}
-                  className="card card-hover rounded-[2rem] p-6"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eef4ff] text-2xl">
-                      {category.icon}
+                      <ButtonLink href="/buyer/bookings" variant="secondary">
+                        View bookings
+                      </ButtonLink>
                     </div>
-
-                    <span className="rounded-full bg-[#151515] px-4 py-2 text-sm font-black text-white">
-                      →
-                    </span>
                   </div>
 
-                  <h3 className="mt-5 text-xl font-black">{category.title}</h3>
+                  <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+                    <Badge variant="accent">
+                      <Clock3 size={14} />
+                      Upcoming
+                    </Badge>
 
-                  <p className="mt-2 leading-7 text-[#6f6a63]">
-                    {category.text}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </section>
+                    <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                      {nextBooking.service?.title ?? "Booked call"}
+                    </h3>
 
-          <section>
-            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <h2 className="text-2xl font-black">Recommended experts</h2>
-                <p className="mt-1 text-sm text-[#6f6a63]">
-                  A few trusted profiles to get started.
-                </p>
-              </div>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                      With{" "}
+                      <span className="font-black text-[var(--foreground)]">
+                        {nextBooking.expert.user.name ??
+                          nextBooking.expert.user.email}
+                      </span>
+                    </p>
 
-              <Link
-                href="/experts"
-                className="w-fit rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                Browse experts
-              </Link>
-            </div>
+                    <div className="mt-5 grid gap-3">
+                      <InfoRow
+                        label="Date"
+                        value={formatDateTime(nextBooking.startTime)}
+                      />
 
-            {experts.length === 0 ? (
-              <EmptyCard
-                icon="🧑‍💼"
-                title="No experts available yet"
-                text="Approved experts will appear here once the marketplace grows."
-              />
-            ) : (
-              <div className="grid gap-5 md:grid-cols-2">
-                {experts.map((expert) => {
-                  const minPrice =
-                    expert.services.length > 0
-                      ? Math.min(
-                          ...expert.services.map(
-                            (service) => service.priceCents,
-                          ),
-                        )
-                      : null;
+                      <InfoRow
+                        label="Duration"
+                        value={`${getDurationMinutes(
+                          nextBooking.startTime,
+                          nextBooking.endTime,
+                        )} minutes`}
+                      />
 
-                  return (
-                    <Link
-                      key={expert.id}
-                      href={`/experts/${expert.id}`}
-                      className="card card-hover rounded-[2rem] p-6"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f97316] text-xl font-black text-white">
-                          {expert.user.name?.charAt(0) ?? "E"}
-                        </div>
-
-                        <span className="rounded-full bg-[#eef4ff] px-3 py-1.5 text-sm font-black text-[#2563eb]">
-                          ⭐ {expert.rating.toFixed(1)}
-                        </span>
-                      </div>
-
-                      <div className="mt-5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-xl font-black">
-                            {expert.user.name}
-                          </h3>
-
-                          {expert.isVerified ? (
-                            <span className="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-black text-green-700">
-                              VERIFIED
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <p className="mt-2 min-h-[48px] text-sm leading-6 text-[#6f6a63]">
-                          {expert.headline}
-                        </p>
-                      </div>
-
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {expert.skills.slice(0, 3).map((skill) => (
-                          <span
-                            key={skill}
-                            className="rounded-full bg-[#f7f4ef] px-3 py-1 text-xs font-bold text-[#6f6a63]"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="mt-6 flex items-center justify-between border-t border-[#e8e1d8] pt-5">
-                        <div>
-                          <p className="text-xs font-bold text-[#6f6a63]">
-                            From
-                          </p>
-                          <p className="text-xl font-black">
-                            {minPrice ? `€${minPrice / 100}` : "—"}
-                          </p>
-                        </div>
-
-                        <span className="rounded-full bg-[#151515] px-5 py-2.5 text-sm font-black text-white">
-                          View
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section>
-            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <h2 className="text-2xl font-black">Recent bookings</h2>
-                <p className="mt-1 text-sm text-[#6f6a63]">
-                  Your latest session activity.
-                </p>
-              </div>
-
-              <Link
-                href="/dashboard/bookings"
-                className="w-fit rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                View all
-              </Link>
-            </div>
-
-            {bookings.length === 0 ? (
-              <EmptyCard
-                icon="📅"
-                title="No bookings yet"
-                text="When you book an expert session, it will appear here."
-              />
-            ) : (
-              <div className="space-y-4">
-                {bookings.slice(0, 4).map((booking) => (
-                  <Link
-                    key={booking.id}
-                    href={`/dashboard/bookings/${booking.id}`}
-                    className="card card-hover block rounded-[1.75rem] p-5"
-                  >
-                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-black">
-                            {booking.service.title}
-                          </h3>
-                          <StatusBadge status={booking.status} />
-                        </div>
-
-                        <p className="mt-1 text-sm text-[#6f6a63]">
-                          With {booking.expert.user.name}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full bg-[#eef4ff] px-3 py-1.5 text-xs font-black text-[#2563eb]">
-                          €{booking.priceCents / 100}
-                        </span>
-
-                        <span className="rounded-full bg-[#f7f4ef] px-3 py-1.5 text-xs font-bold text-[#6f6a63]">
-                          {new Intl.DateTimeFormat("en", {
-                            dateStyle: "medium",
-                          }).format(booking.startTime)}
-                        </span>
-                      </div>
+                      <InfoRow
+                        label="Price"
+                        value={formatMoney(nextBooking.priceCents)}
+                      />
                     </div>
-                  </Link>
-                ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr] lg:items-center">
+                  <div>
+                    <Badge variant="accent">
+                      <CalendarDays size={14} />
+                      Start here
+                    </Badge>
+
+                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                      Find someone who can help.
+                    </h2>
+
+                    <p className="mt-3 max-w-xl leading-7 text-muted">
+                      Browse experts, save useful profiles and book a short call
+                      when you find the right person.
+                    </p>
+
+                    <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                      <ButtonLink href="/experts">
+                        Find help
+                        <Search size={18} />
+                      </ButtonLink>
+
+                      <ButtonLink href="/buyer/saved" variant="secondary">
+                        Saved experts
+                        <Bookmark size={18} />
+                      </ButtonLink>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[26px] border border-[var(--border)] bg-white/55 p-5">
+                    <Badge variant="primary">
+                      <Sparkles size={14} />
+                      How to begin
+                    </Badge>
+
+                    <div className="mt-5 grid gap-3">
+                      <OnboardingStep
+                        number="1"
+                        title="Find an expert"
+                        text="Search by topic, language or problem."
+                      />
+
+                      <OnboardingStep
+                        number="2"
+                        title="Save or book"
+                        text="Save useful profiles or choose a time."
+                      />
+
+                      <OnboardingStep
+                        number="3"
+                        title="Join the call"
+                        text="Ask one clear question and get help."
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="primary">
+                <ShieldCheck size={14} />
+                Client readiness
+              </Badge>
+
+              <div className="mt-5 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-5xl font-black tracking-[-0.06em]">
+                    {buyerReadiness}%
+                  </p>
+
+                  <p className="mt-2 text-sm font-semibold text-muted">
+                    Workspace ready
+                  </p>
+                </div>
+
+                <p className="text-sm font-black text-[var(--primary-dark)]">
+                  {buyerReadiness >= 70 ? "Good" : "Getting started"}
+                </p>
               </div>
-            )}
-          </section>
+
+              <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
+                  style={{ width: `${buyerReadiness}%` }}
+                />
+              </div>
+
+              <div className="mt-5 grid gap-2">
+                <MiniCheck
+                  done={upcomingBookings.length > 0}
+                  text="Upcoming call scheduled"
+                />
+
+                <MiniCheck
+                  done={buyer.savedExperts.length > 0}
+                  text="Expert saved for later"
+                />
+
+                <MiniCheck
+                  done={completedBookings.length > 0}
+                  text="Completed first session"
+                />
+
+                <MiniCheck
+                  done={waitingReviewBookings.length > 0}
+                  text="Review waiting"
+                />
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[0.88fr_1.12fr]">
+            <div className="grid gap-6">
+              <Card className="p-5 md:p-6">
+                <Badge variant="primary">
+                  <CalendarDays size={14} />
+                  Upcoming bookings
+                </Badge>
+
+                <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                  <div>
+                    <h2 className="text-3xl font-black tracking-[-0.05em]">
+                      Your schedule
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Your next calls appear here.
+                    </p>
+                  </div>
+
+                  <ButtonLink href="/buyer/bookings" variant="secondary">
+                    View all
+                  </ButtonLink>
+                </div>
+
+                <div className="mt-6 grid gap-4">
+                  {nextThreeBookings.length > 0 ? (
+                    nextThreeBookings.map((booking) => (
+                      <SmallBookingCard key={booking.id} booking={booking} />
+                    ))
+                  ) : (
+                    <EmptyState
+                      title="No calls scheduled"
+                      text="Book a call with an expert and it will appear here."
+                    />
+                  )}
+                </div>
+              </Card>
+
+              <Card className="p-5 md:p-6">
+                <Badge variant="accent">
+                  <Bookmark size={14} />
+                  Saved experts
+                </Badge>
+
+                <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                  <div>
+                    <h2 className="text-3xl font-black tracking-[-0.05em]">
+                      Come back later
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Experts you saved for future calls.
+                    </p>
+                  </div>
+
+                  <ButtonLink href="/buyer/saved" variant="secondary">
+                    View saved
+                  </ButtonLink>
+                </div>
+
+                <div className="mt-6 grid gap-4">
+                  {buyer.savedExperts.length > 0 ? (
+                    buyer.savedExperts.map((saved) => (
+                      <SavedExpertPreview key={saved.id} saved={saved} />
+                    ))
+                  ) : (
+                    <EmptyState
+                      title="No saved experts yet"
+                      text="Save useful experts so you can book them later."
+                    />
+                  )}
+                </div>
+              </Card>
+
+              <Card soft className="p-5 md:p-6">
+                <Badge variant="accent">
+                  <Lightbulb size={14} />
+                  Smart tip
+                </Badge>
+
+                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                  {getSmartTipTitle({
+                    hasUpcoming: upcomingBookings.length > 0,
+                    hasSaved: buyer.savedExperts.length > 0,
+                    hasCompleted: completedBookings.length > 0,
+                    hasWaitingReview: waitingReviewBookings.length > 0,
+                  })}
+                </h2>
+
+                <p className="mt-3 text-sm font-bold leading-6 text-muted">
+                  {getSmartTipText({
+                    hasUpcoming: upcomingBookings.length > 0,
+                    hasSaved: buyer.savedExperts.length > 0,
+                    hasCompleted: completedBookings.length > 0,
+                    hasWaitingReview: waitingReviewBookings.length > 0,
+                  })}
+                </p>
+              </Card>
+            </div>
+
+            <div className="grid gap-6">
+              <Card className="p-5 md:p-6">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                  <div>
+                    <Badge variant="primary">
+                      <Compass size={14} />
+                      Recommended experts
+                    </Badge>
+
+                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                      Available helpers
+                    </h2>
+
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                      Experts with active services and open time slots.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  {recommendedExperts.length > 0 ? (
+                    recommendedExperts.map((expert) => (
+                      <ExpertCard key={expert.id} expert={expert} />
+                    ))
+                  ) : (
+                    <EmptyState
+                      title="No experts available yet"
+                      text="New experts will appear here after they add services and availability."
+                    />
+                  )}
+                </div>
+              </Card>
+
+              <Card className="p-5 md:p-6">
+                <Badge variant="accent">
+                  <Search size={14} />
+                  Browse by need
+                </Badge>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
+                  {helpCategories.map((category) => {
+                    const Icon = category.icon;
+
+                    return (
+                      <Link
+                        key={category.title}
+                        href={category.href}
+                        className="group"
+                      >
+                        <div className="h-full rounded-[22px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                            <Icon size={18} />
+                          </div>
+
+                          <h3 className="mt-4 font-black tracking-[-0.02em]">
+                            {category.title}
+                          </h3>
+
+                          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                            {category.text}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <Card className="p-5 md:p-6">
+                <Badge variant="primary">
+                  <Clock3 size={14} />
+                  Recent activity
+                </Badge>
+
+                <div className="mt-5 grid gap-3">
+                  {recentBookings.length > 0 ? (
+                    recentBookings.map((booking) => (
+                      <ActivityRow key={booking.id} booking={booking} />
+                    ))
+                  ) : (
+                    <EmptyState
+                      title="No activity yet"
+                      text="Your bookings and reviews will appear here."
+                    />
+                  )}
+                </div>
+              </Card>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-3">
+            <QuickAction
+              icon={Search}
+              title="Find help"
+              text="Browse people who can help with practical questions."
+              href="/experts"
+            />
+
+            <QuickAction
+              icon={Video}
+              title="Manage calls"
+              text="See upcoming, completed and cancelled bookings."
+              href="/buyer/bookings"
+            />
+
+            <QuickAction
+              icon={Star}
+              title="Leave reviews"
+              text="Help strong experts build trust after completed calls."
+              href="/buyer/reviews"
+            />
+          </div>
         </div>
-
-        <aside className="space-y-6 lg:sticky lg:top-28 lg:h-fit">
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#f97316]">Quick actions</p>
-
-            <div className="mt-5 grid gap-3">
-              <QuickAction
-                href="/experts"
-                title="Find an expert"
-                text="Search by problem, skill or service."
-              />
-              <QuickAction
-                href="/categories"
-                title="Choose category"
-                text="Start with the type of help you need."
-              />
-              <QuickAction
-                href="/dashboard/bookings"
-                title="My bookings"
-                text="Track sessions and video calls."
-              />
-              <QuickAction
-                href="/buyer/settings"
-                title="Settings"
-                text="Update goals and preferences."
-              />
-            </div>
-          </div>
-
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#2563eb]">Next steps</p>
-
-            <div className="mt-5 space-y-3 rounded-[1.5rem] bg-[#f7f4ef] p-5">
-              <ProgressRow
-                label="Book first session"
-                done={bookings.length > 0}
-              />
-              <ProgressRow
-                label="Complete session"
-                done={completedBookings.length > 0}
-              />
-              <ProgressRow
-                label="Leave review"
-                done={reviewedBookings.length > 0}
-              />
-            </div>
-          </div>
-
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#2563eb]">Session health</p>
-
-            <div className="mt-5 space-y-3 rounded-[1.5rem] bg-[#f7f4ef] p-5">
-              <SummaryRow label="Upcoming" value={`${upcomingBookings.length}`} />
-              <SummaryRow label="Completed" value={`${completedBookings.length}`} />
-              <SummaryRow label="Reviewed" value={`${reviewedBookings.length}`} />
-              <SummaryRow label="Cancelled" value={`${cancelledBookings.length}`} />
-            </div>
-          </div>
-        </aside>
       </section>
     </main>
   );
 }
 
-function calculateProgressScore({
-  totalBookings,
-  completedBookings,
-  reviewedBookings,
+function SmallBookingCard({
+  booking,
 }: {
-  totalBookings: number;
-  completedBookings: number;
-  reviewedBookings: number;
-}) {
-  let score = 0;
-
-  if (totalBookings > 0) score += 35;
-  if (completedBookings > 0) score += 35;
-  if (reviewedBookings > 0) score += 30;
-
-  return score;
-}
-
-function DashboardStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.5rem] bg-white/10 p-5">
-      <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-2 text-2xl font-black text-white">{value}</p>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#e8e1d8] pb-3 last:border-0 last:pb-0">
-      <span className="text-sm text-[#6f6a63]">{label}</span>
-      <span className="text-right text-sm font-black">{value}</span>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    PENDING: "bg-[#fff3e8] text-[#f97316]",
-    PAID: "bg-[#eef4ff] text-[#2563eb]",
-    CONFIRMED: "bg-green-100 text-green-700",
-    COMPLETED: "bg-[#151515] text-white",
-    CANCELLED: "bg-red-100 text-red-700",
+  booking: {
+    id: string;
+    expertId: string;
+    startTime: Date;
+    endTime: Date;
+    priceCents: number;
+    status: string;
+    expert: {
+      user: {
+        name: string | null;
+        email: string;
+      };
+    };
+    service: {
+      title: string;
+      durationMinutes: number;
+    } | null;
+    callRoom: {
+      roomUrl: string;
+    } | null;
   };
-
+}) {
   return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-black ${
-        styles[status] ?? "bg-[#f7f4ef] text-[#6f6a63]"
-      }`}
-    >
-      {status}
-    </span>
+    <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+        <div>
+          <Badge variant="primary">{booking.status}</Badge>
+
+          <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+            {booking.service?.title ?? "Booked call"}
+          </h3>
+
+          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+            With{" "}
+            <span className="font-black text-[var(--foreground)]">
+              {booking.expert.user.name ?? booking.expert.user.email}
+            </span>
+          </p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <SmallPill icon={Clock3} text={formatDateTime(booking.startTime)} />
+
+            <SmallPill
+              icon={Video}
+              text={`${getDurationMinutes(
+                booking.startTime,
+                booking.endTime,
+              )} min`}
+            />
+
+            <SmallPill icon={Euro} text={formatMoney(booking.priceCents)} />
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-col gap-2 md:min-w-[150px]">
+          {booking.callRoom?.roomUrl ? (
+            <Link href={booking.callRoom.roomUrl} className="btn btn-primary">
+              Join
+              <Video size={17} />
+            </Link>
+          ) : null}
+
+          <Link href={`/experts/${booking.expertId}`} className="btn btn-secondary">
+            Expert
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function QuickAction({
-  href,
-  title,
-  text,
+function SavedExpertPreview({
+  saved,
 }: {
-  href: string;
-  title: string;
-  text: string;
+  saved: {
+    id: string;
+    expert: {
+      id: string;
+      headline: string;
+      rating: number;
+      isVerified: boolean;
+      skills: string[];
+      user: {
+        name: string | null;
+        email: string;
+      };
+      services: {
+        priceCents: number;
+        title: string;
+      }[];
+      availability: {
+        id: string;
+        startTime: Date;
+      }[];
+    };
+  };
 }) {
+  const expert = saved.expert;
+  const startingPrice = expert.services[0]?.priceCents ?? null;
+  const nextSlot = expert.availability[0] ?? null;
+
   return (
-    <Link
-      href={href}
-      className="rounded-[1.5rem] bg-[#f7f4ef] p-4 transition hover:bg-[#eef4ff]"
-    >
-      <p className="font-black">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-[#6f6a63]">{text}</p>
+    <Link href={`/experts/${expert.id}`} className="group">
+      <div className="rounded-[24px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-lg font-black text-white">
+            {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap gap-2">
+              {expert.isVerified ? (
+                <Badge variant="success">
+                  <BadgeCheck size={14} />
+                  Verified
+                </Badge>
+              ) : (
+                <Badge variant="accent">New</Badge>
+              )}
+
+              {startingPrice ? (
+                <Badge variant="primary">From {formatMoney(startingPrice)}</Badge>
+              ) : null}
+            </div>
+
+            <h3 className="mt-3 font-black tracking-[-0.02em]">
+              {expert.user.name ?? expert.user.email}
+            </h3>
+
+            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+              {expert.headline}
+            </p>
+
+            {nextSlot ? (
+              <p className="mt-3 text-xs font-black text-[var(--primary-dark)]">
+                Next slot: {formatDateTime(nextSlot.startTime)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
     </Link>
   );
 }
 
-function ProgressRow({ label, done }: { label: string; done: boolean }) {
+function ExpertCard({
+  expert,
+}: {
+  expert: {
+    id: string;
+    headline: string;
+    country: string | null;
+    rating: number;
+    isVerified: boolean;
+    skills: string[];
+    user: {
+      name: string | null;
+      email: string;
+    };
+    services: {
+      priceCents: number;
+      title: string;
+    }[];
+    availability: {
+      id: string;
+      startTime: Date;
+    }[];
+  };
+}) {
+  const startingPrice = expert.services[0]?.priceCents ?? null;
+  const nextSlot = expert.availability[0] ?? null;
+
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#e8e1d8] pb-3 last:border-0 last:pb-0">
-      <span className="text-sm text-[#6f6a63]">{label}</span>
-      <span
-        className={`rounded-full px-3 py-1 text-xs font-black ${
-          done ? "bg-green-100 text-green-700" : "bg-white text-[#6f6a63]"
-        }`}
-      >
-        {done ? "DONE" : "TODO"}
-      </span>
+    <Link href={`/experts/${expert.id}`} className="group">
+      <div className="h-full rounded-[26px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-black text-white">
+            {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap gap-2">
+              {expert.isVerified ? (
+                <Badge variant="success">
+                  <BadgeCheck size={14} />
+                  Verified
+                </Badge>
+              ) : (
+                <Badge variant="accent">New</Badge>
+              )}
+
+              {startingPrice ? (
+                <Badge variant="primary">From {formatMoney(startingPrice)}</Badge>
+              ) : null}
+            </div>
+
+            <h3 className="mt-3 font-black tracking-[-0.02em]">
+              {expert.user.name ?? expert.user.email}
+            </h3>
+
+            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+              {expert.headline}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {expert.skills.slice(0, 3).map((skill) => (
+            <span
+              key={skill}
+              className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]"
+            >
+              #{skill}
+            </span>
+          ))}
+        </div>
+
+        {nextSlot ? (
+          <p className="mt-4 text-xs font-black text-[var(--primary-dark)]">
+            Next slot: {formatDateTime(nextSlot.startTime)}
+          </p>
+        ) : null}
+      </div>
+    </Link>
+  );
+}
+
+function ActivityRow({
+  booking,
+}: {
+  booking: {
+    id: string;
+    expertId: string;
+    startTime: Date;
+    status: string;
+    service: {
+      title: string;
+    } | null;
+    expert: {
+      user: {
+        name: string | null;
+        email: string;
+      };
+    };
+  };
+}) {
+  return (
+    <Link href="/buyer/bookings" className="group">
+      <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+        <div className="flex items-center justify-between gap-3">
+          <Badge variant={booking.status === "COMPLETED" ? "success" : "primary"}>
+            {booking.status.toLowerCase()}
+          </Badge>
+
+          <p className="text-xs font-bold text-muted">
+            {formatDateTime(booking.startTime)}
+          </p>
+        </div>
+
+        <p className="mt-3 font-black tracking-[-0.02em]">
+          {booking.service?.title ?? "Booked call"}
+        </p>
+
+        <p className="mt-1 text-sm font-semibold text-muted">
+          With {booking.expert.user.name ?? booking.expert.user.email}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: typeof Video;
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <Card soft className="p-4">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={20} />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+
+      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+    </Card>
+  );
+}
+
+function QuickAction({
+  icon: Icon,
+  title,
+  text,
+  href,
+}: {
+  icon: typeof Search;
+  title: string;
+  text: string;
+  href: string;
+}) {
+  return (
+    <Link href={href} className="group">
+      <Card className="h-full p-5 transition group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+          <Icon size={21} />
+        </div>
+
+        <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
+
+        <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
+
+        <div className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]">
+          Open
+          <ArrowRight size={16} />
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-right text-sm font-black">{value}</p>
     </div>
   );
 }
 
-function EmptyCard({
-  icon,
+function MiniCheck({ done, text }: { done: boolean; text: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <div
+        className={
+          done
+            ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--success-soft)] text-[var(--success)]"
+            : "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]"
+        }
+      >
+        {done ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}
+      </div>
+
+      <p className="text-sm font-bold text-muted">{text}</p>
+    </div>
+  );
+}
+
+function SmallPill({
+  icon: Icon,
+  text,
+}: {
+  icon: typeof Clock3;
+  text: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]">
+      <Icon size={13} />
+      {text}
+    </span>
+  );
+}
+
+function OnboardingStep({
+  number,
   title,
   text,
 }: {
-  icon: string;
+  number: string;
   title: string;
   text: string;
 }) {
   return (
-    <div className="card rounded-[2rem] p-10 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eef4ff] text-2xl">
-        {icon}
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-black text-[var(--primary-dark)]">
+        {number}
       </div>
 
-      <h3 className="mt-5 text-2xl font-black">{title}</h3>
-
-      <p className="mx-auto mt-3 max-w-md leading-7 text-[#6f6a63]">{text}</p>
+      <div>
+        <p className="font-black tracking-[-0.02em]">{title}</p>
+        <p className="mt-1 text-sm font-semibold leading-6 text-muted">{text}</p>
+      </div>
     </div>
   );
+}
+
+function EmptyState({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center md:col-span-2">
+      <h3 className="text-2xl font-black tracking-[-0.04em]">{title}</h3>
+
+      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function calculateBuyerReadiness({
+  hasUpcoming,
+  hasCompleted,
+  hasSavedExperts,
+  hasReviewWaiting,
+  hasExpertsAvailable,
+}: {
+  hasUpcoming: boolean;
+  hasCompleted: boolean;
+  hasSavedExperts: boolean;
+  hasReviewWaiting: boolean;
+  hasExpertsAvailable: boolean;
+}) {
+  const checks = [
+    hasUpcoming,
+    hasCompleted,
+    hasSavedExperts,
+    hasReviewWaiting,
+    hasExpertsAvailable,
+  ];
+
+  const completed = checks.filter(Boolean).length;
+
+  return Math.round((completed / checks.length) * 100);
+}
+
+function getSmartTipTitle({
+  hasUpcoming,
+  hasSaved,
+  hasCompleted,
+  hasWaitingReview,
+}: {
+  hasUpcoming: boolean;
+  hasSaved: boolean;
+  hasCompleted: boolean;
+  hasWaitingReview: boolean;
+}) {
+  if (hasWaitingReview) {
+    return "Leave a review.";
+  }
+
+  if (hasUpcoming) {
+    return "Prepare for your next call.";
+  }
+
+  if (hasSaved) {
+    return "Book a saved expert.";
+  }
+
+  if (hasCompleted) {
+    return "Book your next helpful session.";
+  }
+
+  return "Start with one clear question.";
+}
+
+function getSmartTipText({
+  hasUpcoming,
+  hasSaved,
+  hasCompleted,
+  hasWaitingReview,
+}: {
+  hasUpcoming: boolean;
+  hasSaved: boolean;
+  hasCompleted: boolean;
+  hasWaitingReview: boolean;
+}) {
+  if (hasWaitingReview) {
+    return "You have completed calls waiting for feedback. Reviews help strong experts grow and help other clients choose safely.";
+  }
+
+  if (hasUpcoming) {
+    return "Write down what you want to solve before the call starts. Short calls work best when the question is clear.";
+  }
+
+  if (hasSaved) {
+    return "You already saved an expert. Open saved experts and book a time when you are ready.";
+  }
+
+  if (hasCompleted) {
+    return "You already completed a call. Find another expert when you need support with a new topic.";
+  }
+
+  return "Choose a simple problem, pick an expert and book a short call. You do not need a perfect plan to start.";
+}
+
+function getDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.max(
+    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
+    0,
+  );
+}
+
+function formatMoney(cents: number) {
+  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

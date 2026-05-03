@@ -1,130 +1,122 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ArrowRight, LogIn, ShieldCheck } from "lucide-react";
+
 import { signInAction } from "@/server/actions/auth.actions";
+import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
-type SignInPageProps = {
-  searchParams?: Promise<{
-    next?: string;
-    error?: string;
-    required?: string;
-  }>;
-};
+function getDashboardHref(role?: string | null) {
+  const normalizedRole = role?.toLowerCase();
 
-export default async function SignInPage({ searchParams }: SignInPageProps) {
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-  const next = resolvedSearchParams.next ?? "";
-  const error = resolvedSearchParams.error;
-  const required = resolvedSearchParams.required;
+  if (normalizedRole === "expert") {
+    return "/expert";
+  }
+
+  if (normalizedRole === "admin") {
+    return "/admin";
+  }
+
+  return "/buyer";
+}
+
+export default async function SignInPage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user?.email) {
+    const dbUser = await prisma.user.findUnique({
+      where: {
+        email: user.email.toLowerCase(),
+      },
+      select: {
+        role: true,
+      },
+    });
+
+    redirect(getDashboardHref(dbUser?.role ?? user.user_metadata?.role));
+  }
 
   return (
-    <main className="container-page flex min-h-[calc(100vh-120px)] items-center py-12">
-      <section className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-[2.5rem] bg-[#151515] p-8 text-white md:p-10">
-          <Link
-            href="/"
-            className="inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-black text-white"
-          >
-            ← Back home
-          </Link>
+    <main className="relative min-h-[calc(100vh-76px)] overflow-hidden">
+      <div className="surface-grid absolute inset-0 opacity-40" />
 
-          <p className="mt-10 text-sm font-black text-[#f97316]">
-            SkillDrop access
-          </p>
+      <section className="relative container-page grid min-h-[calc(100vh-76px)] items-center gap-10 py-12 lg:grid-cols-[0.9fr_1fr]">
+        <div>
+          <Badge variant="primary">
+            <ShieldCheck size={14} />
+            Secure access
+          </Badge>
 
-          <h1 className="mt-4 text-5xl font-black tracking-tight">
+          <h1 className="heading-lg mt-6 max-w-xl text-balance">
             Sign in to your workspace.
           </h1>
 
-          <p className="mt-5 text-lg leading-8 text-white/60">
-            Buyers manage bookings, experts manage sessions, and admins operate
-            the marketplace.
+          <p className="mt-5 max-w-xl text-lg leading-8 text-muted">
+            Clients continue to their booking dashboard. Experts continue to
+            their expert workspace.
           </p>
-
-          <div className="mt-8 grid gap-3">
-            <AccessCard title="Buyer" text="View bookings and sessions." />
-            <AccessCard title="Expert" text="Manage bookings and earnings." />
-            <AccessCard title="Admin" text="Moderate experts and metrics." />
-          </div>
         </div>
 
-        <div className="card rounded-[2.5rem] p-6 md:p-8">
-          <p className="text-sm font-black text-[#2563eb]">Sign in</p>
+        <Card className="mx-auto w-full max-w-xl p-6 md:p-8">
+          <Badge variant="accent">
+            <LogIn size={14} />
+            Welcome back
+          </Badge>
 
-          <h2 className="mt-3 text-3xl font-black tracking-tight">
-            Choose your role.
+          <h2 className="mt-5 text-3xl font-black tracking-[-0.05em]">
+            Sign in
           </h2>
 
-          <p className="mt-3 leading-7 text-[#6f6a63]">
-            Buyer access does not require a passcode. Expert and Admin access
-            use passcodes from your environment variables.
-          </p>
-
-          {required ? (
-            <div className="mt-6 rounded-[1.5rem] bg-[#eef4ff] p-5">
-              <p className="font-black text-[#2563eb]">Role required</p>
-              <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                The page you tried to open requires:{" "}
-                <span className="font-black">{required}</span>.
-              </p>
-            </div>
-          ) : null}
-
-          {error ? (
-            <div className="mt-6 rounded-[1.5rem] bg-[#fff3e8] p-5">
-              <p className="font-black text-[#f97316]">Access denied</p>
-              <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                The passcode is incorrect or your role does not have access to
-                that page.
-              </p>
-            </div>
-          ) : null}
-
-          <form action={signInAction} className="mt-8 space-y-6">
-            <input type="hidden" name="next" value={next} />
-
+          <form action={signInAction} className="mt-7 grid gap-5">
             <div>
-              <label className="text-sm font-black">Role</label>
-              <select
-                required
-                name="role"
-                defaultValue="BUYER"
-                className="input-field mt-2"
-              >
-                <option value="BUYER">Buyer</option>
-                <option value="EXPERT">Expert</option>
-                <option value="ADMIN">Admin</option>
-              </select>
-            </div>
+              <label htmlFor="email" className="text-sm font-black">
+                Email
+              </label>
 
-            <div>
-              <label className="text-sm font-black">Passcode</label>
               <input
-                name="passcode"
-                placeholder="Required for Expert/Admin"
-                className="input-field mt-2"
+                id="email"
+                name="email"
+                type="email"
+                required
+                className="input mt-2"
+                placeholder="you@example.com"
               />
-              <p className="mt-2 text-sm text-[#6f6a63]">
-                Buyer can continue without passcode.
-              </p>
             </div>
 
-            <button
-              type="submit"
-              className="w-full rounded-2xl bg-[#2563eb] px-7 py-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#1d4ed8]"
-            >
-              Continue
+            <div>
+              <label htmlFor="password" className="text-sm font-black">
+                Password
+              </label>
+
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                className="input mt-2"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary">
+              Sign in
+              <ArrowRight size={18} />
             </button>
           </form>
-        </div>
+
+          <p className="mt-6 text-center text-sm font-bold text-muted">
+            New to SkillDrop?{" "}
+            <a href="/sign-up" className="font-black text-[var(--primary-dark)]">
+              Create account
+            </a>
+          </p>
+        </Card>
       </section>
     </main>
-  );
-}
-
-function AccessCard({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-[1.5rem] bg-white/10 p-5">
-      <p className="font-black">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-white/55">{text}</p>
-    </div>
   );
 }

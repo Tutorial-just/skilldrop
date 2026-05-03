@@ -17,6 +17,8 @@ model User {
   expertProfile ExpertProfile?
   bookings      Booking[] @relation("BuyerBookings")
   reviews       Review[]
+  savedExperts  SavedExpert[]
+  buyerSettings BuyerSettings?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -56,6 +58,7 @@ model ExpertProfile {
   availability Availability[]
   bookings     Booking[] @relation("ExpertBookings")
   reviews      Review[]
+  savedBy SavedExpert[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -197,4 +200,37 @@ enum CallRoomStatus {
   CREATED
   LIVE
   ENDED
+}
+model SavedExpert {
+  id       String @id @default(cuid())
+
+  buyerId  String
+  buyer    User @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  expertId String
+  expert   ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([buyerId, expertId])
+}
+model BuyerSettings {
+  id     String @id @default(cuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  preferredTimezone  String?
+  preferredLanguages String[] @default([])
+  interests          String[] @default([])
+
+  budgetMinCents Int?
+  budgetMaxCents Int?
+
+  defaultReminderMin Int     @default(30)
+  hideEmail          Boolean @default(true)
+  allowReminders     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

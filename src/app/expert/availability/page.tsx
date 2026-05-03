@@ -1,318 +1,658 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 import {
-  createAvailabilitySlotAction,
-  deleteAvailabilitySlotAction,
-} from "@/server/actions/availability.actions";
+  ArrowLeft,
+  ArrowRight,
+  CalendarClock,
+  CalendarDays,
+  Clock3,
+  Layers3,
+  Plus,
+  Repeat,
+  Trash2,
+  Video,
+} from "lucide-react";
 
-export default async function ExpertAvailabilityPage() {
-  const experts = await prisma.expertProfile.findMany({
+import {
+  createAvailabilityAction,
+  deleteAvailabilityAction,
+} from "@/server/actions/availability.actions";
+import { requireRole } from "@/lib/auth/get-current-user";
+import { prisma } from "@/lib/prisma";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
+type ExpertAvailabilityPageProps = {
+  searchParams?: Promise<{
+    error?: string;
+    view?: string;
+  }>;
+};
+
+type AvailabilityView = "all" | "open" | "booked" | "today" | "week" | "past";
+
+const durationOptions = [15, 30, 45, 60];
+const MAX_VISIBLE_SLOTS = 60;
+
+const viewTabs: {
+  label: string;
+  value: AvailabilityView;
+}[] = [
+  { label: "All", value: "all" },
+  { label: "Open", value: "open" },
+  { label: "Booked", value: "booked" },
+  { label: "Today", value: "today" },
+  { label: "This week", value: "week" },
+  { label: "Past", value: "past" },
+];
+
+export default async function ExpertAvailabilityPage({
+  searchParams,
+}: ExpertAvailabilityPageProps) {
+  const { user } = await requireRole(["expert", "admin"]);
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const currentView = getValidView(resolvedSearchParams.view);
+
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    redirect("/sign-in");
+  }
+
+  const expert = await prisma.expertProfile.findFirst({
+    where: {
+      user: {
+        email,
+      },
+    },
     include: {
-      user: true,
       availability: {
         orderBy: {
           startTime: "asc",
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
+      bookings: {
+        where: {
+          startTime: {
+            gte: new Date(),
+          },
+        },
+        include: {
+          service: true,
+          buyer: true,
+        },
+        orderBy: {
+          startTime: "asc",
+        },
+        take: 3,
+      },
     },
   });
 
-  const totalSlots = experts.reduce(
-    (sum, expert) => sum + expert.availability.length,
-    0,
-  );
+  if (!expert) {
+    redirect("/become-expert");
+  }
 
-  const availableSlots = experts.reduce(
-    (sum, expert) =>
-      sum + expert.availability.filter((slot) => !slot.isBooked).length,
-    0,
-  );
+  const now = new Date();
 
-  const bookedSlots = experts.reduce(
-    (sum, expert) =>
-      sum + expert.availability.filter((slot) => slot.isBooked).length,
-    0,
-  );
+  const upcomingSlots = expert.availability.filter((slot) => slot.startTime >= now);
+  const openSlots = upcomingSlots.filter((slot) => !slot.isBooked);
+  const bookedSlots = upcomingSlots.filter((slot) => slot.isBooked);
+  const pastSlots = expert.availability.filter((slot) => slot.startTime < now);
+
+  const filteredSlots = filterSlotsByView({
+    slots: expert.availability,
+    view: currentView,
+    now,
+  });
+
+  const visibleSlots = filteredSlots.slice(0, MAX_VISIBLE_SLOTS);
+  const hiddenSlotsCount = Math.max(filteredSlots.length - visibleSlots.length, 0);
+  const groupedSlots = groupSlotsByDate(visibleSlots);
 
   return (
-    <main className="container-page py-10">
-      <section className="rounded-[2rem] bg-[#151515] p-6 text-white sm:rounded-[2.5rem] md:p-10">
-        <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
-          <div>
-            <p className="text-sm font-black text-[#f97316]">
-              Expert dashboard
-            </p>
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
 
-            <h1 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">
-              Availability
-            </h1>
+        <div className="relative p-6 md:p-8 lg:p-10">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+            <div>
+              <Link
+                href="/expert"
+                className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+              >
+                <ArrowLeft size={16} />
+                Back to dashboard
+              </Link>
 
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-white/60">
-              Add available time slots for experts. Buyers will later choose
-              from these slots instead of entering any random time.
-            </p>
+              <div className="mt-6">
+                <Badge variant="primary">
+                  <CalendarDays size={14} />
+                  Availability
+                </Badge>
+              </div>
+
+              <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+                Manage your bookable time.
+              </h1>
+
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                Add time slots, filter your calendar, and manage bookings without
+                a long messy list.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+              <ButtonLink href="/expert/services">
+                Manage offers
+                <ArrowRight size={18} />
+              </ButtonLink>
+
+              <ButtonLink href="/expert/bookings" variant="secondary">
+                View bookings
+              </ButtonLink>
+            </div>
           </div>
 
-          <Link
-            href="/experts"
-            className="rounded-full bg-white px-6 py-3 text-center text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-          >
-            View marketplace
-          </Link>
-        </div>
-
-        <div className="mt-8 grid gap-3 md:grid-cols-3">
-          <DashboardStat label="Total slots" value={`${totalSlots}`} />
-          <DashboardStat label="Available" value={`${availableSlots}`} />
-          <DashboardStat label="Booked" value={`${bookedSlots}`} />
+          <div className="mt-8 grid gap-3 md:grid-cols-4">
+            <MiniStat label="Open" value={String(openSlots.length)} />
+            <MiniStat label="Booked" value={String(bookedSlots.length)} />
+            <MiniStat label="Past" value={String(pastSlots.length)} />
+            <MiniStat label="Total" value={String(expert.availability.length)} />
+          </div>
         </div>
       </section>
 
-      <section className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
-        <aside className="lg:sticky lg:top-28 lg:h-fit">
-          <form
-            action={createAvailabilitySlotAction}
-            className="card rounded-[2rem] p-6"
-          >
-            <p className="text-sm font-black text-[#2563eb]">
-              Add available slot
-            </p>
+      <section className="p-6 md:p-8 lg:p-10">
+        {resolvedSearchParams.error ? (
+          <div className="mb-5 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
+            {resolvedSearchParams.error}
+          </div>
+        ) : null}
 
-            <h2 className="mt-3 text-2xl font-black">
-              Create a time slot
-            </h2>
+        <div className="grid gap-5">
+          <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr] lg:items-start">
+            <details className="self-start rounded-[26px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[20px]">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                    <Plus size={20} />
+                  </div>
 
-            <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-              For MVP, choose the expert manually. Later this page will belong
-              to the logged-in expert.
-            </p>
+                  <div>
+                    <p className="font-black tracking-[-0.02em]">
+                      Add available time
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-muted">
+                      Add one bookable slot.
+                    </p>
+                  </div>
+                </div>
 
-            <div className="mt-6 space-y-5">
-              <Field label="Expert">
-                <select required name="expertId" className="input-field">
-                  <option value="">Choose expert</option>
-                  {experts.map((expert) => (
-                    <option key={expert.id} value={expert.id}>
-                      {expert.user.name} — {expert.status}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+                <div className="btn btn-primary hidden sm:inline-flex">
+                  Add slot
+                  <ArrowRight size={17} />
+                </div>
+              </summary>
 
-              <Field label="Start time">
-                <input
-                  required
-                  type="datetime-local"
-                  name="startTime"
-                  className="input-field"
-                />
-              </Field>
+              <div className="mt-4 border-t border-[var(--border)] pt-4">
+                <form
+                  action={createAvailabilityAction}
+                  className="grid gap-4 md:grid-cols-[1fr_160px_auto] md:items-end"
+                >
+                  <div>
+                    <label htmlFor="startTime" className="text-sm font-black">
+                      Start time
+                    </label>
 
-              <Field label="End time">
-                <input
-                  required
-                  type="datetime-local"
-                  name="endTime"
-                  className="input-field"
-                />
-              </Field>
-            </div>
+                    <input
+                      id="startTime"
+                      name="startTime"
+                      type="datetime-local"
+                      required
+                      className="input mt-2"
+                    />
+                  </div>
 
-            <button
-              type="submit"
-              className="mt-8 w-full rounded-2xl bg-[#2563eb] px-7 py-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#1d4ed8]"
-            >
-              Add slot
-            </button>
-          </form>
-        </aside>
+                  <div>
+                    <label
+                      htmlFor="durationMinutes"
+                      className="text-sm font-black"
+                    >
+                      Duration
+                    </label>
 
-        <section>
-          <div className="mb-5">
-            <h2 className="text-2xl font-black">Slots by expert</h2>
-            <p className="mt-1 text-sm text-[#6f6a63]">
-              Manage available and booked slots.
-            </p>
+                    <select
+                      id="durationMinutes"
+                      name="durationMinutes"
+                      required
+                      defaultValue="15"
+                      className="input mt-2"
+                    >
+                      {durationOptions.map((duration) => (
+                        <option key={duration} value={duration}>
+                          {duration} min
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary">
+                    Add
+                    <ArrowRight size={18} />
+                  </button>
+                </form>
+              </div>
+            </details>
+
+            <details className="self-start rounded-[26px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                    <Repeat size={20} />
+                  </div>
+
+                  <div>
+                    <p className="font-black tracking-[-0.02em]">
+                      Bulk create slots
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-muted">
+                      Coming next: weekly schedule.
+                    </p>
+                  </div>
+                </div>
+
+                <Badge variant="accent">Soon</Badge>
+              </summary>
+
+              <div className="mt-4 grid gap-2 border-t border-[var(--border)] pt-4 sm:grid-cols-2">
+                <BulkPreviewRow label="Day" value="Monday" />
+                <BulkPreviewRow label="Range" value="10:00 — 14:00" />
+                <BulkPreviewRow label="Duration" value="30 min" />
+                <BulkPreviewRow label="Break" value="10 min" />
+              </div>
+            </details>
           </div>
 
-          {experts.length === 0 ? (
-            <div className="card rounded-[2rem] p-10 text-center">
-              <h3 className="text-2xl font-black">No experts yet</h3>
-              <p className="mt-3 text-[#6f6a63]">
-                Add expert applications or run seed first.
-              </p>
+          <Card className="p-5 md:p-6">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <Badge variant="primary">
+                  <Layers3 size={14} />
+                  Compact calendar
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  Time slots
+                </h2>
+
+                <p className="mt-2 max-w-2xl leading-7 text-muted">
+                  Showing {visibleSlots.length} of {filteredSlots.length} slots.
+                </p>
+              </div>
+
+              {hiddenSlotsCount > 0 ? (
+                <Badge variant="accent">+{hiddenSlotsCount} more hidden</Badge>
+              ) : null}
             </div>
-          ) : (
-            <div className="space-y-5">
-              {experts.map((expert) => (
-                <article key={expert.id} className="card rounded-[2rem] p-6">
-                  <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-xl font-black text-white">
-                        {expert.user.name?.charAt(0) ?? "E"}
-                      </div>
 
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-xl font-black">
-                            {expert.user.name}
-                          </h3>
-
-                          <StatusBadge status={expert.status} />
-
-                          {expert.isVerified ? (
-                            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-black text-green-700">
-                              VERIFIED
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <p className="mt-1 text-sm text-[#6f6a63]">
-                          {expert.headline}
-                        </p>
-                      </div>
-                    </div>
-
-                    {expert.status === "APPROVED" ? (
-                      <Link
-                        href={`/experts/${expert.id}`}
-                        className="rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-                      >
-                        View profile
-                      </Link>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-6">
-                    {expert.availability.length === 0 ? (
-                      <div className="rounded-[1.5rem] bg-[#f7f4ef] p-5">
-                        <p className="font-black">No slots yet</p>
-                        <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                          Add a slot from the form on the left.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {expert.availability.map((slot) => (
-                          <div
-                            key={slot.id}
-                            className="rounded-[1.5rem] bg-[#f7f4ef] p-5"
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <p className="font-black">
-                                  {new Intl.DateTimeFormat("en", {
-                                    dateStyle: "medium",
-                                  }).format(slot.startTime)}
-                                </p>
-
-                                <p className="mt-1 text-sm text-[#6f6a63]">
-                                  {new Intl.DateTimeFormat("en", {
-                                    timeStyle: "short",
-                                  }).format(slot.startTime)}{" "}
-                                  —{" "}
-                                  {new Intl.DateTimeFormat("en", {
-                                    timeStyle: "short",
-                                  }).format(slot.endTime)}
-                                </p>
-                              </div>
-
-                              <SlotBadge isBooked={slot.isBooked} />
-                            </div>
-
-                            {!slot.isBooked ? (
-                              <form
-                                action={deleteAvailabilitySlotAction}
-                                className="mt-4"
-                              >
-                                <input
-                                  type="hidden"
-                                  name="availabilityId"
-                                  value={slot.id}
-                                />
-                                <button
-                                  type="submit"
-                                  className="rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-xs font-black text-[#151515] transition hover:bg-red-50 hover:text-red-700"
-                                >
-                                  Delete slot
-                                </button>
-                              </form>
-                            ) : (
-                              <p className="mt-4 text-xs font-bold text-[#6f6a63]">
-                                Booked slots cannot be deleted.
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </article>
+            <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+              {viewTabs.map((tab) => (
+                <Link
+                  key={tab.value}
+                  href={`/expert/availability?view=${tab.value}`}
+                  className={
+                    currentView === tab.value
+                      ? "flex shrink-0 items-center rounded-full bg-[var(--primary)] px-4 py-2 text-xs font-black text-white"
+                      : "flex shrink-0 items-center rounded-full border border-[var(--border)] bg-white/72 px-4 py-2 text-xs font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--foreground)]"
+                  }
+                >
+                  {tab.label}
+                </Link>
               ))}
             </div>
-          )}
-        </section>
+
+            <div className="mt-6 grid gap-4">
+              {groupedSlots.length > 0 ? (
+                groupedSlots.map((group) => (
+                  <details
+                    key={group.label}
+                    open
+                    className="rounded-[22px] border border-[var(--border)] bg-white/45 p-4"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                          {group.label}
+                        </p>
+
+                        <p className="mt-1 text-xs font-bold text-muted">
+                          {group.openCount} open · {group.bookedCount} booked
+                        </p>
+                      </div>
+
+                      <Badge>{group.slots.length} slots</Badge>
+                    </summary>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {group.slots.map((slot) => (
+                        <SlotChip key={slot.id} slot={slot} />
+                      ))}
+                    </div>
+                  </details>
+                ))
+              ) : (
+                <EmptyState view={currentView} />
+              )}
+            </div>
+          </Card>
+
+          <div className="grid gap-4 lg:grid-cols-[1fr_0.75fr]">
+            <Card className="p-5">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div>
+                  <Badge variant="accent">
+                    <Video size={14} />
+                    Upcoming calls
+                  </Badge>
+
+                  <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                    Next bookings
+                  </h2>
+                </div>
+
+                <ButtonLink href="/expert/bookings" variant="secondary">
+                  View all
+                </ButtonLink>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {expert.bookings.length > 0 ? (
+                  expert.bookings.map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="rounded-2xl border border-[var(--border)] bg-white/64 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black">
+                            {booking.service?.title ?? "Provider call"}
+                          </p>
+
+                          <p className="mt-1 text-sm text-muted">
+                            {booking.buyer.name ?? booking.buyer.email}
+                          </p>
+                        </div>
+
+                        <Badge>{booking.status}</Badge>
+                      </div>
+
+                      <p className="mt-3 text-sm font-bold text-[var(--primary-dark)]">
+                        {formatDateTime(booking.startTime)}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[22px] border border-dashed border-[var(--border-strong)] bg-white/55 p-5">
+                    <p className="font-black">No upcoming bookings</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Client bookings will appear here after someone reserves
+                      your time.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card soft className="p-5">
+              <Badge variant="primary">
+                <CalendarClock size={14} />
+                Calendar tips
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <CompactTip text="Keep 7–14 days of open slots visible." />
+                <CompactTip text="Use short slots to increase bookings." />
+                <CompactTip text="Use filters when your calendar grows." />
+              </div>
+            </Card>
+          </div>
+        </div>
       </section>
     </main>
   );
 }
 
-function Field({
-  label,
-  children,
+function SlotChip({
+  slot,
 }: {
-  label: string;
-  children: React.ReactNode;
+  slot: {
+    id: string;
+    startTime: Date;
+    endTime: Date;
+    isBooked: boolean;
+  };
 }) {
   return (
-    <label className="block">
-      <span className="text-sm font-black">{label}</span>
-      <div className="mt-2">{children}</div>
-    </label>
-  );
-}
+    <div
+      className={
+        slot.isBooked
+          ? "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--success)]/20 bg-[var(--success-soft)] px-3 py-2 text-sm font-black text-[var(--success)]"
+          : "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]"
+      }
+      title={`${formatTime(slot.startTime)} — ${formatTime(slot.endTime)}`}
+    >
+      <Clock3 size={14} />
 
-function DashboardStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.5rem] bg-white/10 p-5">
-      <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-2 text-2xl font-black text-white">{value}</p>
+      <span>
+        {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
+      </span>
+
+      {slot.isBooked ? (
+        <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+          Booked
+        </span>
+      ) : (
+        <form action={deleteAvailabilityAction}>
+          <input type="hidden" name="slotId" value={slot.id} />
+
+          <button
+            type="submit"
+            className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-muted transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+            aria-label="Delete slot"
+            title="Delete slot"
+          >
+            <Trash2 size={13} />
+          </button>
+        </form>
+      )}
     </div>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    PENDING: "bg-[#fff3e8] text-[#f97316]",
-    APPROVED: "bg-[#eef4ff] text-[#2563eb]",
-    REJECTED: "bg-red-100 text-red-700",
-    SUSPENDED: "bg-[#f7f4ef] text-[#6f6a63]",
-  };
-
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-black ${
-        styles[status] ?? "bg-[#f7f4ef] text-[#6f6a63]"
-      }`}
-    >
-      {status}
-    </span>
+    <Card soft className="p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+    </Card>
   );
 }
 
-function SlotBadge({ isBooked }: { isBooked: boolean }) {
+function CompactTip({ text }: { text: string }) {
   return (
-    <span
-      className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${
-        isBooked
-          ? "bg-[#fff3e8] text-[#f97316]"
-          : "bg-green-100 text-green-700"
-      }`}
-    >
-      {isBooked ? "BOOKED" : "AVAILABLE"}
-    </span>
+    <div className="rounded-2xl border border-[var(--border)] bg-white/62 p-4">
+      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+    </div>
   );
+}
+
+function BulkPreviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-xs font-bold text-muted">{label}</p>
+      <p className="text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
+function EmptyState({ view }: { view: AvailabilityView }) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <CalendarDays size={22} />
+      </div>
+
+      <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+        No slots found
+      </h3>
+
+      <p className="mx-auto mt-3 max-w-md leading-7 text-muted">
+        There are no slots for the “{view}” filter. Add availability or choose
+        another filter.
+      </p>
+    </div>
+  );
+}
+
+function getValidView(value: string | undefined): AvailabilityView {
+  if (
+    value === "open" ||
+    value === "booked" ||
+    value === "today" ||
+    value === "week" ||
+    value === "past"
+  ) {
+    return value;
+  }
+
+  return "all";
+}
+
+function filterSlotsByView({
+  slots,
+  view,
+  now,
+}: {
+  slots: {
+    id: string;
+    startTime: Date;
+    endTime: Date;
+    isBooked: boolean;
+  }[];
+  view: AvailabilityView;
+  now: Date;
+}) {
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const weekEnd = new Date(now);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  weekEnd.setHours(23, 59, 59, 999);
+
+  if (view === "open") {
+    return slots.filter((slot) => slot.startTime >= now && !slot.isBooked);
+  }
+
+  if (view === "booked") {
+    return slots.filter((slot) => slot.startTime >= now && slot.isBooked);
+  }
+
+  if (view === "today") {
+    return slots.filter(
+      (slot) => slot.startTime >= todayStart && slot.startTime <= todayEnd,
+    );
+  }
+
+  if (view === "week") {
+    return slots.filter((slot) => slot.startTime >= now && slot.startTime <= weekEnd);
+  }
+
+  if (view === "past") {
+    return slots
+      .filter((slot) => slot.startTime < now)
+      .sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+  }
+
+  return slots.filter((slot) => slot.startTime >= now);
+}
+
+function groupSlotsByDate(
+  slots: {
+    id: string;
+    startTime: Date;
+    endTime: Date;
+    isBooked: boolean;
+  }[],
+) {
+  const groups = new Map<
+    string,
+    {
+      label: string;
+      openCount: number;
+      bookedCount: number;
+      slots: {
+        id: string;
+        startTime: Date;
+        endTime: Date;
+        isBooked: boolean;
+      }[];
+    }
+  >();
+
+  slots.forEach((slot) => {
+    const label = new Intl.DateTimeFormat("en", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    }).format(slot.startTime);
+
+    const existing = groups.get(label);
+
+    if (existing) {
+      existing.slots.push(slot);
+
+      if (slot.isBooked) {
+        existing.bookedCount += 1;
+      } else {
+        existing.openCount += 1;
+      }
+
+      return;
+    }
+
+    groups.set(label, {
+      label,
+      openCount: slot.isBooked ? 0 : 1,
+      bookedCount: slot.isBooked ? 1 : 0,
+      slots: [slot],
+    });
+  });
+
+  return Array.from(groups.values());
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

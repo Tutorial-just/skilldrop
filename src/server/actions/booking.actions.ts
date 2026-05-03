@@ -3,86 +3,121 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BookingStatus, UserRole } from "@prisma/client";
+
+import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
+
+function getStringValue(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function createCallRoomData(bookingId: string) {
+  const provider = process.env.VIDEO_PROVIDER || "JITSI";
+  const baseUrl = process.env.JITSI_BASE_URL || "https://meet.jit.si";
+  const roomName = `skilldrop-${bookingId}-${randomUUID()}`;
+  const roomUrl = `${baseUrl}/${roomName}`;
+
+  return {
+    provider,
+    roomName,
+    roomUrl,
+  };
+}
 
 export async function createBookingAction(formData: FormData) {
-  const expertId = String(formData.get("expertId") ?? "");
-  const serviceId = String(formData.get("serviceId") ?? "");
-  const availabilityId = String(formData.get("availabilityId") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const { user } = await requireRole(["buyer", "admin"]);
 
-  if (!expertId || !serviceId || !availabilityId || !name || !email) {
-    throw new Error("Missing required booking fields.");
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    redirect("/sign-in");
   }
 
-  const service = await prisma.service.findUnique({
-    where: {
-      id: serviceId,
-    },
-    include: {
-      expert: {
-        include: {
-          user: true,
-        },
-      },
-    },
-  });
+  const expertId = getStringValue(formData, "expertId");
+  const serviceId = getStringValue(formData, "serviceId");
+  const availabilityId = getStringValue(formData, "availabilityId");
 
-  if (!service || service.expertId !== expertId || !service.isActive) {
-    throw new Error("Service not found.");
+  if (!expertId || !serviceId || !availabilityId) {
+    redirect(`/experts/${expertId || ""}?error=missing-booking-data`);
   }
 
-  const availability = await prisma.availability.findUnique({
-    where: {
-      id: availabilityId,
-    },
-  });
-
-  if (!availability) {
-    throw new Error("Availability slot not found.");
-  }
-
-  if (availability.expertId !== expertId) {
-    throw new Error("This slot does not belong to the selected expert.");
-  }
-
-  if (availability.isBooked) {
-    throw new Error("This slot is already booked.");
-  }
-
-  if (availability.startTime < new Date()) {
-    throw new Error("This slot is in the past.");
-  }
-
-  let buyer = await prisma.user.findUnique({
+  const buyer = await prisma.user.findUnique({
     where: {
       email,
     },
   });
 
   if (!buyer) {
-    buyer = await prisma.user.create({
-      data: {
-        id: `buyer_${randomUUID()}`,
-        email,
-        name,
-        role: UserRole.BUYER,
+    redirect("/sign-in");
+  }
+
+  const expert = await prisma.expertProfile.findUnique({
+    where: {
+      id: expertId,
+    },
+    include: {
+      user: true,
+    },
+  });
+
+  if (!expert) {
+    redirect("/experts?error=expert-not-found");
+  }
+
+  if (expert.userId === buyer.id) {
+    redirect(`/experts/${expertId}?error=cannot-book-yourself`);
+  }
+
+  const service = await prisma.service.findFirst({
+    where: {
+      id: serviceId,
+      expertId,
+      isActive: true,
+    },
+  });
+
+  if (!service) {
+    redirect(`/experts/${expertId}?error=service-not-found`);
+  }
+
+  const availability = await prisma.availability.findFirst({
+    where: {
+      id: availabilityId,
+      expertId,
+      isBooked: false,
+      startTime: {
+        gte: new Date(),
       },
-    });
+    },
+  });
+
+  if (!availability) {
+    redirect(`/experts/${expertId}?service=${serviceId}&error=slot-not-available`);
   }
 
   const booking = await prisma.$transaction(async (tx) => {
-    const freshSlot = await tx.availability.findUnique({
+    const updatedSlot = await tx.availability.updateMany({
       where: {
         id: availabilityId,
+        expertId,
+        isBooked: false,
+        startTime: {
+          gte: new Date(),
+        },
+      },
+      data: {
+        isBooked: true,
       },
     });
 
-    if (!freshSlot || freshSlot.isBooked) {
-      throw new Error("This slot was just booked by someone else.");
+    if (updatedSlot.count === 0) {
+      throw new Error("Slot is no longer available.");
     }
 
     const createdBooking = await tx.booking.create({
@@ -91,96 +126,87 @@ export async function createBookingAction(formData: FormData) {
         expertId,
         serviceId,
         availabilityId,
-        startTime: freshSlot.startTime,
-        endTime: freshSlot.endTime,
-        status: BookingStatus.PENDING,
+        startTime: availability.startTime,
+        endTime: availability.endTime,
         priceCents: service.priceCents,
         currency: service.currency,
+        status: "CONFIRMED",
       },
     });
 
-    await tx.availability.update({
-      where: {
-        id: availabilityId,
-      },
+    const room = createCallRoomData(createdBooking.id);
+
+    await tx.callRoom.create({
       data: {
-        isBooked: true,
+        bookingId: createdBooking.id,
+        provider: room.provider,
+        roomName: room.roomName,
+        roomUrl: room.roomUrl,
+        startsAt: createdBooking.startTime,
+        endsAt: createdBooking.endTime,
       },
     });
 
     return createdBooking;
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  revalidatePath(`/experts/${expertId}`);
+  revalidatePath("/experts");
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/bookings");
+  revalidatePath("/buyer/reviews");
+  revalidatePath("/expert");
+  revalidatePath("/expert/bookings");
+  revalidatePath("/expert/availability");
+  revalidatePath("/expert/stats");
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    mode: "payment",
-    client_reference_id: booking.id,
-    customer_email: email,
-    success_url: `${appUrl}/dashboard/bookings/${booking.id}?payment=success`,
-    cancel_url: `${appUrl}/dashboard/bookings/${booking.id}?payment=cancelled`,
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: service.currency.toLowerCase(),
-          unit_amount: service.priceCents,
-          product_data: {
-            name: service.title,
-            description: `${service.durationMinutes} min session with ${
-              service.expert.user.name ?? "SkillDrop expert"
-            }`,
-          },
-        },
-      },
-    ],
-    metadata: {
-      bookingId: booking.id,
-      expertId,
-      serviceId,
-      availabilityId,
-    },
-  });
-
-  if (!checkoutSession.url) {
-    throw new Error("Failed to create Stripe Checkout session.");
-  }
-
-  await prisma.booking.update({
-    where: {
-      id: booking.id,
-    },
-    data: {
-      stripeCheckoutSessionId: checkoutSession.id,
-    },
-  });
-
-  redirect(checkoutSession.url);
+  redirect(`/buyer/bookings?booked=${booking.id}`);
 }
 
 export async function cancelBookingAction(formData: FormData) {
-  const bookingId = String(formData.get("bookingId") ?? "");
+  const { user } = await requireRole(["buyer", "expert", "admin"]);
+
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    redirect("/sign-in");
+  }
+
+  const bookingId = getStringValue(formData, "bookingId");
 
   if (!bookingId) {
-    throw new Error("Booking ID is required.");
+    redirect("/");
+  }
+
+  const currentUser = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+
+  if (!currentUser) {
+    redirect("/sign-in");
   }
 
   const booking = await prisma.booking.findUnique({
     where: {
       id: bookingId,
     },
+    include: {
+      expert: true,
+    },
   });
 
   if (!booking) {
-    throw new Error("Booking not found.");
+    redirect("/buyer/bookings");
   }
 
-  if (booking.status === BookingStatus.CANCELLED) {
-    return;
-  }
+  const isBuyer = booking.buyerId === currentUser.id;
+  const isExpert = booking.expert.userId === currentUser.id;
+  const isAdmin = currentUser.role === "ADMIN";
 
-  if (booking.status === BookingStatus.COMPLETED) {
-    throw new Error("Completed bookings cannot be cancelled.");
+  if (!isBuyer && !isExpert && !isAdmin) {
+    redirect("/");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -189,7 +215,7 @@ export async function cancelBookingAction(formData: FormData) {
         id: booking.id,
       },
       data: {
-        status: BookingStatus.CANCELLED,
+        status: "CANCELLED",
       },
     });
 
@@ -205,101 +231,145 @@ export async function cancelBookingAction(formData: FormData) {
     }
   });
 
-  revalidatePath(`/dashboard/bookings/${booking.id}`);
-  revalidatePath("/dashboard/bookings");
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/bookings");
+  revalidatePath("/buyer/reviews");
+  revalidatePath("/expert");
+  revalidatePath("/expert/bookings");
   revalidatePath("/expert/availability");
-  revalidatePath(`/experts/${booking.expertId}/book`);
-}
-
-export async function confirmBookingAction(formData: FormData) {
-  const bookingId = String(formData.get("bookingId") ?? "");
-
-  if (!bookingId) {
-    throw new Error("Booking ID is required.");
-  }
-
-  const booking = await prisma.booking.findUnique({
-    where: {
-      id: bookingId,
-    },
-  });
-
-  if (!booking) {
-    throw new Error("Booking not found.");
-  }
-
-  if (booking.status === BookingStatus.CANCELLED) {
-    throw new Error("Cancelled bookings cannot be confirmed.");
-  }
-
-  if (booking.status === BookingStatus.COMPLETED) {
-    throw new Error("Completed bookings cannot be confirmed again.");
-  }
-
-  await prisma.booking.update({
-    where: {
-      id: booking.id,
-    },
-    data: {
-      status: BookingStatus.CONFIRMED,
-    },
-  });
-
-  revalidatePath(`/dashboard/bookings/${booking.id}`);
-  revalidatePath("/dashboard/bookings");
-}
-
-export async function completeBookingAction(formData: FormData) {
-  const bookingId = String(formData.get("bookingId") ?? "");
-
-  if (!bookingId) {
-    throw new Error("Booking ID is required.");
-  }
-
-  const booking = await prisma.booking.findUnique({
-    where: {
-      id: bookingId,
-    },
-  });
-
-  if (!booking) {
-    throw new Error("Booking not found.");
-  }
-
-  if (booking.status === BookingStatus.CANCELLED) {
-    throw new Error("Cancelled bookings cannot be completed.");
-  }
-
-  if (booking.status === BookingStatus.PENDING) {
-    throw new Error("Pending bookings should be confirmed before completion.");
-  }
-
-  if (booking.status === BookingStatus.COMPLETED) {
-    return;
-  }
-
-  await prisma.booking.update({
-    where: {
-      id: booking.id,
-    },
-    data: {
-      status: BookingStatus.COMPLETED,
-    },
-  });
-
-  await prisma.expertProfile.update({
-    where: {
-      id: booking.expertId,
-    },
-    data: {
-      totalSessions: {
-        increment: 1,
-      },
-    },
-  });
-
-  revalidatePath(`/dashboard/bookings/${booking.id}`);
-  revalidatePath("/dashboard/bookings");
+  revalidatePath("/expert/stats");
   revalidatePath(`/experts/${booking.expertId}`);
-  revalidatePath("/experts");
+
+  if (isExpert) {
+    redirect("/expert/bookings");
+  }
+
+  redirect("/buyer/bookings");
+}
+
+export async function updateBookingStatusAction(formData: FormData) {
+  const { user } = await requireRole(["expert", "admin"]);
+
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    redirect("/sign-in");
+  }
+
+  const bookingId = getStringValue(formData, "bookingId");
+  const status = getStringValue(formData, "status");
+
+  if (!bookingId || !status) {
+    redirect("/expert/bookings");
+  }
+
+  const currentUser = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+
+  if (!currentUser) {
+    redirect("/sign-in");
+  }
+
+  const booking = await prisma.booking.findUnique({
+    where: {
+      id: bookingId,
+    },
+    include: {
+      expert: true,
+      callRoom: true,
+    },
+  });
+
+  if (!booking) {
+    redirect("/expert/bookings");
+  }
+
+  const isOwnerExpert = booking.expert.userId === currentUser.id;
+  const isAdmin = currentUser.role === "ADMIN";
+
+  if (!isOwnerExpert && !isAdmin) {
+    redirect("/expert/bookings");
+  }
+
+  const allowedStatuses = [
+    "PENDING",
+    "PAID",
+    "CONFIRMED",
+    "COMPLETED",
+    "CANCELLED",
+    "REFUNDED",
+    "DISPUTED",
+  ];
+
+  if (!allowedStatuses.includes(status)) {
+    redirect("/expert/bookings");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: {
+        id: booking.id,
+      },
+      data: {
+        status: status as
+          | "PENDING"
+          | "PAID"
+          | "CONFIRMED"
+          | "COMPLETED"
+          | "CANCELLED"
+          | "REFUNDED"
+          | "DISPUTED",
+      },
+    });
+
+    if (status === "CANCELLED" && booking.availabilityId) {
+      await tx.availability.update({
+        where: {
+          id: booking.availabilityId,
+        },
+        data: {
+          isBooked: false,
+        },
+      });
+    }
+
+    if (status === "COMPLETED" && booking.status !== "COMPLETED") {
+      await tx.expertProfile.update({
+        where: {
+          id: booking.expertId,
+        },
+        data: {
+          totalSessions: {
+            increment: 1,
+          },
+        },
+      });
+
+      if (booking.callRoom) {
+        await tx.callRoom.update({
+          where: {
+            bookingId: booking.id,
+          },
+          data: {
+            status: "ENDED",
+            endsAt: new Date(),
+          },
+        });
+      }
+    }
+  });
+
+  revalidatePath("/expert");
+  revalidatePath("/expert/bookings");
+  revalidatePath("/expert/stats");
+  revalidatePath("/expert/availability");
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/bookings");
+  revalidatePath("/buyer/reviews");
+  revalidatePath(`/experts/${booking.expertId}`);
+
+  redirect("/expert/bookings");
 }

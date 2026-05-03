@@ -1,505 +1,523 @@
 import Link from "next/link";
-import { applyExpertAction } from "@/server/actions/expert.actions";
+import {
+  ArrowRight,
+  BadgeCheck,
+  BriefcaseBusiness,
+  CheckCircle2,
+  Clock3,
+  Euro,
+  FileText,
+  Globe2,
+  HeartHandshake,
+  Languages,
+  MessageCircleHeart,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+  WalletCards,
+} from "lucide-react";
 
-const benefits = [
-  {
-    title: "Sell focused sessions",
-    text: "Offer 15–30 minute calls instead of long freelance projects or unpaid advice.",
-  },
-  {
-    title: "Use what you already know",
-    text: "Help people with CV reviews, interviews, LinkedIn, career switches and remote jobs.",
-  },
-  {
-    title: "No website needed",
-    text: "SkillDrop gives you a profile, services, booking flow and payment experience.",
-  },
-];
-
-const steps = [
-  {
-    number: "01",
-    title: "Create your profile",
-    text: "Add your headline, bio, skills, languages and expertise.",
-  },
-  {
-    number: "02",
-    title: "Add short services",
-    text: "Create offers like CV Review, Mock Interview or LinkedIn Audit.",
-  },
-  {
-    number: "03",
-    title: "Receive bookings",
-    text: "People choose a service, pick a time and submit a booking request.",
-  },
-  {
-    number: "04",
-    title: "Get paid for sessions",
-    text: "After paid bookings, your earnings are tracked in your expert dashboard.",
-  },
-];
-
-const services = [
-  { title: "CV Review", time: "15 min", price: "€15" },
-  { title: "Mock Interview", time: "30 min", price: "€30" },
-  { title: "LinkedIn Audit", time: "15 min", price: "€12" },
-];
-
-const expertTypes = [
-  "Recruiters",
-  "Software engineers",
-  "Career coaches",
-  "Designers",
-  "Founders",
-  "Remote workers",
-];
+import { createProviderProfileAction } from "@/server/actions/expert.actions";
+import { requireRole } from "@/lib/auth/get-current-user";
+import { prisma } from "@/lib/prisma";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 type BecomeExpertPageProps = {
   searchParams?: Promise<{
-    submitted?: string;
+    error?: string;
   }>;
 };
+
+const categories = [
+  "Psychology & Support",
+  "Translation & Languages",
+  "Life Advice",
+  "Career & Jobs",
+  "Family & Relationships",
+  "Documents & Admin Help",
+  "Moving Abroad",
+  "Business & Freelance",
+  "Anything you want",
+];
+
+const durationOptions = [15, 30, 45, 60];
+
+const profileTips = [
+  "Explain clearly who you can help.",
+  "Write what clients will get after the call.",
+  "Add real skills, languages and topics.",
+  "Start with one simple service.",
+];
 
 export default async function BecomeExpertPage({
   searchParams,
 }: BecomeExpertPageProps) {
+  const { user } = await requireRole(["expert", "admin"]);
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const submitted = resolvedSearchParams.submitted === "1";
+
+  const email = user.email?.toLowerCase() ?? "";
+  const name =
+    (user.user_metadata?.name as string | undefined) ?? user.email ?? "Provider";
+
+  const existingProfile = email
+    ? await prisma.expertProfile.findFirst({
+        where: {
+          user: {
+            email,
+          },
+        },
+        include: {
+          services: {
+            where: {
+              isActive: true,
+            },
+            take: 1,
+          },
+        },
+      })
+    : null;
+
+  if (existingProfile) {
+    return (
+      <main className="section-page">
+        <div className="container-page">
+          <Card className="mx-auto max-w-4xl overflow-hidden p-8 md:p-10">
+            <Badge variant="success">
+              <BadgeCheck size={14} />
+              Profile already created
+            </Badge>
+
+            <h1 className="heading-lg mt-5 max-w-3xl text-balance">
+              Your help profile is ready.
+            </h1>
+
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
+              You already created your provider profile. You can manage services,
+              availability and bookings from your dashboard.
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <ButtonLink href="/expert">
+                Open dashboard
+                <ArrowRight size={18} />
+              </ButtonLink>
+
+              <ButtonLink href={`/experts/${existingProfile.id}`} variant="secondary">
+                View public profile
+              </ButtonLink>
+            </div>
+          </Card>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main>
-      <section className="container-page grid min-h-[calc(100vh-72px)] items-center gap-12 py-16 lg:grid-cols-[1fr_0.92fr]">
-        <div>
-          <div className="inline-flex rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#f97316] shadow-sm">
-            For experts
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-70" />
+        <div className="absolute left-[-120px] top-[-160px] h-[360px] w-[360px] rounded-full bg-[var(--primary)]/14 blur-3xl" />
+        <div className="absolute right-[-120px] top-[80px] h-[380px] w-[380px] rounded-full bg-[var(--accent)]/13 blur-3xl" />
+
+        <div className="container-page relative grid gap-10 py-14 lg:grid-cols-[0.92fr_1.08fr] lg:items-end lg:py-16">
+          <div>
+            <Badge variant="primary">
+              <Sparkles size={14} />
+              Create your help profile
+            </Badge>
+
+            <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+              Tell people who you are and how you can help.
+            </h1>
+
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
+              Create a profile, add your first service and become visible in the
+              marketplace after setup.
+            </p>
           </div>
 
-          <h1 className="mt-7 max-w-4xl text-balance text-5xl font-black tracking-tight md:text-7xl">
-            Turn your career experience into paid 1:1 sessions.
-          </h1>
-
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-[#6f6a63]">
-            SkillDrop helps experienced people sell short, practical calls to
-            job seekers who need fast feedback before important career moments.
-          </p>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/sign-in?next=/expert"
-              className="rounded-full bg-[#151515] px-7 py-4 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-            >
-              Open expert workspace
-            </Link>
-
-            <Link
-              href="/pricing"
-              className="rounded-full border border-[#e8e1d8] bg-white px-7 py-4 text-center text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-            >
-              See pricing
-            </Link>
-          </div>
-
-          <div className="mt-9 flex flex-wrap gap-2">
-            {expertTypes.map((type) => (
-              <span
-                key={type}
-                className="rounded-full border border-[#e8e1d8] bg-white/80 px-4 py-2 text-sm font-bold text-[#6f6a63]"
-              >
-                {type}
-              </span>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MiniStep icon={UserRound} title="Profile" text="About you" />
+            <MiniStep icon={WalletCards} title="Service" text="Price & time" />
+            <MiniStep icon={ShieldCheck} title="Trust" text="Earn verification" />
           </div>
         </div>
+      </section>
 
-        <div className="card rounded-[2.5rem] p-4">
-          <div className="rounded-[2rem] bg-[#151515] p-6 text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-5">
-              <div>
-                <p className="text-sm font-bold text-white/45">
-                  Expert profile preview
+      <section className="section-page">
+        <div className="container-page">
+          <div className="grid gap-8 lg:grid-cols-[0.76fr_1.24fr]">
+            <div className="grid content-start gap-5">
+              <Card className="p-6">
+                <Badge variant="accent">
+                  <BadgeCheck size={14} />
+                  Verification rule
+                </Badge>
+
+                <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+                  Verification is earned
+                </h2>
+
+                <p className="mt-3 leading-7 text-muted">
+                  New providers start without a verified badge. The badge appears
+                  after 3 successful calls and a rating of 3.8 or higher.
                 </p>
-                <p className="mt-1 text-lg font-black">Live on SkillDrop</p>
-              </div>
 
-              <span className="rounded-full bg-[#f97316] px-4 py-2 text-xs font-black text-white">
-                Verified
-              </span>
+                <div className="mt-6 grid gap-3">
+                  <RuleItem value="3" label="successful calls" />
+                  <RuleItem value="3.8+" label="minimum rating" />
+                  <RuleItem value="Verified" label="earned badge" />
+                </div>
+              </Card>
+
+              <Card soft className="p-6">
+                <Badge variant="primary">
+                  <CheckCircle2 size={14} />
+                  Tips
+                </Badge>
+
+                <div className="mt-5 grid gap-3">
+                  {profileTips.map((tip) => (
+                    <div
+                      key={tip}
+                      className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/62 p-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]"
+                    >
+                      <CheckCircle2
+                        size={17}
+                        className="mt-0.5 shrink-0 text-[var(--success)]"
+                      />
+                      {tip}
+                    </div>
+                  ))}
+                </div>
+              </Card>
             </div>
 
-            <div className="mt-6 flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f97316] text-2xl font-black">
-                E
-              </div>
-
+            <Card className="p-6 md:p-8">
               <div>
-                <h2 className="text-2xl font-black">Your Name</h2>
-                <p className="mt-1 text-sm text-white/50">
-                  Senior expert helping people move faster
+                <Badge variant="primary">
+                  <BriefcaseBusiness size={14} />
+                  Provider setup
+                </Badge>
+
+                <h2 className="mt-5 text-3xl font-black tracking-[-0.05em]">
+                  Create your profile
+                </h2>
+
+                <p className="mt-3 leading-7 text-muted">
+                  This information will be used for your public marketplace
+                  profile and your first service.
                 </p>
               </div>
-            </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <MiniStat label="Rating" value="⭐ 4.9" />
-              <MiniStat label="Sessions" value="120" />
-              <MiniStat label="From" value="€15" />
-            </div>
+              {resolvedSearchParams.error ? (
+                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
+                  {resolvedSearchParams.error}
+                </div>
+              ) : null}
 
-            <div className="mt-6 space-y-3">
-              {services.map((service) => (
-                <div key={service.title} className="rounded-2xl bg-white/8 p-4">
-                  <div className="flex items-center justify-between gap-4">
+              <form action={createProviderProfileAction} className="mt-8 grid gap-8">
+                <div className="grid gap-5">
+                  <SectionTitle
+                    icon={UserRound}
+                    title="About you"
+                    text="Basic information clients will see."
+                  />
+
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <Field label="Display name" htmlFor="displayName">
+                      <input
+                        id="displayName"
+                        name="displayName"
+                        type="text"
+                        defaultValue={name}
+                        required
+                        className="input mt-2"
+                        placeholder="Anna Keller"
+                      />
+                    </Field>
+
+                    <Field label="Country" htmlFor="country">
+                      <input
+                        id="country"
+                        name="country"
+                        type="text"
+                        className="input mt-2"
+                        placeholder="France"
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Headline" htmlFor="headline">
+                    <input
+                      id="headline"
+                      name="headline"
+                      type="text"
+                      required
+                      className="input mt-2"
+                      placeholder="I help people prepare for difficult conversations"
+                    />
+                  </Field>
+
+                  <Field label="Autobiography / about you" htmlFor="bio">
+                    <textarea
+                      id="bio"
+                      name="bio"
+                      required
+                      rows={6}
+                      className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+                      placeholder="Tell clients who you are, what kind of experience you have, who you can help, and what they can expect after a call."
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid gap-5">
+                  <SectionTitle
+                    icon={Globe2}
+                    title="Category, skills and languages"
+                    text="Help people find you in search."
+                  />
+
+                  <Field label="Main category" htmlFor="category">
+                    <select
+                      id="category"
+                      name="category"
+                      required
+                      className="input mt-2"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>
+                        Choose a category
+                      </option>
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <Field label="Languages" htmlFor="languages">
+                      <input
+                        id="languages"
+                        name="languages"
+                        type="text"
+                        required
+                        className="input mt-2"
+                        placeholder="English, French, Russian"
+                      />
+                    </Field>
+
+                    <Field label="Timezone" htmlFor="timezone">
+                      <input
+                        id="timezone"
+                        name="timezone"
+                        type="text"
+                        required
+                        defaultValue="Europe/Paris"
+                        className="input mt-2"
+                        placeholder="Europe/Paris"
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Skills / topics" htmlFor="skills">
+                    <input
+                      id="skills"
+                      name="skills"
+                      type="text"
+                      required
+                      className="input mt-2"
+                      placeholder="translation, moving abroad, emotional support, documents"
+                    />
+                  </Field>
+
+                  <Field label="Tags" htmlFor="tags">
+                    <input
+                      id="tags"
+                      name="tags"
+                      type="text"
+                      className="input mt-2"
+                      placeholder="support, advice, french, family, relocation"
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid gap-5">
+                  <SectionTitle
+                    icon={Clock3}
+                    title="Your first service"
+                    text="Create one clear offer that people can book."
+                  />
+
+                  <Field label="Service title" htmlFor="serviceTitle">
+                    <input
+                      id="serviceTitle"
+                      name="serviceTitle"
+                      type="text"
+                      required
+                      className="input mt-2"
+                      placeholder="15-minute life advice call"
+                    />
+                  </Field>
+
+                  <Field label="Service description" htmlFor="serviceDescription">
+                    <textarea
+                      id="serviceDescription"
+                      name="serviceDescription"
+                      required
+                      rows={4}
+                      className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+                      placeholder="Explain what happens during the call and what the client will get from it."
+                    />
+                  </Field>
+
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <Field label="Call duration" htmlFor="durationMinutes">
+                      <select
+                        id="durationMinutes"
+                        name="durationMinutes"
+                        required
+                        className="input mt-2"
+                        defaultValue="15"
+                      >
+                        {durationOptions.map((duration) => (
+                          <option key={duration} value={duration}>
+                            {duration} minutes
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+
+                    <Field label="Price in EUR" htmlFor="price">
+                      <div className="relative mt-2">
+                        <Euro
+                          size={17}
+                          className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                        />
+                        <input
+                          id="price"
+                          name="price"
+                          type="number"
+                          min="1"
+                          step="1"
+                          required
+                          className="input pl-12"
+                          placeholder="25"
+                        />
+                      </div>
+                    </Field>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-[var(--border)] bg-[var(--primary-soft)] p-5">
+                  <div className="flex gap-3">
+                    <ShieldCheck
+                      size={20}
+                      className="mt-1 shrink-0 text-[var(--primary-dark)]"
+                    />
                     <div>
-                      <p className="font-black">{service.title}</p>
-                      <p className="mt-1 text-sm text-white/45">
-                        {service.time} focused call
+                      <p className="font-black text-[var(--primary-dark)]">
+                        Your profile will be visible after setup
+                      </p>
+                      <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
+                        You can edit services and availability later from your
+                        dashboard.
                       </p>
                     </div>
-
-                    <p className="font-black text-[#f97316]">
-                      {service.price}
-                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="mt-6 rounded-2xl bg-white p-4 text-[#151515]">
-              <p className="text-sm font-black text-[#2563eb]">
-                Example booking
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                “I have an interview tomorrow and need practical feedback.”
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button type="submit" className="btn btn-primary">
+                    Create profile
+                    <ArrowRight size={18} />
+                  </button>
 
-      <section className="container-page pb-20">
-        <div className="mb-8">
-          <p className="text-sm font-black text-[#2563eb]">Why experts join</p>
-          <h2 className="mt-3 max-w-2xl text-4xl font-black tracking-tight">
-            A simple way to monetize what you already know.
-          </h2>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-3">
-          {benefits.map((benefit) => (
-            <div key={benefit.title} className="card rounded-[2rem] p-7">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef4ff] text-xl">
-                ✓
-              </div>
-
-              <h3 className="mt-6 text-xl font-black">{benefit.title}</h3>
-
-              <p className="mt-3 leading-7 text-[#6f6a63]">{benefit.text}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="container-page pb-20">
-        <div className="card rounded-[2.5rem] p-8 md:p-10">
-          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-            <div>
-              <p className="text-sm font-black text-[#f97316]">
-                How it works
-              </p>
-
-              <h2 className="mt-3 text-4xl font-black tracking-tight">
-                Start with one service. Grow from there.
-              </h2>
-
-              <p className="mt-4 leading-8 text-[#6f6a63]">
-                You do not need to launch a course, build a website or manage a
-                complicated funnel. Start with one clear offer.
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {steps.map((step) => (
-                <div
-                  key={step.number}
-                  className="rounded-[1.75rem] bg-[#f7f4ef] p-6"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#151515] text-sm font-black text-white">
-                    {step.number}
-                  </div>
-
-                  <h3 className="mt-5 font-black">{step.title}</h3>
-
-                  <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                    {step.text}
-                  </p>
+                  <Link href="/expert" className="btn btn-secondary">
+                    Skip for now
+                  </Link>
                 </div>
-              ))}
-            </div>
+              </form>
+            </Card>
           </div>
-        </div>
-      </section>
-
-      <section className="container-page pb-24">
-        <div className="rounded-[2.5rem] bg-[#2563eb] p-8 text-center text-white md:p-12">
-          <p className="text-sm font-black text-white/70">
-            Become an early expert
-          </p>
-
-          <h2 className="mx-auto mt-4 max-w-3xl text-4xl font-black tracking-tight md:text-5xl">
-            Help people make better career decisions.
-          </h2>
-
-          <p className="mx-auto mt-5 max-w-2xl leading-8 text-white/70">
-            The first version of SkillDrop focuses on career help. Experts who
-            join early get better visibility when the marketplace grows.
-          </p>
-
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link
-              href="/sign-in?next=/expert"
-              className="rounded-full bg-white px-7 py-4 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-            >
-              Open expert workspace
-            </Link>
-
-            <Link
-              href="/pricing"
-              className="rounded-full bg-[#151515] px-7 py-4 text-sm font-black text-white transition hover:bg-black"
-            >
-              See business model
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="container-page pb-24">
-        <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
-          <div>
-            <p className="text-sm font-black text-[#2563eb]">
-              Apply as expert
-            </p>
-
-            <h2 className="mt-3 text-4xl font-black tracking-tight">
-              Create your first expert offer.
-            </h2>
-
-            <p className="mt-4 leading-8 text-[#6f6a63]">
-              Submit your profile and one service. Every expert profile is
-              reviewed before appearing publicly in the marketplace.
-            </p>
-
-            <div className="mt-6 rounded-[1.75rem] bg-[#eef4ff] p-5">
-              <p className="font-black text-[#2563eb]">Profile review</p>
-              <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                Every expert profile is reviewed before appearing publicly in
-                the marketplace.
-              </p>
-            </div>
-
-            {submitted ? (
-              <div className="mt-6 rounded-[1.75rem] bg-green-100 p-5">
-                <p className="font-black text-green-700">
-                  Application submitted
-                </p>
-                <p className="mt-2 text-sm leading-6 text-green-800">
-                  Your expert profile was submitted successfully. It will appear
-                  publicly after approval.
-                </p>
-              </div>
-            ) : null}
-          </div>
-
-          <form
-            action={applyExpertAction}
-            className="card rounded-[2.4rem] p-6 md:p-8"
-          >
-            <div className="grid gap-5 md:grid-cols-2">
-              <ExpertField label="Full name">
-                <input
-                  required
-                  name="name"
-                  placeholder="Alex Johnson"
-                  className="input-field"
-                />
-              </ExpertField>
-
-              <ExpertField label="Email">
-                <input
-                  required
-                  type="email"
-                  name="email"
-                  placeholder="alex@email.com"
-                  className="input-field"
-                />
-              </ExpertField>
-            </div>
-
-            <div className="mt-5 grid gap-5 md:grid-cols-2">
-              <ExpertField label="Country">
-                <input
-                  name="country"
-                  placeholder="Germany"
-                  className="input-field"
-                />
-              </ExpertField>
-
-              <ExpertField label="Timezone">
-                <input
-                  required
-                  name="timezone"
-                  placeholder="Europe/Berlin"
-                  className="input-field"
-                />
-              </ExpertField>
-            </div>
-
-            <div className="mt-5">
-              <ExpertField label="Headline">
-                <input
-                  required
-                  name="headline"
-                  placeholder="Senior recruiter helping developers get hired"
-                  className="input-field"
-                />
-              </ExpertField>
-            </div>
-
-            <div className="mt-5">
-              <ExpertField label="Bio">
-                <textarea
-                  required
-                  name="bio"
-                  rows={5}
-                  placeholder="Explain who you help and what kind of feedback you provide."
-                  className="input-field resize-none"
-                />
-              </ExpertField>
-            </div>
-
-            <div className="mt-5 grid gap-5 md:grid-cols-2">
-              <ExpertField label="Languages">
-                <input
-                  required
-                  name="languages"
-                  placeholder="English, French"
-                  className="input-field"
-                />
-              </ExpertField>
-
-              <ExpertField label="Skills">
-                <input
-                  required
-                  name="skills"
-                  placeholder="CV Review, Interview Prep, LinkedIn"
-                  className="input-field"
-                />
-              </ExpertField>
-            </div>
-
-            <div className="mt-5">
-              <ExpertField label="Search tags / hashtags">
-                <input
-                  name="tags"
-                  placeholder="react, frontend, cv-review, remote-jobs, linkedin, germany"
-                  className="input-field"
-                />
-              </ExpertField>
-
-              <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                Add keywords buyers may search for. Example: react, frontend,
-                mock-interview, cv-review, remote-jobs, junior-developer.
-              </p>
-            </div>
-
-            <div className="mt-8 rounded-[1.75rem] bg-[#f7f4ef] p-5">
-              <p className="font-black">First service</p>
-              <p className="mt-1 text-sm text-[#6f6a63]">
-                Create one offer people can book.
-              </p>
-
-              <div className="mt-5">
-                <ExpertField label="Service title">
-                  <input
-                    required
-                    name="serviceTitle"
-                    placeholder="CV Review for Software Engineers"
-                    className="input-field"
-                  />
-                </ExpertField>
-              </div>
-
-              <div className="mt-5">
-                <ExpertField label="Service description">
-                  <textarea
-                    required
-                    name="serviceDescription"
-                    rows={4}
-                    placeholder="Describe what happens during the session."
-                    className="input-field resize-none"
-                  />
-                </ExpertField>
-              </div>
-
-              <div className="mt-5 grid gap-5 md:grid-cols-2">
-                <ExpertField label="Duration">
-                  <select
-                    required
-                    name="durationMinutes"
-                    defaultValue="15"
-                    className="input-field"
-                  >
-                    <option value="15">15 minutes</option>
-                    <option value="30">30 minutes</option>
-                    <option value="60">60 minutes</option>
-                  </select>
-                </ExpertField>
-
-                <ExpertField label="Price in EUR">
-                  <input
-                    required
-                    type="number"
-                    min="5"
-                    name="priceEuros"
-                    defaultValue="15"
-                    className="input-field"
-                  />
-                </ExpertField>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="mt-8 w-full rounded-2xl bg-[#2563eb] px-7 py-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#1d4ed8]"
-            >
-              Submit expert application
-            </button>
-          </form>
         </div>
       </section>
     </main>
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStep({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: typeof UserRound;
+  title: string;
+  text: string;
+}) {
   return (
-    <div className="rounded-2xl bg-white/8 p-4">
-      <p className="text-xs font-bold text-white/45">{label}</p>
-      <p className="mt-1 font-black">{value}</p>
+    <Card soft className="p-5">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={19} />
+      </div>
+
+      <p className="mt-4 font-black">{title}</p>
+      <p className="mt-1 text-sm font-semibold text-muted">{text}</p>
+    </Card>
+  );
+}
+
+function RuleItem({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/70 p-4">
+      <p className="text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-1 text-sm font-bold text-muted">{label}</p>
     </div>
   );
 }
 
-function ExpertField({
+function SectionTitle({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: typeof UserRound;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="flex gap-4">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-white shadow-sm">
+        <Icon size={21} />
+      </div>
+
+      <div>
+        <h3 className="text-xl font-black tracking-[-0.03em]">{title}</h3>
+        <p className="mt-1 text-sm leading-6 text-muted">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string;
+  htmlFor: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="text-sm font-black text-[#151515]">{label}</span>
-      <div className="mt-2">{children}</div>
-    </label>
+    <div>
+      <label htmlFor={htmlFor} className="text-sm font-black">
+        {label}
+      </label>
+      {children}
+    </div>
   );
 }

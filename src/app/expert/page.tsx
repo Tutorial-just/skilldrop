@@ -1,799 +1,1024 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { RingStat } from "@/components/dashboard/ring-stat";
+import { redirect } from "next/navigation";
+import {
+  ArrowRight,
+  BadgeCheck,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  Eye,
+  Lightbulb,
+  ListChecks,
+  Plus,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  UserRound,
+  Video,
+  WalletCards,
+} from "lucide-react";
 
-const PLATFORM_FEE_RATE = 0.15;
+import { requireRole } from "@/lib/auth/get-current-user";
+import { SignOutButton } from "@/components/auth/sign-out-button";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { prisma } from "@/lib/prisma";
+
+const workspaceLinks = [
+  {
+    title: "Profile",
+    text: "Edit biography, skills, languages and public details.",
+    href: "/expert/profile",
+    icon: UserRound,
+  },
+  {
+    title: "Offers",
+    text: "Manage bookable services, prices and duration.",
+    href: "/expert/services",
+    icon: WalletCards,
+  },
+  {
+    title: "Availability",
+    text: "Add open time slots and manage your calendar.",
+    href: "/expert/availability",
+    icon: CalendarDays,
+  },
+  {
+    title: "Bookings",
+    text: "See upcoming calls and manage sessions.",
+    href: "/expert/bookings",
+    icon: Video,
+  },
+  {
+    title: "Statistics",
+    text: "Track revenue, calls, rating and growth.",
+    href: "/expert/stats",
+    icon: BarChart3,
+  },
+  {
+    title: "Settings",
+    text: "Appearance, visibility, privacy and booking rules.",
+    href: "/expert/settings",
+    icon: Settings,
+  },
+];
 
 export default async function ExpertDashboardPage() {
-  const [experts, bookings] = await Promise.all([
-    prisma.expertProfile.findMany({
-      include: {
-        user: true,
-        services: true,
-        availability: true,
-        reviews: {
-          include: {
-            buyer: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
+  const { user } = await requireRole(["expert", "admin"]);
+
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    redirect("/sign-in");
+  }
+
+  const now = new Date();
+
+  const expert = await prisma.expertProfile.findFirst({
+    where: {
+      user: {
+        email,
+      },
+    },
+    include: {
+      user: true,
+      services: {
+        include: {
+          category: true,
+        },
+        orderBy: {
+          createdAt: "desc",
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-    }),
-
-    prisma.booking.findMany({
-      include: {
-        buyer: true,
-        expert: {
-          include: {
-            user: true,
+      availability: {
+        where: {
+          startTime: {
+            gte: now,
           },
         },
-        service: true,
-        review: true,
-        callRoom: true,
+        orderBy: {
+          startTime: "asc",
+        },
+        take: 24,
       },
-      orderBy: {
-        startTime: "asc",
+      bookings: {
+        orderBy: {
+          startTime: "asc",
+        },
+        include: {
+          buyer: true,
+          service: true,
+          callRoom: true,
+        },
       },
-    }),
-  ]);
+      reviews: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 4,
+      },
+    },
+  });
 
-  const mainExpert = experts[0];
+  if (!expert) {
+    redirect("/become-expert");
+  }
 
-  const pendingBookings = bookings.filter(
-    (booking) => booking.status === "PENDING",
-  );
+  const activeServices = expert.services.filter((service) => service.isActive);
+  const openSlots = expert.availability.filter((slot) => !slot.isBooked);
+  const nextOpenSlots = openSlots.slice(0, 8);
 
-  const paidBookings = bookings.filter((booking) => booking.status === "PAID");
-
-  const confirmedBookings = bookings.filter(
-    (booking) => booking.status === "CONFIRMED",
-  );
-
-  const upcomingBookings = bookings.filter(
+  const upcomingBookings = expert.bookings.filter(
     (booking) =>
+      booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
-      booking.status !== "COMPLETED" &&
-      booking.startTime >= new Date(),
+      booking.status !== "REFUNDED",
   );
 
-  const completedBookings = bookings.filter(
+  const completedBookings = expert.bookings.filter(
     (booking) => booking.status === "COMPLETED",
   );
 
-  const cancelledBookings = bookings.filter(
-    (booking) => booking.status === "CANCELLED",
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const todaysBookings = upcomingBookings.filter(
+    (booking) => booking.startTime >= todayStart && booking.startTime <= todayEnd,
   );
 
-  const revenueBookings = bookings.filter(
-    (booking) =>
-      booking.status === "PAID" ||
-      booking.status === "CONFIRMED" ||
-      booking.status === "COMPLETED",
+  const todaysOpenSlots = openSlots.filter(
+    (slot) => slot.startTime >= todayStart && slot.startTime <= todayEnd,
   );
 
-  const grossCents = revenueBookings.reduce(
+  const nextBooking = todaysBookings[0] ?? upcomingBookings[0] ?? null;
+  const nextTodayOpenSlot = todaysOpenSlots[0] ?? null;
+
+  const upcomingRevenueCents = upcomingBookings.reduce(
     (sum, booking) => sum + booking.priceCents,
     0,
   );
 
-  const platformFeeCents = Math.round(grossCents * PLATFORM_FEE_RATE);
-  const payoutCents = grossCents - platformFeeCents;
-
-  const availableSlots = experts.reduce(
-    (sum, expert) =>
-      sum + expert.availability.filter((slot) => !slot.isBooked).length,
+  const completedRevenueCents = completedBookings.reduce(
+    (sum, booking) => sum + booking.priceCents,
     0,
   );
 
-  const bookedSlots = experts.reduce(
-    (sum, expert) =>
-      sum + expert.availability.filter((slot) => slot.isBooked).length,
-    0,
-  );
+  const profileScore = calculateProfileScore({
+    hasHeadline: Boolean(expert.headline),
+    hasBio: expert.bio.length >= 120,
+    hasSkills: expert.skills.length >= 3,
+    hasLanguages: expert.languages.length > 0,
+    hasServices: activeServices.length > 0,
+    hasAvailability: openSlots.length > 0,
+    isVerified: expert.isVerified,
+  });
 
-  const totalSlots = availableSlots + bookedSlots;
+  const verificationProgress = calculateVerificationProgress({
+    totalSessions: expert.totalSessions,
+    rating: expert.rating,
+    isVerified: expert.isVerified,
+  });
 
-  const availabilityHealth =
-    totalSlots > 0 ? Math.round((availableSlots / totalSlots) * 100) : 0;
+  const checklist = [
+    {
+      title: "Complete public profile",
+      text: "Add a strong biography, headline, languages and skills.",
+      done:
+        Boolean(expert.headline) &&
+        expert.bio.length >= 120 &&
+        expert.skills.length >= 3 &&
+        expert.languages.length > 0,
+      href: "/expert/profile",
+    },
+    {
+      title: "Create at least one offer",
+      text: "Clients need a clear service to book.",
+      done: activeServices.length > 0,
+      href: "/expert/services",
+    },
+    {
+      title: "Add open availability",
+      text: "Open slots make your profile bookable.",
+      done: openSlots.length > 0,
+      href: "/expert/availability",
+    },
+    {
+      title: "Complete first 3 calls",
+      text: "This helps unlock verification.",
+      done: expert.totalSessions >= 3,
+      href: "/expert/bookings",
+    },
+    {
+      title: "Earn client reviews",
+      text: "Reviews make future clients trust you faster.",
+      done: expert.totalReviews > 0,
+      href: "/expert/stats",
+    },
+  ];
 
-  const bookingCompletionRate =
-    bookings.length > 0
-      ? Math.round((completedBookings.length / bookings.length) * 100)
-      : 0;
-
-  const earningsProgress = Math.min(
-    Math.round((payoutCents / 10000) * 100),
-    100,
-  );
-
-  const totalReviews = experts.reduce(
-    (sum, expert) => sum + expert.reviews.length,
-    0,
-  );
-
-  const averageRating =
-    experts.length > 0
-      ? experts.reduce((sum, expert) => sum + expert.rating, 0) / experts.length
-      : 0;
-
-  const profileScore = mainExpert ? calculateProfileScore(mainExpert) : 0;
-
-  const nextBooking = upcomingBookings[0];
-
-  const recentReviews = experts
-    .flatMap((expert) =>
-      expert.reviews.map((review) => ({
-        ...review,
-        expertName: expert.user.name ?? "Expert",
-      })),
-    )
-    .slice(0, 3);
+  const completedChecklist = checklist.filter((item) => item.done).length;
+  const checklistProgress = Math.round((completedChecklist / checklist.length) * 100);
 
   return (
-    <main className="container-page py-10">
-      <section className="rounded-[2rem] bg-[#151515] p-6 text-white sm:rounded-[2.5rem] md:p-10">
-        <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:items-end">
-          <div>
-            <p className="text-sm font-black text-[#f97316]">
-              Expert workspace
-            </p>
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
 
-            <h1 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">
-              Run your expert business from one place.
-            </h1>
+        <div className="relative p-6 md:p-8 lg:p-10">
+          <div className="grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
+            <div>
+              <Badge variant={expert.isVerified ? "success" : "accent"}>
+                {expert.isVerified ? (
+                  <>
+                    <BadgeCheck size={14} />
+                    Verified provider
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={14} />
+                    Verification in progress
+                  </>
+                )}
+              </Badge>
 
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-white/60">
-              Manage booking requests, upcoming sessions, availability, earnings
-              and profile quality without jumping between tools.
-            </p>
+              <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+                Welcome back, {expert.user.name ?? "Provider"}.
+              </h1>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/expert/bookings"
-                className="rounded-full bg-white px-6 py-3 text-center text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                Manage bookings
-              </Link>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                Your workspace for calls, offers, availability, profile growth
+                and client trust.
+              </p>
+            </div>
 
-              <Link
-                href="/expert/availability"
-                className="rounded-full bg-[#2563eb] px-6 py-3 text-center text-sm font-black text-white transition hover:bg-[#1d4ed8]"
-              >
+            <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
+              <ButtonLink href={`/experts/${expert.id}`}>
+                <Eye size={18} />
+                Public profile
+              </ButtonLink>
+
+              <ButtonLink href="/expert/availability" variant="secondary">
+                <Plus size={18} />
                 Add availability
-              </Link>
+              </ButtonLink>
 
-              <Link
-                href="/expert/settings"
-                className="rounded-full bg-white/10 px-6 py-3 text-center text-sm font-black text-white transition hover:bg-white/15"
-              >
-                Settings
-              </Link>
+              <SignOutButton />
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-5 text-[#151515]">
-            <p className="text-sm font-black text-[#2563eb]">Next session</p>
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              icon={Video}
+              label="Calls today"
+              value={String(todaysBookings.length)}
+              hint={`${todaysOpenSlots.length} open slots today`}
+            />
 
-            {nextBooking ? (
-              <div>
-                <h2 className="mt-3 text-2xl font-black">
-                  {nextBooking.service.title}
-                </h2>
+            <MetricCard
+              icon={CalendarDays}
+              label="Open slots"
+              value={String(openSlots.length)}
+              hint="Future bookable times"
+            />
 
-                <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                  Buyer: {nextBooking.buyer.name ?? nextBooking.buyer.email}
-                </p>
+            <MetricCard
+              icon={CircleDollarSign}
+              label="Upcoming value"
+              value={formatMoney(upcomingRevenueCents)}
+              hint="Before commission"
+            />
 
-                <p className="mt-4 rounded-[1.25rem] bg-[#f7f4ef] px-4 py-3 text-sm font-black">
-                  {new Intl.DateTimeFormat("en", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(nextBooking.startTime)}
-                </p>
-
-                <Link
-                  href={`/dashboard/bookings/${nextBooking.id}`}
-                  className="mt-4 block rounded-full bg-[#151515] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-                >
-                  Open booking
-                </Link>
-              </div>
-            ) : (
-              <div>
-                <h2 className="mt-3 text-2xl font-black">
-                  No upcoming sessions
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                  Add more available slots so buyers can book your time.
-                </p>
-
-                <Link
-                  href="/expert/availability"
-                  className="mt-4 block rounded-full bg-[#151515] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-                >
-                  Add slots
-                </Link>
-              </div>
-            )}
+            <MetricCard
+              icon={Star}
+              label="Rating"
+              value={expert.rating ? expert.rating.toFixed(1) : "New"}
+              hint={`${expert.totalReviews} reviews`}
+            />
           </div>
         </div>
-
-        <div className="mt-8 grid gap-3 md:grid-cols-4">
-          <DashboardStat
-            label="Pending requests"
-            value={`${pendingBookings.length}`}
-          />
-          <DashboardStat
-            label="Upcoming sessions"
-            value={`${upcomingBookings.length}`}
-          />
-          <DashboardStat
-            label="Completed"
-            value={`${completedBookings.length}`}
-          />
-          <DashboardStat
-            label="Estimated payout"
-            value={formatMoney(payoutCents)}
-          />
-        </div>
       </section>
 
-      <section className="mt-8 grid gap-5 lg:grid-cols-4">
-        <RingStat
-          label="Profile score"
-          value={profileScore}
-          description="Profile readiness for trust and conversion."
-          tone={profileScore >= 80 ? "green" : "orange"}
-        />
+      <section className="p-6 md:p-8 lg:p-10">
+        <div className="grid gap-5">
+          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <Card className="p-5 md:p-6">
+              {nextBooking ? (
+                <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+                  <div>
+                    <Badge variant="primary">
+                      <Sparkles size={14} />
+                      Today
+                    </Badge>
 
-        <RingStat
-          label="Availability"
-          value={availabilityHealth}
-          description="Share of open slots compared to all slots."
-          tone={availabilityHealth >= 50 ? "green" : "orange"}
-        />
+                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                      {todaysBookings.length > 0
+                        ? "Your next call is ready."
+                        : "Your next call is upcoming."}
+                    </h2>
 
-        <RingStat
-          label="Completion"
-          value={bookingCompletionRate}
-          description="Completed sessions compared to all bookings."
-          tone={bookingCompletionRate >= 50 ? "green" : "blue"}
-        />
+                    <p className="mt-3 leading-7 text-muted">
+                      {todaysBookings.length > 0
+                        ? "Prepare for your next session today."
+                        : "You have no booked calls today, but a future call is already scheduled."}
+                    </p>
 
-        <RingStat
-          label="Earnings goal"
-          value={earningsProgress}
-          description="Progress toward €100 estimated payout."
-          tone={earningsProgress >= 50 ? "green" : "dark"}
-        />
-      </section>
+                    <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                      <ButtonLink href="/expert/bookings">
+                        View bookings
+                        <Video size={18} />
+                      </ButtonLink>
 
-      <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
-        <div className="space-y-8">
-          <section>
-            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <h2 className="text-2xl font-black">Booking pipeline</h2>
-                <p className="mt-1 text-sm text-[#6f6a63]">
-                  See where your sessions are in the expert workflow.
-                </p>
-              </div>
-
-              <Link
-                href="/expert/bookings"
-                className="w-fit rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                Open bookings
-              </Link>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <PipelineCard
-                title="Pending"
-                value={`${pendingBookings.length}`}
-                text="New requests waiting for payment or confirmation."
-                tone="orange"
-              />
-              <PipelineCard
-                title="Paid"
-                value={`${paidBookings.length}`}
-                text="Paid sessions waiting for confirmation."
-                tone="blue"
-              />
-              <PipelineCard
-                title="Confirmed"
-                value={`${confirmedBookings.length}`}
-                text="Sessions accepted and ready to happen."
-                tone="green"
-              />
-              <PipelineCard
-                title="Completed"
-                value={`${completedBookings.length}`}
-                text="Finished sessions that can receive reviews."
-                tone="dark"
-              />
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <h2 className="text-2xl font-black">Upcoming sessions</h2>
-                <p className="mt-1 text-sm text-[#6f6a63]">
-                  Your next calls with buyers.
-                </p>
-              </div>
-
-              <Link
-                href="/expert/bookings"
-                className="w-fit rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                View all
-              </Link>
-            </div>
-
-            {upcomingBookings.length === 0 ? (
-              <EmptyCard
-                icon="📅"
-                title="No upcoming sessions"
-                text="Create availability slots so buyers can book your time."
-              />
-            ) : (
-              <div className="space-y-4">
-                {upcomingBookings.slice(0, 5).map((booking) => (
-                  <article key={booking.id} className="card rounded-[2rem] p-6">
-                    <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
-                      <div className="flex items-start gap-4">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-xl font-black text-white">
-                          {booking.buyer.name?.charAt(0) ??
-                            booking.buyer.email.charAt(0).toUpperCase()}
-                        </div>
-
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-black">
-                              {booking.service.title}
-                            </h3>
-                            <StatusBadge status={booking.status} />
-                          </div>
-
-                          <p className="mt-1 text-sm text-[#6f6a63]">
-                            Buyer:{" "}
-                            <span className="font-bold text-[#151515]">
-                              {booking.buyer.name ?? booking.buyer.email}
-                            </span>
-                          </p>
-
-                          <p className="mt-1 text-sm text-[#6f6a63]">
-                            Expert:{" "}
-                            <span className="font-bold text-[#151515]">
-                              {booking.expert.user.name}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
-                        <MiniInfo
-                          label="Date"
-                          value={new Intl.DateTimeFormat("en", {
-                            dateStyle: "medium",
-                          }).format(booking.startTime)}
-                        />
-                        <MiniInfo
-                          label="Time"
-                          value={new Intl.DateTimeFormat("en", {
-                            timeStyle: "short",
-                          }).format(booking.startTime)}
-                        />
-                        <MiniInfo
-                          label="Price"
-                          value={formatMoney(booking.priceCents)}
-                          highlighted
-                        />
-                      </div>
+                      <ButtonLink href="/expert/availability" variant="secondary">
+                        Add slot
+                        <Plus size={18} />
+                      </ButtonLink>
                     </div>
+                  </div>
 
-                    <div className="mt-5 flex flex-col justify-between gap-3 border-t border-[#e8e1d8] pt-5 md:flex-row md:items-center">
-                      <p className="text-sm text-[#6f6a63]">
-                        Video room:{" "}
-                        <span className="font-bold text-[#151515]">
-                          {booking.callRoom ? "Ready" : "Not created yet"}
-                        </span>
-                      </p>
+                  <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+                    <Badge variant="accent">
+                      <Clock3 size={14} />
+                      {todaysBookings.length > 0 ? "Next call today" : "Upcoming call"}
+                    </Badge>
 
-                      <Link
-                        href={`/dashboard/bookings/${booking.id}`}
-                        className="w-fit rounded-full bg-[#151515] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#2563eb]"
-                      >
-                        Open booking
+                    <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                      {nextBooking.service?.title ?? "Provider call"}
+                    </h3>
+
+                    <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                      Client: {nextBooking.buyer.name ?? nextBooking.buyer.email}
+                    </p>
+
+                    <p className="mt-4 text-sm font-black text-[var(--primary-dark)]">
+                      {formatDateTime(nextBooking.startTime)}
+                    </p>
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                      {nextBooking.callRoom?.roomUrl ? (
+                        <Link
+                          href={nextBooking.callRoom.roomUrl}
+                          className="btn btn-primary"
+                        >
+                          Join call
+                          <Video size={17} />
+                        </Link>
+                      ) : null}
+
+                      <Link href="/expert/bookings" className="btn btn-secondary">
+                        View booking
                       </Link>
                     </div>
-                  </article>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-2xl">
+                  <Badge variant="primary">
+                    <Sparkles size={14} />
+                    Today
+                  </Badge>
+
+                  <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                    {nextTodayOpenSlot
+                      ? "You have open slots today."
+                      : "No calls yet today."}
+                  </h2>
+
+                  <p className="mt-3 max-w-xl leading-7 text-muted">
+                    {nextTodayOpenSlot
+                      ? `Your next open slot today is ${formatTime(
+                          nextTodayOpenSlot.startTime,
+                        )}–${formatTime(
+                          nextTodayOpenSlot.endTime,
+                        )}. Clients can book this time.`
+                      : "You have no booked calls today. Add availability or improve offers to get your next client."}
+                  </p>
+
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <ButtonLink href="/expert/availability">
+                      Add slot
+                      <Plus size={18} />
+                    </ButtonLink>
+
+                    <ButtonLink href="/expert/services" variant="secondary">
+                      Improve offers
+                    </ButtonLink>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="accent">
+                <ListChecks size={14} />
+                Setup checklist
+              </Badge>
+
+              <div className="mt-5 flex items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-3xl font-black tracking-[-0.05em]">
+                    {checklistProgress}% complete
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    {completedChecklist} of {checklist.length} tasks done.
+                  </p>
+                </div>
+
+                <p className="text-sm font-black text-[var(--primary-dark)]">
+                  {checklistProgress >= 80 ? "Strong" : "Keep going"}
+                </p>
+              </div>
+
+              <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
+                  style={{ width: `${checklistProgress}%` }}
+                />
+              </div>
+
+              <div className="mt-5 grid gap-2">
+                {checklist.map((item) => (
+                  <ChecklistRow key={item.title} item={item} />
                 ))}
               </div>
-            )}
-          </section>
+            </Card>
+          </div>
 
-          <section>
-            <div className="mb-5">
-              <h2 className="text-2xl font-black">Performance</h2>
-              <p className="mt-1 text-sm text-[#6f6a63]">
-                A simple overview of expert activity and quality.
-              </p>
-            </div>
+          <div className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
+            <div className="grid gap-5">
+              <Card className="p-5 md:p-6">
+                <Badge variant="primary">
+                  <CalendarDays size={14} />
+                  Upcoming open slots
+                </Badge>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <MetricCard
-                title="Average rating"
-                value={`${averageRating.toFixed(1)} / 5`}
-                text="Based on public expert reviews."
-              />
-              <MetricCard
-                title="Reviews"
-                value={`${totalReviews}`}
-                text="Reviews help buyers trust your profile."
-              />
-              <MetricCard
-                title="Available slots"
-                value={`${availableSlots}`}
-                text="More slots usually means more booking opportunities."
-              />
-              <MetricCard
-                title="Cancelled"
-                value={`${cancelledBookings.length}`}
-                text="Keep cancellations low to improve marketplace trust."
-              />
-            </div>
-          </section>
+                <div className="mt-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                  <div>
+                    <h2 className="text-3xl font-black tracking-[-0.05em]">
+                      {openSlots.length > 0
+                        ? `${openSlots.length} future slots`
+                        : "No open slots"}
+                    </h2>
 
-          <section>
-            <div className="mb-5">
-              <h2 className="text-2xl font-black">Recent reviews</h2>
-              <p className="mt-1 text-sm text-[#6f6a63]">
-                Latest feedback from completed sessions.
-              </p>
-            </div>
-
-            {recentReviews.length === 0 ? (
-              <EmptyCard
-                icon="⭐"
-                title="No reviews yet"
-                text="Reviews will appear here after completed sessions."
-              />
-            ) : (
-              <div className="grid gap-4 md:grid-cols-3">
-                {recentReviews.map((review) => (
-                  <div key={review.id} className="card rounded-[2rem] p-5">
-                    <p className="text-lg">{"⭐".repeat(review.rating)}</p>
-
-                    <p className="mt-3 min-h-[72px] text-sm leading-6 text-[#6f6a63]">
-                      “{review.comment ?? "No written comment."}”
-                    </p>
-
-                    <p className="mt-4 text-sm font-black">
-                      {review.buyer.name ?? "Verified buyer"}
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      These are future unbooked times that clients can reserve.
                     </p>
                   </div>
-                ))}
+
+                  <ButtonLink href="/expert/availability" variant="secondary">
+                    View calendar
+                  </ButtonLink>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {nextOpenSlots.length > 0 ? (
+                    nextOpenSlots.map((slot) => (
+                      <SlotChip key={slot.id} slot={slot} />
+                    ))
+                  ) : (
+                    <div className="w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-white/55 p-5">
+                      <p className="font-black">No bookable times yet</p>
+
+                      <p className="mt-2 text-sm leading-6 text-muted">
+                        Add availability so clients can choose a time.
+                      </p>
+
+                      <div className="mt-4">
+                        <ButtonLink href="/expert/availability">
+                          Add availability
+                          <Plus size={17} />
+                        </ButtonLink>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {openSlots.length > nextOpenSlots.length ? (
+                  <p className="mt-4 text-sm font-bold text-muted">
+                    Showing {nextOpenSlots.length} of {openSlots.length}. Open
+                    calendar to see all.
+                  </p>
+                ) : null}
+              </Card>
+
+              <Card className="p-5 md:p-6">
+                <Badge variant="primary">
+                  <UserRound size={14} />
+                  Profile readiness
+                </Badge>
+
+                <div className="mt-5 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-5xl font-black tracking-[-0.06em]">
+                      {profileScore}%
+                    </p>
+
+                    <p className="mt-2 text-sm font-semibold text-muted">
+                      Public profile strength
+                    </p>
+                  </div>
+
+                  <ButtonLink href="/expert/profile" variant="secondary">
+                    Edit
+                  </ButtonLink>
+                </div>
+
+                <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
+                    style={{ width: `${profileScore}%` }}
+                  />
+                </div>
+
+                <div className="mt-5 grid gap-2">
+                  <MiniCheck done={Boolean(expert.headline)} text="Headline added" />
+                  <MiniCheck done={expert.bio.length >= 120} text="Strong biography" />
+                  <MiniCheck done={expert.skills.length >= 3} text="Searchable skills" />
+                  <MiniCheck done={expert.languages.length > 0} text="Languages added" />
+                </div>
+              </Card>
+
+              <Card className="p-5 md:p-6">
+                <Badge variant={expert.isVerified ? "success" : "accent"}>
+                  <BadgeCheck size={14} />
+                  Verification
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  {expert.isVerified ? "Verified" : "Earn your badge"}
+                </h2>
+
+                <p className="mt-3 text-sm leading-6 text-muted">
+                  Verification appears after 3 successful calls and rating of at
+                  least 3.8.
+                </p>
+
+                <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[var(--success)] to-[#22c55e]"
+                    style={{ width: `${verificationProgress}%` }}
+                  />
+                </div>
+
+                <div className="mt-5 grid grid-cols-3 gap-3">
+                  <TinyStat
+                    value={`${Math.min(expert.totalSessions, 3)}/3`}
+                    label="calls"
+                  />
+
+                  <TinyStat
+                    value={expert.rating ? expert.rating.toFixed(1) : "New"}
+                    label="rating"
+                  />
+
+                  <TinyStat
+                    value={expert.isVerified ? "Yes" : "No"}
+                    label="badge"
+                  />
+                </div>
+              </Card>
+            </div>
+
+            <div className="grid gap-5">
+              <Card className="p-5 md:p-6">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                  <div>
+                    <Badge variant="primary">
+                      <WalletCards size={14} />
+                      Workspace
+                    </Badge>
+
+                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                      Manage your provider business
+                    </h2>
+
+                    <p className="mt-3 max-w-2xl leading-7 text-muted">
+                      Quick access to the tools you use most often.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
+                  {workspaceLinks.map((item) => {
+                    const Icon = item.icon;
+
+                    return (
+                      <Link key={item.href} href={item.href} className="group">
+                        <div className="h-full rounded-[22px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                              <Icon size={18} />
+                            </div>
+
+                            <ArrowRight
+                              size={16}
+                              className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]"
+                            />
+                          </div>
+
+                          <h3 className="mt-4 text-lg font-black tracking-[-0.03em]">
+                            {item.title}
+                          </h3>
+
+                          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                            {item.text}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <div className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+                <Card className="p-5">
+                  <Badge variant="success">
+                    <CircleDollarSign size={14} />
+                    Revenue snapshot
+                  </Badge>
+
+                  <div className="mt-5 grid gap-3">
+                    <MoneyRow
+                      label="Upcoming value"
+                      value={formatMoney(upcomingRevenueCents)}
+                    />
+
+                    <MoneyRow
+                      label="Completed revenue"
+                      value={formatMoney(completedRevenueCents)}
+                    />
+
+                    <MoneyRow
+                      label="Active offers"
+                      value={String(activeServices.length)}
+                    />
+                  </div>
+                </Card>
+
+                <Card className="p-5">
+                  <Badge variant="accent">
+                    <Eye size={14} />
+                    Client preview
+                  </Badge>
+
+                  <div className="mt-5 flex items-start gap-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-black text-white">
+                      {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="font-black tracking-[-0.02em]">
+                        {expert.user.name ?? "Provider"}
+                      </p>
+
+                      <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">
+                        {expert.headline}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {expert.skills.slice(0, 4).map((skill) => (
+                      <span
+                        key={skill}
+                        className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]"
+                      >
+                        #{skill}
+                      </span>
+                    ))}
+
+                    {expert.skills.length === 0 ? (
+                      <span className="text-sm font-semibold text-muted">
+                        Add skills to improve discovery.
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-5">
+                    <ButtonLink href={`/experts/${expert.id}`} variant="secondary">
+                      View as client
+                    </ButtonLink>
+                  </div>
+                </Card>
               </div>
-            )}
-          </section>
+            </div>
+          </div>
+
+          <Card soft className="p-5 md:p-6">
+            <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                <Lightbulb size={24} />
+              </div>
+
+              <div>
+                <h2 className="text-2xl font-black tracking-[-0.04em]">
+                  Smart next step
+                </h2>
+
+                <p className="mt-2 leading-7 text-muted">
+                  {getSmartTip({
+                    hasServices: activeServices.length > 0,
+                    hasAvailability: openSlots.length > 0,
+                    hasReviews: expert.reviews.length > 0,
+                    hasStrongBio: expert.bio.length >= 120,
+                  })}
+                </p>
+              </div>
+
+              <ButtonLink
+                href={getSmartTipHref({
+                  hasServices: activeServices.length > 0,
+                  hasAvailability: openSlots.length > 0,
+                  hasReviews: expert.reviews.length > 0,
+                  hasStrongBio: expert.bio.length >= 120,
+                })}
+              >
+                Fix now
+                <ArrowRight size={18} />
+              </ButtonLink>
+            </div>
+          </Card>
         </div>
-
-        <aside className="space-y-6 lg:sticky lg:top-28 lg:h-fit">
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#f97316]">Quick actions</p>
-
-            <div className="mt-5 grid gap-3">
-              <QuickAction
-                href="/expert/bookings"
-                title="Manage bookings"
-                text="Confirm, complete and join sessions."
-              />
-              <QuickAction
-                href="/expert/availability"
-                title="Add slots"
-                text="Create more bookable time."
-              />
-              <QuickAction
-                href="/expert/earnings"
-                title="Check earnings"
-                text="See revenue and estimated payouts."
-              />
-              <QuickAction
-                href="/expert/settings"
-                title="Settings"
-                text="Adjust profile and preferences."
-              />
-            </div>
-          </div>
-
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#2563eb]">
-              Earnings snapshot
-            </p>
-
-            <div className="mt-5 space-y-3 rounded-[1.5rem] bg-[#f7f4ef] p-5">
-              <SummaryRow label="Gross" value={formatMoney(grossCents)} />
-              <SummaryRow
-                label="Platform fee"
-                value={`-${formatMoney(platformFeeCents)}`}
-              />
-              <SummaryRow
-                label="Estimated payout"
-                value={formatMoney(payoutCents)}
-              />
-              <SummaryRow
-                label="Completed"
-                value={`${completedBookings.length}`}
-              />
-            </div>
-
-            <Link
-              href="/expert/earnings"
-              className="mt-6 block rounded-full bg-[#151515] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-            >
-              Open earnings
-            </Link>
-          </div>
-
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#2563eb]">Availability</p>
-
-            <div className="mt-5 space-y-3 rounded-[1.5rem] bg-[#f7f4ef] p-5">
-              <SummaryRow label="Available slots" value={`${availableSlots}`} />
-              <SummaryRow label="Booked slots" value={`${bookedSlots}`} />
-              <SummaryRow
-                label="Upcoming sessions"
-                value={`${upcomingBookings.length}`}
-              />
-            </div>
-
-            <Link
-              href="/expert/availability"
-              className="mt-6 block rounded-full bg-[#2563eb] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#1d4ed8]"
-            >
-              Manage availability
-            </Link>
-          </div>
-
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#f97316]">
-              Profile checklist
-            </p>
-
-            <div className="mt-5 space-y-3">
-              <ProgressRow label="Profile created" done={Boolean(mainExpert)} />
-              <ProgressRow
-                label="Approved"
-                done={Boolean(mainExpert?.status === "APPROVED")}
-              />
-              <ProgressRow
-                label="Verified"
-                done={Boolean(mainExpert?.isVerified)}
-              />
-              <ProgressRow
-                label="Has services"
-                done={Boolean(mainExpert && mainExpert.services.length > 0)}
-              />
-              <ProgressRow
-                label="Has availability"
-                done={Boolean(mainExpert && mainExpert.availability.length > 0)}
-              />
-              <ProgressRow
-                label="Has reviews"
-                done={Boolean(mainExpert && mainExpert.reviews.length > 0)}
-              />
-            </div>
-          </div>
-        </aside>
       </section>
     </main>
   );
 }
 
-function calculateProfileScore(expert: {
-  status: string;
-  isVerified: boolean;
-  services: unknown[];
-  availability: unknown[];
-  reviews: unknown[];
-  bio: string;
-  skills: string[];
-  languages: string[];
-}) {
-  let score = 0;
-
-  if (expert.bio.length > 80) score += 15;
-  if (expert.skills.length >= 3) score += 15;
-  if (expert.languages.length >= 1) score += 10;
-  if (expert.services.length > 0) score += 15;
-  if (expert.availability.length > 0) score += 15;
-  if (expert.status === "APPROVED") score += 15;
-  if (expert.isVerified) score += 10;
-  if (expert.reviews.length > 0) score += 5;
-
-  return Math.min(score, 100);
-}
-
-function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2)}`;
-}
-
-function DashboardStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.5rem] bg-white/10 p-5">
-      <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-2 text-2xl font-black text-white">{value}</p>
-    </div>
-  );
-}
-
-function PipelineCard({
-  title,
-  value,
-  text,
-  tone,
+function SlotChip({
+  slot,
 }: {
-  title: string;
-  value: string;
-  text: string;
-  tone: "orange" | "blue" | "green" | "dark";
-}) {
-  const styles = {
-    orange: "bg-[#fff3e8] text-[#f97316]",
-    blue: "bg-[#eef4ff] text-[#2563eb]",
-    green: "bg-green-100 text-green-700",
-    dark: "bg-[#151515] text-white",
+  slot: {
+    id: string;
+    startTime: Date;
+    endTime: Date;
+    isBooked: boolean;
   };
-
+}) {
   return (
-    <div className={`rounded-[2rem] p-6 ${styles[tone]}`}>
-      <p className="text-sm font-black opacity-80">{title}</p>
-      <p className="mt-4 text-4xl font-black">{value}</p>
-      <p className="mt-3 text-sm leading-6 opacity-75">{text}</p>
-    </div>
+    <Link
+      href="/expert/availability"
+      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--shadow-sm)]"
+      title={`${formatDateTime(slot.startTime)} — ${formatTime(slot.endTime)}`}
+    >
+      <Clock3 size={14} />
+
+      <span>
+        {formatShortDate(slot.startTime)} · {formatTime(slot.startTime)}–
+        {formatTime(slot.endTime)}
+      </span>
+    </Link>
   );
 }
 
 function MetricCard({
-  title,
+  icon: Icon,
+  label,
   value,
-  text,
+  hint,
 }: {
-  title: string;
+  icon: typeof Video;
+  label: string;
   value: string;
-  text: string;
+  hint: string;
 }) {
   return (
-    <div className="card rounded-[2rem] p-6">
-      <p className="text-sm font-black text-[#2563eb]">{title}</p>
-      <p className="mt-4 text-4xl font-black">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-[#6f6a63]">{text}</p>
+    <Card soft className="p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+          <Icon size={20} />
+        </div>
+
+        <ArrowRight size={16} className="text-muted" />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+
+      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+    </Card>
+  );
+}
+
+function ChecklistRow({
+  item,
+}: {
+  item: {
+    title: string;
+    text: string;
+    done: boolean;
+    href: string;
+  };
+}) {
+  return (
+    <Link
+      href={item.href}
+      className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-3 transition hover:bg-white hover:shadow-[var(--shadow-sm)]"
+    >
+      <div
+        className={
+          item.done
+            ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--success-soft)] text-[var(--success)]"
+            : "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]"
+        }
+      >
+        {item.done ? <CheckCircle2 size={16} /> : <Clock3 size={16} />}
+      </div>
+
+      <div className="min-w-0">
+        <p className="font-black tracking-[-0.02em]">{item.title}</p>
+
+        <p className="mt-1 line-clamp-1 text-xs font-semibold text-muted">
+          {item.text}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function MiniCheck({ done, text }: { done: boolean; text: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <div
+        className={
+          done
+            ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--success-soft)] text-[var(--success)]"
+            : "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]"
+        }
+      >
+        {done ? <BadgeCheck size={15} /> : <ShieldCheck size={15} />}
+      </div>
+
+      <p className="text-sm font-bold text-muted">{text}</p>
     </div>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    PENDING: "bg-[#fff3e8] text-[#f97316]",
-    PAID: "bg-[#eef4ff] text-[#2563eb]",
-    APPROVED: "bg-[#eef4ff] text-[#2563eb]",
-    CONFIRMED: "bg-green-100 text-green-700",
-    COMPLETED: "bg-[#151515] text-white",
-    CANCELLED: "bg-red-100 text-red-700",
-    REJECTED: "bg-red-100 text-red-700",
-    SUSPENDED: "bg-[#f7f4ef] text-[#6f6a63]",
-  };
-
+function TinyStat({ value, label }: { value: string; label: string }) {
   return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-black ${
-        styles[status] ?? "bg-[#f7f4ef] text-[#6f6a63]"
-      }`}
-    >
-      {status}
-    </span>
-  );
-}
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-xl font-black tracking-[-0.04em]">{value}</p>
 
-function MiniInfo({
-  label,
-  value,
-  highlighted = false,
-}: {
-  label: string;
-  value: string;
-  highlighted?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-[1.25rem] p-4 ${
-        highlighted ? "bg-[#eef4ff]" : "bg-[#f7f4ef]"
-      }`}
-    >
-      <p className="text-xs font-bold text-[#6f6a63]">{label}</p>
-      <p
-        className={`mt-1 truncate text-sm font-black ${
-          highlighted ? "text-[#2563eb]" : "text-[#151515]"
-        }`}
-      >
-        {value}
+      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
       </p>
     </div>
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function MoneyRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#e8e1d8] pb-3 last:border-0 last:pb-0">
-      <span className="text-sm text-[#6f6a63]">{label}</span>
-      <span className="text-right text-sm font-black">{value}</span>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="font-black">{value}</p>
     </div>
   );
 }
 
-function ProgressRow({ label, done }: { label: string; done: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#e8e1d8] pb-3 last:border-0 last:pb-0">
-      <span className="text-sm text-[#6f6a63]">{label}</span>
-      <span
-        className={`rounded-full px-3 py-1 text-xs font-black ${
-          done ? "bg-green-100 text-green-700" : "bg-[#f7f4ef] text-[#6f6a63]"
-        }`}
-      >
-        {done ? "DONE" : "TODO"}
-      </span>
-    </div>
-  );
-}
-
-function QuickAction({
-  href,
-  title,
-  text,
+function calculateProfileScore({
+  hasHeadline,
+  hasBio,
+  hasSkills,
+  hasLanguages,
+  hasServices,
+  hasAvailability,
+  isVerified,
 }: {
-  href: string;
-  title: string;
-  text: string;
+  hasHeadline: boolean;
+  hasBio: boolean;
+  hasSkills: boolean;
+  hasLanguages: boolean;
+  hasServices: boolean;
+  hasAvailability: boolean;
+  isVerified: boolean;
 }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-[1.5rem] bg-[#f7f4ef] p-4 transition hover:bg-[#eef4ff]"
-    >
-      <p className="font-black">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-[#6f6a63]">{text}</p>
-    </Link>
-  );
+  const checks = [
+    hasHeadline,
+    hasBio,
+    hasSkills,
+    hasLanguages,
+    hasServices,
+    hasAvailability,
+    isVerified,
+  ];
+
+  const completed = checks.filter(Boolean).length;
+
+  return Math.round((completed / checks.length) * 100);
 }
 
-function EmptyCard({
-  icon,
-  title,
-  text,
+function calculateVerificationProgress({
+  totalSessions,
+  rating,
+  isVerified,
 }: {
-  icon: string;
-  title: string;
-  text: string;
+  totalSessions: number;
+  rating: number;
+  isVerified: boolean;
 }) {
-  return (
-    <div className="card rounded-[2rem] p-10 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eef4ff] text-2xl">
-        {icon}
-      </div>
+  if (isVerified) {
+    return 100;
+  }
 
-      <h3 className="mt-5 text-2xl font-black">{title}</h3>
+  const callProgress = Math.min(totalSessions / 3, 1) * 60;
+  const ratingProgress = rating >= 3.8 ? 40 : rating > 0 ? 20 : 0;
 
-      <p className="mx-auto mt-3 max-w-md leading-7 text-[#6f6a63]">{text}</p>
-    </div>
-  );
+  return Math.round(callProgress + ratingProgress);
+}
+
+function getSmartTip({
+  hasServices,
+  hasAvailability,
+  hasReviews,
+  hasStrongBio,
+}: {
+  hasServices: boolean;
+  hasAvailability: boolean;
+  hasReviews: boolean;
+  hasStrongBio: boolean;
+}) {
+  if (!hasStrongBio) {
+    return "Strengthen your biography so clients understand who you help, why they can trust you, and what they will get from a call.";
+  }
+
+  if (!hasServices) {
+    return "Create your first clear offer with price and duration. Clients book faster when the result is easy to understand.";
+  }
+
+  if (!hasAvailability) {
+    return "Add open slots for the next 7 days. A profile without availability is harder for clients to book.";
+  }
+
+  if (!hasReviews) {
+    return "Complete your first calls and ask clients to leave a review. Reviews are one of the strongest trust signals.";
+  }
+
+  return "Your workspace looks healthy. Keep availability fresh every week and improve your best-performing offer.";
+}
+
+function getSmartTipHref({
+  hasServices,
+  hasAvailability,
+  hasReviews,
+  hasStrongBio,
+}: {
+  hasServices: boolean;
+  hasAvailability: boolean;
+  hasReviews: boolean;
+  hasStrongBio: boolean;
+}) {
+  if (!hasStrongBio) {
+    return "/expert/profile";
+  }
+
+  if (!hasServices) {
+    return "/expert/services";
+  }
+
+  if (!hasAvailability) {
+    return "/expert/availability";
+  }
+
+  if (!hasReviews) {
+    return "/expert/bookings";
+  }
+
+  return "/expert/stats";
+}
+
+function formatMoney(cents: number) {
+  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

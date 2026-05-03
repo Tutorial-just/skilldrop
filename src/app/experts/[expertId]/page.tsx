@@ -1,19 +1,61 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  Bookmark,
+  BookmarkCheck,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Euro,
+  Globe2,
+  Languages,
+  MessageCircle,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Trash2,
+  Video,
+  WalletCards,
+} from "lucide-react";
 
-type ExpertPageProps = {
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { createBookingAction } from "@/server/actions/booking.actions";
+import {
+  saveExpertAction,
+  unsaveExpertAction,
+} from "@/server/actions/saved-expert.actions";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+
+type ExpertPublicPageProps = {
   params: Promise<{
     expertId: string;
   }>;
+  searchParams?: Promise<{
+    service?: string;
+    error?: string;
+    saved?: string;
+  }>;
 };
 
-export default async function ExpertPage({ params }: ExpertPageProps) {
-  const { expertId } = await params;
+const MAX_VISIBLE_SLOTS = 24;
+
+export default async function ExpertPublicPage({
+  params,
+  searchParams,
+}: ExpertPublicPageProps) {
+  const resolvedParams = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const session = await getCurrentUser();
+
+  const now = new Date();
 
   const expert = await prisma.expertProfile.findUnique({
     where: {
-      id: expertId,
+      id: resolvedParams.expertId,
     },
     include: {
       user: true,
@@ -21,14 +63,26 @@ export default async function ExpertPage({ params }: ExpertPageProps) {
         where: {
           isActive: true,
         },
+        include: {
+          category: true,
+        },
         orderBy: {
           priceCents: "asc",
         },
       },
-      reviews: {
-        include: {
-          buyer: true,
+      availability: {
+        where: {
+          startTime: {
+            gte: now,
+          },
+          isBooked: false,
         },
+        orderBy: {
+          startTime: "asc",
+        },
+        take: MAX_VISIBLE_SLOTS,
+      },
+      reviews: {
         orderBy: {
           createdAt: "desc",
         },
@@ -37,307 +91,703 @@ export default async function ExpertPage({ params }: ExpertPageProps) {
     },
   });
 
-  if (!expert || expert.status !== "APPROVED") {
+  if (!expert) {
     notFound();
   }
 
-  const minPrice =
+  const currentUser = session.user;
+  const isBuyer = session.role === "buyer" || session.role === "admin";
+  const isOwnProfile = currentUser?.id === expert.userId;
+
+  const savedExpert =
+    currentUser && isBuyer && !isOwnProfile
+      ? await prisma.savedExpert.findUnique({
+          where: {
+            buyerId_expertId: {
+              buyerId: currentUser.id,
+              expertId: expert.id,
+            },
+          },
+        })
+      : null;
+
+  const selectedService =
+    expert.services.find((service) => service.id === resolvedSearchParams.service) ??
+    expert.services[0] ??
+    null;
+
+  const groupedSlots = groupSlotsByDate(expert.availability);
+
+  const startingPrice =
     expert.services.length > 0
       ? Math.min(...expert.services.map((service) => service.priceCents))
       : null;
 
   return (
-    <main className="container-page py-10">
-      <Link
-        href="/experts"
-        className="inline-flex rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-bold text-[#6f6a63] transition hover:text-[#151515]"
-      >
-        ← Back to experts
-      </Link>
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
 
-      <section className="mt-6 rounded-[2rem] bg-[#151515] p-6 text-white sm:rounded-[2.5rem] md:p-10">
-        <div className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
-          <div>
-            <div className="flex flex-col gap-6 md:flex-row md:items-center">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-3xl font-black text-white md:h-24 md:w-24 md:text-4xl">
-                {expert.user.name?.charAt(0) ?? "E"}
+        <div className="relative container-page py-8 md:py-10 lg:py-14">
+          <Link
+            href="/experts"
+            className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+          >
+            <ArrowLeft size={16} />
+            Back to experts
+          </Link>
+
+          {resolvedSearchParams.saved ? (
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
+              Expert saved. You can find this profile in your saved experts.
+            </div>
+          ) : null}
+
+          {resolvedSearchParams.error ? (
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
+              {formatError(resolvedSearchParams.error)}
+            </div>
+          ) : null}
+
+          <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-start">
+            <div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={expert.isVerified ? "success" : "accent"}>
+                  {expert.isVerified ? (
+                    <>
+                      <BadgeCheck size={14} />
+                      Verified
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={14} />
+                      New helper
+                    </>
+                  )}
+                </Badge>
+
+                {expert.country ? (
+                  <Badge>
+                    <Globe2 size={14} />
+                    {expert.country}
+                  </Badge>
+                ) : null}
+
+                {startingPrice ? (
+                  <Badge variant="primary">
+                    <Euro size={14} />
+                    From {formatMoney(startingPrice)}
+                  </Badge>
+                ) : null}
+
+                <Badge>
+                  <Star size={14} />
+                  {expert.rating ? expert.rating.toFixed(1) : "New"}
+                </Badge>
               </div>
 
-              <div>
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {expert.isVerified ? (
-                    <span className="rounded-full bg-green-400 px-3 py-1 text-xs font-black text-[#151515]">
-                      Verified expert
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/80">
-                      Pending verification
-                    </span>
-                  )}
-
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/80">
-                    {expert.timezone}
-                  </span>
-
-                  {expert.country ? (
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/80">
-                      {expert.country}
-                    </span>
-                  ) : null}
+              <div className="mt-8 flex flex-col gap-6 md:flex-row md:items-start">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[32px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-4xl font-black text-white shadow-[var(--shadow-sm)]">
+                  {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
                 </div>
 
-                <h1 className="text-4xl font-black tracking-tight md:text-5xl">
-                  {expert.user.name}
-                </h1>
+                <div className="min-w-0">
+                  <h1 className="heading-lg max-w-4xl text-balance">
+                    {expert.user.name ?? "Provider"}
+                  </h1>
 
-                <p className="mt-3 max-w-2xl text-lg leading-8 text-white/60">
-                  {expert.headline}
-                </p>
+                  <p className="mt-4 max-w-3xl text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+                    {expert.headline}
+                  </p>
+
+                  <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
+                    {expert.bio}
+                  </p>
+
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {expert.skills.slice(0, 10).map((skill) => (
+                      <HashTag key={skill} text={skill} />
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="rounded-[2rem] bg-white p-5 text-[#151515]">
-            <p className="text-sm font-black text-[#2563eb]">Starting from</p>
-            <p className="mt-2 text-5xl font-black">
-              {minPrice ? `€${minPrice / 100}` : "—"}
-            </p>
-            <p className="mt-2 text-sm text-[#6f6a63]">
-              Short focused 1:1 sessions
-            </p>
-          </div>
-        </div>
+            <Card className="p-5 md:p-6 xl:sticky xl:top-[96px]">
+              <Badge variant="accent">
+                <Sparkles size={14} />
+                Booking
+              </Badge>
 
-        <div className="mt-8 grid gap-3 md:grid-cols-3">
-          <HeroStat label="Rating" value={`⭐ ${expert.rating.toFixed(1)}`} />
-          <HeroStat label="Reviews" value={`${expert.totalReviews}`} />
-          <HeroStat label="Sessions" value={`${expert.totalSessions}`} />
+              <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                Ready to book?
+              </h2>
+
+              <div className="mt-5 grid gap-3">
+                <SummaryRow
+                  label="Offer"
+                  value={selectedService?.title ?? "Choose offer"}
+                />
+
+                <SummaryRow
+                  label="Duration"
+                  value={
+                    selectedService
+                      ? `${selectedService.durationMinutes} min`
+                      : "—"
+                  }
+                />
+
+                <SummaryRow
+                  label="Price"
+                  value={
+                    selectedService ? formatMoney(selectedService.priceCents) : "—"
+                  }
+                />
+
+                <SummaryRow
+                  label="Open times"
+                  value={String(expert.availability.length)}
+                />
+              </div>
+
+              <div className="mt-6 rounded-2xl bg-[var(--primary-soft)] p-4 text-sm font-bold leading-6 text-[var(--primary-dark)]">
+                Choose an offer, then pick a time below.
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                {!currentUser ? (
+                  <Link href="/sign-in" className="btn btn-secondary">
+                    Sign in to save
+                  </Link>
+                ) : isOwnProfile ? (
+                  <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-sm font-bold text-muted">
+                    This is your own expert profile.
+                  </div>
+                ) : savedExpert ? (
+                  <form action={unsaveExpertAction}>
+                    <input type="hidden" name="expertId" value={expert.id} />
+                    <input
+                      type="hidden"
+                      name="returnTo"
+                      value={`/experts/${expert.id}`}
+                    />
+
+                    <button type="submit" className="btn btn-danger w-full">
+                      <Trash2 size={17} />
+                      Remove saved
+                    </button>
+                  </form>
+                ) : (
+                  <form action={saveExpertAction}>
+                    <input type="hidden" name="expertId" value={expert.id} />
+
+                    <button type="submit" className="btn btn-secondary w-full">
+                      <Bookmark size={17} />
+                      Save expert
+                    </button>
+                  </form>
+                )}
+
+                {savedExpert ? (
+                  <Link href="/buyer/saved" className="btn btn-secondary">
+                    <BookmarkCheck size={17} />
+                    View saved experts
+                  </Link>
+                ) : null}
+              </div>
+            </Card>
+          </div>
         </div>
       </section>
 
-      <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_420px]">
-        <div className="space-y-6">
-          <InfoCard title="About">
-            <p className="leading-8 text-[#6f6a63]">{expert.bio}</p>
-          </InfoCard>
+      <section className="container-page py-8 md:py-10 lg:py-12">
+        <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start">
+          <div className="grid gap-6">
+            <Card className="p-5 md:p-6">
+              <Badge variant="primary">
+                <WalletCards size={14} />
+                Services
+              </Badge>
 
-          <InfoCard title="Trust & verification">
-            <div className="grid gap-4 md:grid-cols-2">
-              <TrustCard
-                title="Profile status"
-                value={expert.status}
-                tone="blue"
-              />
-
-              <TrustCard
-                title="Verification"
-                value={expert.isVerified ? "Verified" : "Pending"}
-                tone={expert.isVerified ? "green" : "orange"}
-              />
-
-              <TrustCard
-                title="Sessions completed"
-                value={`${expert.totalSessions}`}
-                tone="neutral"
-              />
-
-              <TrustCard
-                title="Average rating"
-                value={`${expert.rating.toFixed(1)} / 5`}
-                tone="neutral"
-              />
-            </div>
-
-            {expert.verificationNote ? (
-              <div className="mt-4 rounded-[1.5rem] bg-[#f7f4ef] p-5">
-                <p className="text-sm font-black">Verification note</p>
-                <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                  {expert.verificationNote}
-                </p>
-              </div>
-            ) : null}
-          </InfoCard>
-
-          <InfoCard title="Skills">
-            <div className="flex flex-wrap gap-2">
-              {expert.skills.map((skill) => (
-                <span
-                  key={skill}
-                  className="rounded-full bg-[#eef4ff] px-3 py-1.5 text-sm font-bold text-[#2563eb]"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
-          </InfoCard>
-
-          <InfoCard title="Languages">
-            <div className="flex flex-wrap gap-2">
-              {expert.languages.map((language) => (
-                <span
-                  key={language}
-                  className="rounded-full bg-[#f7f4ef] px-3 py-1.5 text-sm font-bold text-[#6f6a63]"
-                >
-                  {language}
-                </span>
-              ))}
-            </div>
-          </InfoCard>
-
-          <InfoCard title="What people say">
-            {expert.reviews.length === 0 ? (
-              <div className="rounded-[1.5rem] bg-[#f7f4ef] p-5">
-                <p className="font-black">No reviews yet</p>
-                <p className="mt-2 leading-7 text-[#6f6a63]">
-                  This expert is new on SkillDrop. Reviews will appear after
-                  completed sessions.
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {expert.reviews.map((review) => (
-                  <ReviewCard
-                    key={review.id}
-                    rating={review.rating}
-                    text={review.comment ?? "No written comment."}
-                    name={review.buyer.name ?? "Verified buyer"}
-                  />
-                ))}
-              </div>
-            )}
-          </InfoCard>
-        </div>
-
-        <aside className="lg:sticky lg:top-28 lg:h-fit">
-          <div className="card rounded-[2rem] p-6">
-            <div className="border-b border-[#e8e1d8] pb-5">
-              <p className="text-sm font-black text-[#f97316]">
-                Book a session
-              </p>
-              <h2 className="mt-2 text-2xl font-black">
-                Choose how{" "}
-                {expert.user.name?.split(" ")[0] ?? "this expert"} can help
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Choose a service
               </h2>
-              <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                Pick a service and continue to booking. You’ll choose your time
-                on the next step.
-              </p>
-            </div>
 
-            <div className="mt-5 space-y-3">
-              {expert.services.map((service) => (
-                <div
-                  key={service.id}
-                  className="rounded-[1.5rem] border border-[#e8e1d8] bg-white p-4 transition hover:border-[#2563eb]"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="font-black">{service.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                        {service.description}
+              <div className="mt-6 grid gap-4">
+                {expert.services.length > 0 ? (
+                  expert.services.map((service) => {
+                    const isSelected = selectedService?.id === service.id;
+
+                    return (
+                      <Link
+                        key={service.id}
+                        href={`/experts/${expert.id}?service=${service.id}`}
+                        className={
+                          isSelected
+                            ? "rounded-[26px] border border-[var(--primary)]/30 bg-[var(--primary-soft)] p-4 shadow-sm transition hover:-translate-y-0.5"
+                            : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--shadow-sm)]"
+                        }
+                      >
+                        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                          <div>
+                            <div className="flex flex-wrap gap-2">
+                              {isSelected ? (
+                                <Badge variant="primary">
+                                  <CheckCircle2 size={14} />
+                                  Selected
+                                </Badge>
+                              ) : null}
+
+                              <Badge>{service.category?.name ?? "Service"}</Badge>
+                            </div>
+
+                            <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                              {service.title}
+                            </h3>
+
+                            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted">
+                              {service.description}
+                            </p>
+                          </div>
+
+                          <div className="shrink-0 rounded-2xl border border-[var(--border)] bg-white/64 p-4 md:text-right">
+                            <p className="text-2xl font-black tracking-[-0.04em]">
+                              {formatMoney(service.priceCents)}
+                            </p>
+
+                            <p className="mt-1 text-sm font-bold text-muted">
+                              {service.durationMinutes} min
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })
+                ) : (
+                  <EmptyState
+                    title="No services yet"
+                    text="This expert has not added active services."
+                  />
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="primary">
+                <CalendarDays size={14} />
+                Time
+              </Badge>
+
+              <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div>
+                  <h2 className="text-3xl font-black tracking-[-0.05em]">
+                    Choose a time
+                  </h2>
+
+                  <p className="mt-2 max-w-2xl leading-7 text-muted">
+                    Pick one available slot for your call.
+                  </p>
+                </div>
+
+                <Badge>{expert.availability.length} open</Badge>
+              </div>
+
+              <div className="mt-6 grid gap-4">
+                {groupedSlots.length > 0 && selectedService ? (
+                  groupedSlots.map((group) => (
+                    <div
+                      key={group.label}
+                      className="rounded-[24px] border border-[var(--border)] bg-white/45 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                            {group.label}
+                          </p>
+
+                          <p className="mt-1 text-xs font-bold text-muted">
+                            {group.slots.length} available
+                          </p>
+                        </div>
+
+                        <Badge>{group.slots.length}</Badge>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {group.slots.map((slot) => (
+                          <form key={slot.id} action={createBookingAction}>
+                            <input
+                              type="hidden"
+                              name="expertId"
+                              value={expert.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="serviceId"
+                              value={selectedService.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="availabilityId"
+                              value={slot.id}
+                            />
+
+                            <button
+                              type="submit"
+                              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
+                              title={`${formatDateTime(
+                                slot.startTime,
+                              )} — ${formatTime(slot.endTime)}`}
+                            >
+                              <Clock3 size={14} />
+                              {formatTime(slot.startTime)}
+                            </button>
+                          </form>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : null}
+
+                {groupedSlots.length === 0 ? (
+                  <EmptyState
+                    title="No open times"
+                    text="This expert has no available time slots right now."
+                  />
+                ) : null}
+
+                {groupedSlots.length > 0 && !selectedService ? (
+                  <EmptyState
+                    title="Choose a service first"
+                    text="Select a service before choosing a time."
+                  />
+                ) : null}
+              </div>
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="accent">
+                <MessageCircle size={14} />
+                About
+              </Badge>
+
+              <div className="mt-6 grid gap-5 md:grid-cols-3">
+                <InfoBox
+                  icon={Languages}
+                  label="Languages"
+                  value={
+                    expert.languages.length > 0
+                      ? expert.languages.join(", ")
+                      : "Not set"
+                  }
+                />
+
+                <InfoBox
+                  icon={Video}
+                  label="Sessions"
+                  value={`${expert.totalSessions} completed`}
+                />
+
+                <InfoBox
+                  icon={Star}
+                  label="Rating"
+                  value={
+                    expert.rating
+                      ? `${expert.rating.toFixed(1)} / 5`
+                      : "New provider"
+                  }
+                />
+              </div>
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="accent">
+                <Star size={14} />
+                Reviews
+              </Badge>
+
+              <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div>
+                  <h2 className="text-3xl font-black tracking-[-0.05em]">
+                    Client feedback
+                  </h2>
+                </div>
+
+                <Badge>{expert.totalReviews} reviews</Badge>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {expert.reviews.length > 0 ? (
+                  expert.reviews.map((review) => (
+                    <div
+                      key={review.id}
+                      className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="flex items-center gap-2 font-black">
+                          <Star size={16} fill="currentColor" />
+                          {review.rating}/5
+                        </p>
+
+                        <p className="text-xs font-bold text-muted">
+                          {formatShortDate(review.createdAt)}
+                        </p>
+                      </div>
+
+                      <p className="mt-3 line-clamp-4 text-sm font-semibold leading-6 text-muted">
+                        {review.comment || "No comment left."}
                       </p>
                     </div>
-
-                    <p className="shrink-0 font-black text-[#2563eb]">
-                      €{service.priceCents / 100}
-                    </p>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="rounded-full bg-[#f7f4ef] px-3 py-1 text-xs font-bold text-[#6f6a63]">
-                      {service.durationMinutes} min
-                    </span>
-
-                    <Link
-                      href={`/experts/${expert.id}/book?serviceId=${service.id}`}
-                      className="rounded-full bg-[#151515] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#2563eb]"
-                    >
-                      Book
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 rounded-[1.5rem] bg-[#eef4ff] p-4">
-              <p className="text-sm font-black text-[#2563eb]">
-                Trust & safety
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                {expert.isVerified
-                  ? "This expert profile has been manually reviewed by SkillDrop."
-                  : "This expert is approved, but full verification is still pending."}
-              </p>
-            </div>
+                  ))
+                ) : (
+                  <EmptyState
+                    title="No reviews yet"
+                    text="This expert is still collecting first reviews."
+                  />
+                )}
+              </div>
+            </Card>
           </div>
-        </aside>
+
+          <div className="grid content-start gap-5 xl:sticky xl:top-[96px]">
+            <Card className="p-5">
+              <Badge variant="primary">
+                <Globe2 size={14} />
+                Quick facts
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <SideFact label="Country" value={expert.country ?? "Global"} />
+
+                <SideFact
+                  label="Languages"
+                  value={
+                    expert.languages.length > 0
+                      ? expert.languages.slice(0, 3).join(", ")
+                      : "Not set"
+                  }
+                />
+
+                <SideFact
+                  label="Sessions"
+                  value={`${expert.totalSessions} completed`}
+                />
+
+                <SideFact
+                  label="Rating"
+                  value={expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"}
+                />
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <Badge variant="success">
+                <ShieldCheck size={14} />
+                Safe booking
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <Step number="1" title="Choose service" text="Pick the help you need." />
+                <Step number="2" title="Pick time" text="Select an open slot." />
+                <Step number="3" title="Join call" text="Meet through video." />
+              </div>
+            </Card>
+
+            <Card soft className="p-5">
+              <Badge variant="accent">
+                <Sparkles size={14} />
+                Good to know
+              </Badge>
+
+              <p className="mt-4 text-sm font-bold leading-6 text-muted">
+                Short calls work best when you prepare one clear question before
+                booking.
+              </p>
+            </Card>
+          </div>
+        </div>
       </section>
     </main>
   );
 }
 
-function HeroStat({ label, value }: { label: string; value: string }) {
+function HashTag({ text }: { text: string }) {
   return (
-    <div className="rounded-[1.5rem] bg-white/10 p-5">
-      <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-2 text-2xl font-black text-white">{value}</p>
+    <span className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-sm font-black text-[var(--muted-foreground)]">
+      #{text}
+    </span>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-right text-sm font-black">{value}</p>
     </div>
   );
 }
 
-function InfoCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="card rounded-[2rem] p-7">
-      <h2 className="text-2xl font-black">{title}</h2>
-      <div className="mt-5">{children}</div>
-    </section>
-  );
-}
-
-function ReviewCard({
-  rating,
-  text,
-  name,
-}: {
-  rating: number;
-  text: string;
-  name: string;
-}) {
-  return (
-    <div className="rounded-[1.5rem] bg-[#f7f4ef] p-5">
-      <p className="text-lg">{"⭐".repeat(rating)}</p>
-      <p className="mt-3 leading-7 text-[#6f6a63]">“{text}”</p>
-      <p className="mt-4 text-sm font-black text-[#151515]">{name}</p>
-    </div>
-  );
-}
-
-function TrustCard({
-  title,
+function InfoBox({
+  icon: Icon,
+  label,
   value,
-  tone,
 }: {
-  title: string;
+  icon: typeof Languages;
+  label: string;
   value: string;
-  tone: "blue" | "green" | "orange" | "neutral";
 }) {
-  const styles = {
-    blue: "bg-[#eef4ff] text-[#2563eb]",
-    green: "bg-green-100 text-green-700",
-    orange: "bg-[#fff3e8] text-[#f97316]",
-    neutral: "bg-[#f7f4ef] text-[#151515]",
-  };
-
   return (
-    <div className={`rounded-[1.5rem] p-5 ${styles[tone]}`}>
-      <p className="text-sm font-bold opacity-70">{title}</p>
-      <p className="mt-2 text-xl font-black">{value}</p>
+    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={18} />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-sm font-black leading-6">{value}</p>
     </div>
   );
+}
+
+function SideFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-right text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
+function Step({
+  number,
+  title,
+  text,
+}: {
+  number: string;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-black text-[var(--primary-dark)]">
+        {number}
+      </div>
+
+      <div>
+        <p className="font-black tracking-[-0.02em]">{title}</p>
+        <p className="mt-1 text-sm font-semibold leading-6 text-muted">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center md:col-span-2">
+      <h3 className="text-2xl font-black tracking-[-0.04em]">{title}</h3>
+      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function groupSlotsByDate(
+  slots: {
+    id: string;
+    startTime: Date;
+    endTime: Date;
+    isBooked: boolean;
+  }[],
+) {
+  const groups = new Map<
+    string,
+    {
+      label: string;
+      slots: {
+        id: string;
+        startTime: Date;
+        endTime: Date;
+        isBooked: boolean;
+      }[];
+    }
+  >();
+
+  slots.forEach((slot) => {
+    const label = new Intl.DateTimeFormat("en", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    }).format(slot.startTime);
+
+    const existing = groups.get(label);
+
+    if (existing) {
+      existing.slots.push(slot);
+      return;
+    }
+
+    groups.set(label, {
+      label,
+      slots: [slot],
+    });
+  });
+
+  return Array.from(groups.values());
+}
+
+function formatMoney(cents: number) {
+  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatError(error: string) {
+  if (error === "cannot-book-yourself") {
+    return "You cannot book your own profile.";
+  }
+
+  if (error === "cannot-save-yourself") {
+    return "You cannot save your own expert profile.";
+  }
+
+  if (error === "slot-not-available") {
+    return "This time slot is no longer available.";
+  }
+
+  if (error === "service-not-found") {
+    return "This offer is not available anymore.";
+  }
+
+  if (error === "missing-booking-data") {
+    return "Please choose an offer and a time slot.";
+  }
+
+  return "Something went wrong. Please try again.";
 }

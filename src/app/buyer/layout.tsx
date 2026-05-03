@@ -2,57 +2,57 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  BarChart3,
+  Bookmark,
   CalendarDays,
+  Search,
   Settings,
   Sparkles,
+  Star,
   UserRound,
-  Video,
-  WalletCards,
 } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 
-const expertLinks = [
+const buyerLinks = [
   {
     label: "Profile",
-    href: "/expert/profile",
+    href: "/buyer/profile",
     icon: UserRound,
   },
   {
-    label: "Offers",
-    href: "/expert/services",
-    icon: WalletCards,
-  },
-  {
-    label: "Availability",
-    href: "/expert/availability",
-    icon: CalendarDays,
+    label: "Find experts",
+    href: "/experts",
+    icon: Search,
   },
   {
     label: "Bookings",
-    href: "/expert/bookings",
-    icon: Video,
+    href: "/buyer/bookings",
+    icon: CalendarDays,
   },
   {
-    label: "Statistics",
-    href: "/expert/stats",
-    icon: BarChart3,
+    label: "Saved experts",
+    href: "/buyer/saved",
+    icon: Bookmark,
+  },
+  {
+    label: "Reviews",
+    href: "/buyer/reviews",
+    icon: Star,
   },
   {
     label: "Settings",
-    href: "/expert/settings",
+    href: "/buyer/settings",
     icon: Settings,
   },
 ];
 
-export default async function ExpertLayout({
+export default async function BuyerLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const { user } = await requireRole(["expert", "admin"]);
+  const { user } = await requireRole(["buyer", "admin"]);
 
   const email = user.email?.toLowerCase();
 
@@ -60,48 +60,34 @@ export default async function ExpertLayout({
     redirect("/sign-in");
   }
 
-  const expert = await prisma.expertProfile.findFirst({
+  const buyer = await prisma.user.findUnique({
     where: {
-      user: {
-        email,
-      },
+      email,
     },
     include: {
-      user: true,
-      services: {
+      bookings: {
+        orderBy: {
+          startTime: "asc",
+        },
         take: 20,
       },
-      availability: {
-        take: 30,
-        orderBy: {
-          startTime: "asc",
-        },
-      },
-      bookings: {
-        take: 30,
-        orderBy: {
-          startTime: "asc",
-        },
+      savedExperts: {
+        take: 20,
       },
       reviews: {
         take: 20,
       },
+      buyerSettings: true,
     },
   });
 
-  if (!expert) {
-    redirect("/become-expert");
+  if (!buyer) {
+    redirect("/sign-in");
   }
 
   const now = new Date();
 
-  const activeServices = expert.services.filter((service) => service.isActive);
-
-  const openSlots = expert.availability.filter(
-    (slot) => !slot.isBooked && slot.startTime >= now,
-  );
-
-  const upcomingBookings = expert.bookings.filter(
+  const upcomingBookings = buyer.bookings.filter(
     (booking) =>
       booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
@@ -109,34 +95,36 @@ export default async function ExpertLayout({
       booking.status !== "COMPLETED",
   );
 
-  const profileScore = calculateExpertProfileScore({
-    hasHeadline: Boolean(expert.headline),
-    hasBio: expert.bio.length >= 120,
-    hasSkills: expert.skills.length >= 3,
-    hasLanguages: expert.languages.length > 0,
-    hasServices: activeServices.length > 0,
-    hasAvailability: openSlots.length > 0,
-    isVerified: expert.isVerified,
-  });
+  const completedBookings = buyer.bookings.filter(
+    (booking) => booking.status === "COMPLETED",
+  );
 
-  const initials = getInitials(expert.user.name ?? expert.user.email);
+  const initials = getInitials(buyer.name ?? buyer.email);
+
+  const profileScore = calculateProfileScore({
+    hasName: Boolean(buyer.name),
+    hasTimezone: Boolean(buyer.buyerSettings?.preferredTimezone),
+    hasLanguages: Boolean(buyer.buyerSettings?.preferredLanguages.length),
+    hasInterests: Boolean(buyer.buyerSettings?.interests.length),
+    hasSavedExperts: buyer.savedExperts.length > 0,
+  });
 
   return (
     <div className="min-h-[calc(100vh-76px)] p-4 md:p-6">
       <div className="mx-auto grid max-w-[1500px] gap-6 xl:grid-cols-[280px_1fr]">
         <aside className="xl:sticky xl:top-[92px] xl:self-start">
           <div className="max-h-none overflow-visible rounded-[32px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur-xl xl:max-h-[calc(100vh-116px)] xl:overflow-y-auto">
-            <div className="rounded-[28px] bg-gradient-to-br from-[#2f2a68] to-[#111827] p-4 text-white">
+            <div className="rounded-[28px] bg-gradient-to-br from-[var(--primary)] to-[#312e81] p-4 text-white">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/14 text-lg font-black">
                 {initials}
               </div>
 
               <h2 className="mt-4 truncate text-lg font-black tracking-[-0.04em]">
-                {expert.user.name ?? "Provider"}
+                {buyer.name ?? "Client"}
               </h2>
 
               <p className="mt-1 truncate text-xs font-bold text-white/70">
-                {expert.user.email}
+                {buyer.email}
               </p>
 
               <div className="mt-4 grid gap-2">
@@ -145,7 +133,7 @@ export default async function ExpertLayout({
                     Workspace
                   </p>
 
-                  <p className="mt-1 text-sm font-black">Provider</p>
+                  <p className="mt-1 text-sm font-black">Client</p>
                 </div>
 
                 <div className="rounded-2xl bg-white/12 p-3">
@@ -170,7 +158,7 @@ export default async function ExpertLayout({
             </div>
 
             <nav className="mt-4 grid gap-1.5">
-              {expertLinks.map((link) => {
+              {buyerLinks.map((link) => {
                 const Icon = link.icon;
 
                 return (
@@ -193,13 +181,19 @@ export default async function ExpertLayout({
             </nav>
 
             <div className="mt-4 grid gap-2">
-              <SidebarStat label="Offers" value={String(activeServices.length)} />
-
-              <SidebarStat label="Open slots" value={String(openSlots.length)} />
-
               <SidebarStat
                 label="Upcoming"
                 value={String(upcomingBookings.length)}
+              />
+
+              <SidebarStat
+                label="Saved"
+                value={String(buyer.savedExperts.length)}
+              />
+
+              <SidebarStat
+                label="Completed"
+                value={String(completedBookings.length)}
               />
             </div>
 
@@ -211,7 +205,8 @@ export default async function ExpertLayout({
               </div>
 
               <p className="mt-2 text-xs font-semibold leading-5 text-muted">
-                Keep your offers clear and add fresh availability every week.
+                Save useful experts and come back later when you are ready to
+                book.
               </p>
             </div>
           </div>
@@ -240,37 +235,31 @@ function getInitials(value: string) {
     .split(" ")
     .filter(Boolean);
 
-  const first = parts[0]?.charAt(0) ?? "P";
+  const first = parts[0]?.charAt(0) ?? "C";
   const second = parts[1]?.charAt(0) ?? "";
 
   return `${first}${second}`.toUpperCase();
 }
 
-function calculateExpertProfileScore({
-  hasHeadline,
-  hasBio,
-  hasSkills,
+function calculateProfileScore({
+  hasName,
+  hasTimezone,
   hasLanguages,
-  hasServices,
-  hasAvailability,
-  isVerified,
+  hasInterests,
+  hasSavedExperts,
 }: {
-  hasHeadline: boolean;
-  hasBio: boolean;
-  hasSkills: boolean;
+  hasName: boolean;
+  hasTimezone: boolean;
   hasLanguages: boolean;
-  hasServices: boolean;
-  hasAvailability: boolean;
-  isVerified: boolean;
+  hasInterests: boolean;
+  hasSavedExperts: boolean;
 }) {
   const checks = [
-    hasHeadline,
-    hasBio,
-    hasSkills,
+    hasName,
+    hasTimezone,
     hasLanguages,
-    hasServices,
-    hasAvailability,
-    isVerified,
+    hasInterests,
+    hasSavedExperts,
   ];
 
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
