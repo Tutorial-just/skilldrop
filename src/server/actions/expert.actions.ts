@@ -16,7 +16,7 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-function redirectWithError(path: string, message: string) {
+function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
@@ -63,7 +63,7 @@ async function getCurrentExpertProfile() {
   const email = user.email?.toLowerCase();
 
   if (!email) {
-    return null;
+    redirect("/sign-in");
   }
 
   const expert = await prisma.expertProfile.findFirst({
@@ -76,6 +76,10 @@ async function getCurrentExpertProfile() {
       user: true,
     },
   });
+
+  if (!expert) {
+    redirect("/become-expert");
+  }
 
   return expert;
 }
@@ -109,10 +113,7 @@ export async function createProviderProfileAction(formData: FormData) {
     redirectWithError("/become-expert", "Your account email is missing.");
   }
 
-  const displayName =
-    getStringValue(formData, "displayName") ||
-    (user.user_metadata?.name as string | undefined) ||
-    email;
+  const displayName = getStringValue(formData, "displayName") || user.name || email;
 
   const headline = getStringValue(formData, "headline");
   const bio = getStringValue(formData, "bio");
@@ -339,6 +340,8 @@ export async function updateProviderProfileAction(formData: FormData) {
     redirect("/become-expert");
   }
 
+  const expertProfile = dbUser.expertProfile;
+
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: {
@@ -351,7 +354,7 @@ export async function updateProviderProfileAction(formData: FormData) {
 
     await tx.expertProfile.update({
       where: {
-        id: dbUser.expertProfile!.id,
+        id: expertProfile.id,
       },
       data: {
         headline,
@@ -368,7 +371,7 @@ export async function updateProviderProfileAction(formData: FormData) {
   revalidatePath("/expert");
   revalidatePath("/expert/profile");
   revalidatePath("/experts");
-  revalidatePath(`/experts/${dbUser.expertProfile.id}`);
+  revalidatePath(`/experts/${expertProfile.id}`);
 
   redirect("/expert");
 }
@@ -376,14 +379,12 @@ export async function updateProviderProfileAction(formData: FormData) {
 export async function createProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
-  if (!expert) {
-    redirect("/become-expert");
-  }
-
   const categoryName = getStringValue(formData, "category");
   const title = getStringValue(formData, "title");
   const description = getStringValue(formData, "description");
-  const durationMinutes = parseDuration(getStringValue(formData, "durationMinutes"));
+  const durationMinutes = parseDuration(
+    getStringValue(formData, "durationMinutes"),
+  );
   const priceCents = parsePriceCents(getStringValue(formData, "price"));
 
   if (!categoryName) {
@@ -435,15 +436,13 @@ export async function createProviderServiceAction(formData: FormData) {
 export async function updateProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
-  if (!expert) {
-    redirect("/become-expert");
-  }
-
   const serviceId = getStringValue(formData, "serviceId");
   const categoryName = getStringValue(formData, "category");
   const title = getStringValue(formData, "title");
   const description = getStringValue(formData, "description");
-  const durationMinutes = parseDuration(getStringValue(formData, "durationMinutes"));
+  const durationMinutes = parseDuration(
+    getStringValue(formData, "durationMinutes"),
+  );
   const priceCents = parsePriceCents(getStringValue(formData, "price"));
 
   if (!serviceId) {
@@ -488,7 +487,7 @@ export async function updateProviderServiceAction(formData: FormData) {
 
   await prisma.service.update({
     where: {
-      id: serviceId,
+      id: existingService.id,
     },
     data: {
       categoryId: category.id,
@@ -510,10 +509,6 @@ export async function updateProviderServiceAction(formData: FormData) {
 
 export async function toggleProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
-
-  if (!expert) {
-    redirect("/become-expert");
-  }
 
   const serviceId = getStringValue(formData, "serviceId");
 

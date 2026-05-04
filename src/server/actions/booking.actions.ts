@@ -42,7 +42,9 @@ function createCallRoomData(bookingId: string) {
   };
 }
 
-async function getCurrentUserRecord(allowedRoles: ("buyer" | "expert" | "admin")[]) {
+async function getCurrentUserRecord(
+  allowedRoles: ("buyer" | "expert" | "admin")[],
+) {
   const { user } = await requireRole(allowedRoles);
 
   const email = user.email?.toLowerCase();
@@ -79,17 +81,21 @@ function getBookingsRedirectHref(role: string) {
 function revalidateBookingPaths(expertId?: string) {
   revalidatePath("/");
   revalidatePath("/experts");
+
   revalidatePath("/buyer");
   revalidatePath("/buyer/bookings");
   revalidatePath("/buyer/reviews");
+
   revalidatePath("/expert");
   revalidatePath("/expert/bookings");
   revalidatePath("/expert/availability");
   revalidatePath("/expert/earnings");
   revalidatePath("/expert/stats");
+
   revalidatePath("/admin");
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/users");
+
   revalidatePath("/notifications");
 
   if (expertId) {
@@ -163,7 +169,9 @@ export async function createBookingAction(formData: FormData) {
   });
 
   if (!availability) {
-    redirect(`/experts/${expertId}?service=${serviceId}&error=slot-not-available`);
+    redirect(
+      `/experts/${expertId}?service=${serviceId}&error=slot-not-available`,
+    );
   }
 
   let booking:
@@ -237,11 +245,15 @@ export async function createBookingAction(formData: FormData) {
       };
     });
   } catch {
-    redirect(`/experts/${expertId}?service=${serviceId}&error=slot-not-available`);
+    redirect(
+      `/experts/${expertId}?service=${serviceId}&error=slot-not-available`,
+    );
   }
 
   if (!booking) {
-    redirect(`/experts/${expertId}?service=${serviceId}&error=slot-not-available`);
+    redirect(
+      `/experts/${expertId}?service=${serviceId}&error=slot-not-available`,
+    );
   }
 
   await sendNotification({
@@ -680,4 +692,19 @@ export async function releaseExpiredPendingBookings() {
   for (const expertId of expertIds) {
     revalidatePath(`/experts/${expertId}`);
   }
+}
+
+/**
+ * Compatibility wrappers.
+ * These prevent old imports from breaking while the app is being migrated
+ * to updateBookingStatusAction.
+ */
+export async function completeBookingAction(formData: FormData) {
+  formData.set("status", "COMPLETED");
+  await updateBookingStatusAction(formData);
+}
+
+export async function confirmBookingAction(formData: FormData) {
+  formData.set("status", "CONFIRMED");
+  await updateBookingStatusAction(formData);
 }

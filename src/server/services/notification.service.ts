@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 
 export type NotificationType =
@@ -15,7 +17,7 @@ type NotificationPayload = {
   type: NotificationType;
   subject: string;
   message: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
 };
 
 export async function sendNotification({

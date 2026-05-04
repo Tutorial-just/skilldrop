@@ -6,11 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   Euro,
-  FileText,
   Globe2,
-  HeartHandshake,
-  Languages,
-  MessageCircleHeart,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -58,8 +54,7 @@ export default async function BecomeExpertPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const email = user.email?.toLowerCase() ?? "";
-  const name =
-    (user.user_metadata?.name as string | undefined) ?? user.email ?? "Provider";
+  const name = user.name?.trim() || user.email || "Provider";
 
   const existingProfile = email
     ? await prisma.expertProfile.findFirst({
@@ -94,8 +89,8 @@ export default async function BecomeExpertPage({
             </h1>
 
             <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
-              You already created your provider profile. You can manage services,
-              availability and bookings from your dashboard.
+              You already created your provider profile. You can manage
+              services, availability and bookings from your dashboard.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -104,7 +99,10 @@ export default async function BecomeExpertPage({
                 <ArrowRight size={18} />
               </ButtonLink>
 
-              <ButtonLink href={`/experts/${existingProfile.id}`} variant="secondary">
+              <ButtonLink
+                href={`/experts/${existingProfile.id}`}
+                variant="secondary"
+              >
                 View public profile
               </ButtonLink>
             </div>
@@ -161,8 +159,9 @@ export default async function BecomeExpertPage({
                 </h2>
 
                 <p className="mt-3 leading-7 text-muted">
-                  New providers start without a verified badge. The badge appears
-                  after 3 successful calls and a rating of 3.8 or higher.
+                  New providers start without a verified badge. The badge
+                  appears after 3 successful calls and a rating of 3.8 or
+                  higher.
                 </p>
 
                 <div className="mt-6 grid gap-3">
@@ -214,7 +213,7 @@ export default async function BecomeExpertPage({
 
               {resolvedSearchParams.error ? (
                 <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
-                  {resolvedSearchParams.error}
+                  {formatExpertSetupError(resolvedSearchParams.error)}
                 </div>
               ) : null}
 
@@ -291,6 +290,7 @@ export default async function BecomeExpertPage({
                       <option value="" disabled>
                         Choose a category
                       </option>
+
                       {categories.map((category) => (
                         <option key={category} value={category}>
                           {category}
@@ -398,6 +398,7 @@ export default async function BecomeExpertPage({
                           size={17}
                           className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
                         />
+
                         <input
                           id="price"
                           name="price"
@@ -419,10 +420,12 @@ export default async function BecomeExpertPage({
                       size={20}
                       className="mt-1 shrink-0 text-[var(--primary-dark)]"
                     />
+
                     <div>
                       <p className="font-black text-[var(--primary-dark)]">
                         Your profile will be visible after setup
                       </p>
+
                       <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
                         You can edit services and availability later from your
                         dashboard.
@@ -517,7 +520,32 @@ function Field({
       <label htmlFor={htmlFor} className="text-sm font-black">
         {label}
       </label>
+
       {children}
     </div>
   );
+}
+
+function formatExpertSetupError(error: string) {
+  if (error === "missing-required-fields") {
+    return "Please fill in all required fields.";
+  }
+
+  if (error === "invalid-price") {
+    return "Please enter a valid price.";
+  }
+
+  if (error === "invalid-duration") {
+    return "Please choose a valid call duration.";
+  }
+
+  if (error === "profile-already-exists") {
+    return "You already have an expert profile.";
+  }
+
+  if (error === "not-signed-in") {
+    return "Please sign in before creating a provider profile.";
+  }
+
+  return error;
 }

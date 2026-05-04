@@ -16,7 +16,7 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-function redirectWithError(path: string, message: string) {
+function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
@@ -25,16 +25,22 @@ async function getCurrentExpertProfile() {
   const email = user.email?.toLowerCase();
 
   if (!email) {
-    return null;
+    redirect("/sign-in");
   }
 
-  return prisma.expertProfile.findFirst({
+  const expert = await prisma.expertProfile.findFirst({
     where: {
       user: {
         email,
       },
     },
   });
+
+  if (!expert) {
+    redirect("/become-expert");
+  }
+
+  return expert;
 }
 
 function parseDateTime(value: string) {
@@ -65,12 +71,10 @@ function parseDuration(value: string) {
 export async function createAvailabilityAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
-  if (!expert) {
-    redirect("/become-expert");
-  }
-
   const startTimeValue = getStringValue(formData, "startTime");
-  const durationMinutes = parseDuration(getStringValue(formData, "durationMinutes"));
+  const durationMinutes = parseDuration(
+    getStringValue(formData, "durationMinutes"),
+  );
 
   const startTime = parseDateTime(startTimeValue);
 
@@ -91,16 +95,12 @@ export async function createAvailabilityAction(formData: FormData) {
   const overlappingSlot = await prisma.availability.findFirst({
     where: {
       expertId: expert.id,
-      OR: [
-        {
-          startTime: {
-            lt: endTime,
-          },
-          endTime: {
-            gt: startTime,
-          },
-        },
-      ],
+      startTime: {
+        lt: endTime,
+      },
+      endTime: {
+        gt: startTime,
+      },
     },
   });
 
@@ -130,10 +130,6 @@ export async function createAvailabilityAction(formData: FormData) {
 
 export async function deleteAvailabilityAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
-
-  if (!expert) {
-    redirect("/become-expert");
-  }
 
   const slotId = getStringValue(formData, "slotId");
 

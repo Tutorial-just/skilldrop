@@ -1,14 +1,16 @@
 import Link from "next/link";
+import type { BookingStatus, Prisma } from "@prisma/client";
 import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Clock3,
   Euro,
+  RefreshCcw,
   Search,
   ShieldAlert,
-  ShieldCheck,
   UserRound,
+  Video,
   XCircle,
 } from "lucide-react";
 
@@ -19,7 +21,7 @@ import {
   refundBookingByAdminAction,
   resolveDisputeByAdminAction,
   updateBookingStatusByAdminAction,
- } from "@/server/actions/admin.actions";
+} from "@/server/actions/admin.actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -27,10 +29,27 @@ type AdminBookingsPageProps = {
   searchParams?: Promise<{
     updated?: string;
     error?: string;
-    status?: string;
     q?: string;
+    status?: string;
   }>;
 };
+
+const bookingStatuses: BookingStatus[] = [
+  "PENDING",
+  "PAID",
+  "CONFIRMED",
+  "COMPLETED",
+  "CANCELLED",
+  "REFUNDED",
+  "DISPUTED",
+];
+
+const activeStatuses: BookingStatus[] = [
+  "PENDING",
+  "PAID",
+  "CONFIRMED",
+  "DISPUTED",
+];
 
 export default async function AdminBookingsPage({
   searchParams,
@@ -38,125 +57,174 @@ export default async function AdminBookingsPage({
   await requireRole(["admin"]);
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const statusFilter = resolvedSearchParams.status ?? "active";
-  const query = resolvedSearchParams.q?.trim() ?? "";
 
-  const statusWhere =
-    statusFilter === "all"
+  const query = resolvedSearchParams.q?.trim() ?? "";
+  const statusFilter = resolvedSearchParams.status ?? "all";
+
+  const statusValue = statusFilter.toUpperCase() as BookingStatus;
+
+  const bookingWhere: Prisma.BookingWhereInput = {
+    ...(statusFilter === "all"
       ? {}
       : statusFilter === "active"
         ? {
             status: {
-              in: ["PENDING", "CONFIRMED", "DISPUTED"] as const,
+              in: activeStatuses,
             },
           }
-        : {
-            status: statusFilter.toUpperCase() as
-              | "PENDING"
-              | "PAID"
-              | "CONFIRMED"
-              | "COMPLETED"
-              | "CANCELLED"
-              | "REFUNDED"
-              | "DISPUTED",
-          };
+        : bookingStatuses.includes(statusValue)
+          ? {
+              status: statusValue,
+            }
+          : {}),
 
-  const searchWhere = query
-    ? {
-        OR: [
-          {
-            buyer: {
-              is: {
-                OR: [
-                  {
-                    email: {
-                      contains: query,
-                      mode: "insensitive" as const,
+    ...(query
+      ? {
+          OR: [
+            {
+              buyer: {
+                is: {
+                  OR: [
+                    {
+                      email: {
+                        contains: query,
+                        mode: "insensitive",
+                      },
                     },
-                  },
-                  {
-                    name: {
-                      contains: query,
-                      mode: "insensitive" as const,
+                    {
+                      name: {
+                        contains: query,
+                        mode: "insensitive",
+                      },
                     },
-                  },
-                ],
+                  ],
+                },
               },
             },
-          },
-          {
-            expert: {
-              is: {
-                user: {
-                  is: {
-                    OR: [
-                      {
-                        email: {
-                          contains: query,
-                          mode: "insensitive" as const,
+            {
+              expert: {
+                is: {
+                  user: {
+                    is: {
+                      OR: [
+                        {
+                          email: {
+                            contains: query,
+                            mode: "insensitive",
+                          },
                         },
-                      },
-                      {
-                        name: {
-                          contains: query,
-                          mode: "insensitive" as const,
+                        {
+                          name: {
+                            contains: query,
+                            mode: "insensitive",
+                          },
                         },
-                      },
-                    ],
+                      ],
+                    },
                   },
                 },
               },
             },
-          },
-          {
-            service: {
-              is: {
-                title: {
-                  contains: query,
-                  mode: "insensitive" as const,
+            {
+              service: {
+                is: {
+                  OR: [
+                    {
+                      title: {
+                        contains: query,
+                        mode: "insensitive",
+                      },
+                    },
+                    {
+                      description: {
+                        contains: query,
+                        mode: "insensitive",
+                      },
+                    },
+                  ],
                 },
               },
             },
-          },
-          {
-            stripeCheckoutSessionId: {
-              contains: query,
-              mode: "insensitive" as const,
+            {
+              stripeCheckoutSessionId: {
+                contains: query,
+                mode: "insensitive",
+              },
             },
-          },
-        ],
-      }
-    : {};
-
-  const bookingWhere = {
-    ...statusWhere,
-    ...searchWhere,
+          ],
+        }
+      : {}),
   };
 
-  const bookings = await prisma.booking.findMany({
-    where: bookingWhere,
-    include: {
-      buyer: true,
-      expert: {
-        include: {
-          user: true,
+  const [
+    bookings,
+    totalBookings,
+    pendingBookings,
+    confirmedBookings,
+    completedBookings,
+    cancelledBookings,
+    refundedBookings,
+    disputedBookings,
+  ] = await Promise.all([
+    prisma.booking.findMany({
+      where: bookingWhere,
+      include: {
+        buyer: true,
+        expert: {
+          include: {
+            user: true,
+          },
         },
+        service: true,
+        callRoom: true,
+        review: true,
       },
-      service: true,
-      availability: true,
-      callRoom: true,
-      review: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 100,
-  });
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 120,
+    }),
+    prisma.booking.count(),
+    prisma.booking.count({
+      where: {
+        status: "PENDING",
+      },
+    }),
+    prisma.booking.count({
+      where: {
+        status: "CONFIRMED",
+      },
+    }),
+    prisma.booking.count({
+      where: {
+        status: "COMPLETED",
+      },
+    }),
+    prisma.booking.count({
+      where: {
+        status: "CANCELLED",
+      },
+    }),
+    prisma.booking.count({
+      where: {
+        status: "REFUNDED",
+      },
+    }),
+    prisma.booking.count({
+      where: {
+        status: "DISPUTED",
+      },
+    }),
+  ]);
 
-  const pendingCount = bookings.filter((b) => b.status === "PENDING").length;
-  const confirmedCount = bookings.filter((b) => b.status === "CONFIRMED").length;
-  const completedCount = bookings.filter((b) => b.status === "COMPLETED").length;
-  const disputedCount = bookings.filter((b) => b.status === "DISPUTED").length;
+  const paidVolumeCents = bookings
+    .filter(
+      (booking) =>
+        booking.status === "PAID" ||
+        booking.status === "CONFIRMED" ||
+        booking.status === "COMPLETED",
+    )
+    .reduce((sum, booking) => sum + booking.priceCents, 0);
 
   return (
     <main>
@@ -180,7 +248,7 @@ export default async function AdminBookingsPage({
 
           {resolvedSearchParams.error ? (
             <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
-              Something went wrong while updating this booking.
+              {formatBookingError(resolvedSearchParams.error)}
             </div>
           ) : null}
 
@@ -189,27 +257,77 @@ export default async function AdminBookingsPage({
             Booking operations
           </Badge>
 
-          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-            Monitor and manage bookings.
-          </h1>
+          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
+            <div>
+              <h1 className="heading-lg max-w-4xl text-balance">
+                Manage marketplace bookings.
+              </h1>
 
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-            Track pending, confirmed, completed, cancelled, refunded and
-            disputed bookings.
-          </p>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                Track payment state, confirmed calls, disputes, refunds and
+                completed sessions across SkillDrop.
+              </p>
+            </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-4">
-            <AdminMiniStat label="Total" value={String(bookings.length)} />
-            <AdminMiniStat label="Pending" value={String(pendingCount)} />
-            <AdminMiniStat label="Confirmed" value={String(confirmedCount)} />
-            <AdminMiniStat label="Disputed" value={String(disputedCount)} />
+            <Badge>{bookings.length} shown</Badge>
           </div>
 
-          <form action="/admin/bookings" className="mt-6 max-w-3xl">
-            <input type="hidden" name="status" value={statusFilter} />
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <AdminStat
+              icon={CalendarDays}
+              label="Total"
+              value={String(totalBookings)}
+              hint="All bookings"
+            />
 
-            <div className="flex flex-col gap-3 rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] md:flex-row md:items-center">
-              <div className="relative flex-1">
+            <AdminStat
+              icon={Clock3}
+              label="Pending"
+              value={String(pendingBookings)}
+              hint="Waiting payment"
+            />
+
+            <AdminStat
+              icon={CheckCircle2}
+              label="Confirmed"
+              value={String(confirmedBookings)}
+              hint="Ready calls"
+            />
+
+            <AdminStat
+              icon={Euro}
+              label="Shown volume"
+              value={formatMoney(paidVolumeCents)}
+              hint="Paid / confirmed / completed"
+            />
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <AdminStat
+              icon={Video}
+              label="Completed"
+              value={String(completedBookings)}
+              hint="Finished calls"
+            />
+
+            <AdminStat
+              icon={XCircle}
+              label="Cancelled"
+              value={String(cancelledBookings)}
+              hint="Closed without refund"
+            />
+
+            <AdminStat
+              icon={RefreshCcw}
+              label="Refunded"
+              value={String(refundedBookings)}
+              hint={`${disputedBookings} disputed`}
+            />
+          </div>
+
+          <form action="/admin/bookings" className="mt-6">
+            <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] xl:grid-cols-[1fr_190px_auto_auto] xl:items-center">
+              <div className="relative">
                 <Search
                   size={17}
                   className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
@@ -224,15 +342,28 @@ export default async function AdminBookingsPage({
                 />
               </div>
 
+              <select
+                name="status"
+                defaultValue={statusFilter}
+                className="input min-h-12"
+              >
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="refunded">Refunded</option>
+                <option value="disputed">Disputed</option>
+              </select>
+
               <button type="submit" className="btn btn-primary">
                 Search
               </button>
 
-              {query ? (
-                <Link
-                  href={`/admin/bookings?status=${statusFilter}`}
-                  className="btn btn-secondary"
-                >
+              {query || statusFilter !== "all" ? (
+                <Link href="/admin/bookings" className="btn btn-secondary">
                   Clear
                 </Link>
               ) : null}
@@ -240,49 +371,43 @@ export default async function AdminBookingsPage({
           </form>
 
           <div className="mt-6 flex flex-wrap gap-2">
+            <FilterLink current={statusFilter} value="all" label="All" q={query} />
             <FilterLink
-              q={query}
               current={statusFilter}
               value="active"
               label="Active"
+              q={query}
             />
             <FilterLink
-              q={query}
               current={statusFilter}
               value="pending"
               label="Pending"
+              q={query}
             />
             <FilterLink
-              q={query}
               current={statusFilter}
               value="confirmed"
               label="Confirmed"
+              q={query}
             />
             <FilterLink
-              q={query}
               current={statusFilter}
               value="completed"
               label="Completed"
+              q={query}
             />
             <FilterLink
-              q={query}
-              current={statusFilter}
-              value="cancelled"
-              label="Cancelled"
-            />
-            <FilterLink
-              q={query}
-              current={statusFilter}
-              value="refunded"
-              label="Refunded"
-            />
-            <FilterLink
-              q={query}
               current={statusFilter}
               value="disputed"
               label="Disputed"
+              q={query}
             />
-            <FilterLink q={query} current={statusFilter} value="all" label="All" />
+            <FilterLink
+              current={statusFilter}
+              value="refunded"
+              label="Refunded"
+              q={query}
+            />
           </div>
         </div>
       </section>
@@ -294,8 +419,8 @@ export default async function AdminBookingsPage({
           </p>
 
           <div className="flex flex-wrap gap-2">
-            <Badge>Status: {statusFilter}</Badge>
             <Badge>Search: {query || "none"}</Badge>
+            <Badge>Status: {statusFilter}</Badge>
           </div>
         </div>
 
@@ -306,11 +431,16 @@ export default async function AdminBookingsPage({
             ))
           ) : (
             <Card className="p-8 text-center">
-              <h2 className="text-2xl font-black tracking-[-0.04em]">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                <CalendarDays size={24} />
+              </div>
+
+              <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
                 No bookings found
               </h2>
-              <p className="mt-3 text-sm font-semibold text-muted">
-                Try another status filter or search query.
+
+              <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+                Try another search query or status filter.
               </p>
             </Card>
           )}
@@ -325,25 +455,28 @@ function BookingAdminCard({
 }: {
   booking: {
     id: string;
+    buyerId: string;
+    expertId: string;
+    serviceId: string;
+    availabilityId: string | null;
     startTime: Date;
     endTime: Date;
-    status: string;
-    disputeReason: string | null;
-    disputeNote: string | null;
-    disputedAt: Date | null;
+    status: BookingStatus;
     priceCents: number;
     currency: string;
     stripeCheckoutSessionId: string | null;
+    disputeReason: string | null;
+    disputeNote: string | null;
+    disputedAt: Date | null;
     createdAt: Date;
-    expiresAt: Date | null;
     buyer: {
-      email: string;
       name: string | null;
+      email: string;
     };
     expert: {
       user: {
-        email: string;
         name: string | null;
+        email: string;
       };
     };
     service: {
@@ -360,228 +493,348 @@ function BookingAdminCard({
     } | null;
   };
 }) {
+  const isRefundable =
+    booking.status === "PAID" ||
+    booking.status === "CONFIRMED" ||
+    booking.status === "COMPLETED" ||
+    booking.status === "DISPUTED";
+
+  const canDispute =
+    booking.status === "PAID" ||
+    booking.status === "CONFIRMED" ||
+    booking.status === "COMPLETED";
+
+  const canResolveDispute = booking.status === "DISPUTED";
+
   return (
     <Card className="p-5 md:p-6">
-      <div className="grid gap-5 xl:grid-cols-[1fr_280px] xl:items-start">
-        <div className="min-w-0">
+      <div className="grid gap-5 xl:grid-cols-[1fr_320px] xl:items-start">
+        <div>
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
 
             {booking.review ? (
-              <Badge variant="success">Reviewed {booking.review.rating}/5</Badge>
+              <Badge variant="success">
+                <CheckCircle2 size={14} />
+                Reviewed
+              </Badge>
             ) : null}
 
-            {booking.stripeCheckoutSessionId ? (
-              <Badge variant="primary">Stripe linked</Badge>
-            ) : (
-              <Badge variant="accent">No Stripe session</Badge>
-            )}
+            {booking.callRoom ? (
+              <Badge>
+                <Video size={14} />
+                Room {booking.callRoom.status.toLowerCase()}
+              </Badge>
+            ) : null}
+
+            <Badge>{formatShortDate(booking.createdAt)}</Badge>
           </div>
 
           <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
             {booking.service.title}
           </h2>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <SmallFact
-              icon={UserRound}
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <PersonBox
               label="Buyer"
-              value={booking.buyer.name ?? booking.buyer.email}
+              name={booking.buyer.name ?? "Buyer"}
+              email={booking.buyer.email}
             />
-            <SmallFact
-              icon={ShieldCheck}
+
+            <PersonBox
               label="Expert"
-              value={booking.expert.user.name ?? booking.expert.user.email}
+              name={booking.expert.user.name ?? "Expert"}
+              email={booking.expert.user.email}
             />
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <SmallFact
+              icon={CalendarDays}
+              label="Date"
+              value={formatDate(booking.startTime)}
+            />
+
             <SmallFact
               icon={Clock3}
               label="Time"
-              value={formatDateTime(booking.startTime)}
+              value={`${formatTime(booking.startTime)} — ${formatTime(
+                booking.endTime,
+              )}`}
             />
+
             <SmallFact
               icon={Euro}
               label="Price"
               value={formatMoney(booking.priceCents)}
             />
+
+            <SmallFact
+              icon={Video}
+              label="Duration"
+              value={`${booking.service.durationMinutes} min`}
+            />
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <InfoRow label="Created" value={formatDateTime(booking.createdAt)} />
-            <InfoRow
-              label="Expires"
-              value={booking.expiresAt ? formatDateTime(booking.expiresAt) : "—"}
-            />
-            <InfoRow
-              label="Call room"
-              value={booking.callRoom ? booking.callRoom.status : "—"}
-            />
+            <IdBox label="Booking ID" value={booking.id} />
+            <IdBox label="Stripe" value={booking.stripeCheckoutSessionId ?? "—"} />
+            <IdBox label="Slot" value={booking.availabilityId ?? "—"} />
           </div>
 
-          {booking.disputeReason ? (
-           <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4">
-             <p className="text-sm font-black text-[var(--danger)]">
-               Dispute: {formatDisputeReason(booking.disputeReason)}
-             </p>
+          {booking.status === "DISPUTED" ? (
+            <div className="mt-4 rounded-[24px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4">
+              <div className="flex items-center gap-2 font-black text-[var(--danger)]">
+                <ShieldAlert size={17} />
+                Dispute
+              </div>
 
-             {booking.disputeNote ? (
-               <p className="mt-2 text-sm font-bold leading-6 text-[var(--danger)]">
-                 {booking.disputeNote}
-               </p>
-              ) : null}
+              <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                Reason: {booking.disputeReason ?? "No reason provided."}
+              </p>
+
+              <p className="mt-1 text-sm font-semibold leading-6 text-muted">
+                Note: {booking.disputeNote ?? "No note provided."}
+              </p>
 
               {booking.disputedAt ? (
-                <p className="mt-2 text-xs font-bold text-[var(--danger)]">
-                  Opened: {formatDateTime(booking.disputedAt)}
-               </p>
+                <p className="mt-2 text-xs font-bold text-muted">
+                  Opened {formatDateTime(booking.disputedAt)}
+                </p>
               ) : null}
             </div>
-          ) : null}
-
-          {booking.status === "DISPUTED" ? (
-            <div className="mt-4 grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4 md:grid-cols-2">
-               <form action={resolveDisputeByAdminAction}>
-                 <input type="hidden" name="bookingId" value={booking.id} />
-                 <input type="hidden" name="resolution" value="COMPLETED" />
-
-                 <button type="submit" className="btn btn-primary w-full">
-                   <CheckCircle2 size={17} />
-                   Resolve as completed
-                 </button>
-               </form>
-
-               <form action={resolveDisputeByAdminAction}>
-                 <input type="hidden" name="bookingId" value={booking.id} />
-                 <input type="hidden" name="resolution" value="CANCELLED" />
-
-                  <button type="submit" className="btn btn-danger w-full">
-                    <XCircle size={17} />
-                    Resolve as cancelled
-                 </button>
-               </form>
-             </div>
-          ) : null}
-
-          {booking.stripeCheckoutSessionId ? (
-            <p className="mt-4 break-all rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-xs font-bold text-muted">
-              Stripe session: {booking.stripeCheckoutSessionId}
-            </p>
           ) : null}
         </div>
 
         <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
-          <AdminStatusButton
-            bookingId={booking.id}
-            status="CONFIRMED"
-            label="Mark confirmed"
-            icon="confirm"
-          />
-
-          <AdminStatusButton
-            bookingId={booking.id}
-            status="COMPLETED"
-            label="Mark completed"
-            icon="confirm"
-          />
-
-          <AdminStatusButton
-            bookingId={booking.id}
-            status="CANCELLED"
-            label="Cancel"
-            icon="cancel"
-          />
-
-          <form action={refundBookingByAdminAction}>
+          <form action={updateBookingStatusByAdminAction} className="grid gap-2">
             <input type="hidden" name="bookingId" value={booking.id} />
-            <button type="submit" className="btn btn-danger w-full">
-              <XCircle size={17} />
-              Refund payment
+
+            <select name="status" defaultValue={booking.status} className="input">
+              <option value="PENDING">Pending</option>
+              <option value="PAID">Paid</option>
+              <option value="CONFIRMED">Confirmed</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="CANCELLED">Cancelled</option>
+              <option value="REFUNDED">Refunded</option>
+              <option value="DISPUTED">Disputed</option>
+            </select>
+
+            <button type="submit" className="btn btn-secondary w-full">
+              Update status
             </button>
           </form>
 
-          <form action={markBookingDisputedByAdminAction} className="grid gap-2">
-            <input type="hidden" name="bookingId" value={booking.id} />
+          {isRefundable ? (
+            <form action={refundBookingByAdminAction}>
+              <input type="hidden" name="bookingId" value={booking.id} />
 
-             <select name="disputeReason" required className="input min-h-11">
-               <option value="">Choose dispute reason</option>
-               <option value="BUYER_NO_SHOW">Buyer no-show</option>
-               <option value="EXPERT_NO_SHOW">Expert no-show</option>
-               <option value="QUALITY_ISSUE">Quality issue</option>
-               <option value="PAYMENT_ISSUE">Payment issue</option>
-               <option value="OTHER">Other</option>
-             </select>
-
-             <textarea
-               name="disputeNote"
-               rows={3}
-               placeholder="Admin note..."
-               className="w-full rounded-2xl border border-[var(--border)] bg-white/88 p-3 text-sm font-semibold leading-6 outline-none"
-              />
-              <button type="submit" className="btn btn-secondary w-full">
-                <ShieldAlert size={17} />
-                Open dispute
+              <button type="submit" className="btn btn-danger w-full">
+                Refund booking
+                <RefreshCcw size={17} />
               </button>
-          </form>
+            </form>
+          ) : null}
 
+          {canDispute ? (
+            <form action={markBookingDisputedByAdminAction} className="grid gap-2">
+              <input type="hidden" name="bookingId" value={booking.id} />
+
+              <select name="disputeReason" className="input" required>
+                <option value="">Dispute reason</option>
+                <option value="buyer_issue">Buyer issue</option>
+                <option value="expert_issue">Expert issue</option>
+                <option value="payment_issue">Payment issue</option>
+                <option value="call_issue">Call issue</option>
+                <option value="other">Other</option>
+              </select>
+
+              <textarea
+                name="disputeNote"
+                rows={3}
+                className="input min-h-24 resize-none"
+                placeholder="Optional dispute note..."
+              />
+
+              <button type="submit" className="btn btn-danger w-full">
+                Mark disputed
+                <ShieldAlert size={17} />
+              </button>
+            </form>
+          ) : null}
+
+          {canResolveDispute ? (
+            <div className="grid gap-2">
+              <form action={resolveDisputeByAdminAction}>
+                <input type="hidden" name="bookingId" value={booking.id} />
+                <input type="hidden" name="resolution" value="COMPLETED" />
+
+                <button type="submit" className="btn btn-primary w-full">
+                  Resolve completed
+                </button>
+              </form>
+
+              <form action={resolveDisputeByAdminAction}>
+                <input type="hidden" name="bookingId" value={booking.id} />
+                <input type="hidden" name="resolution" value="CANCELLED" />
+
+                <button type="submit" className="btn btn-danger w-full">
+                  Resolve cancelled
+                </button>
+              </form>
+            </div>
+          ) : null}
+
+          <Link href={`/experts/${booking.expertId}`} className="btn btn-secondary">
+            View expert
+          </Link>
         </div>
       </div>
     </Card>
   );
 }
 
-function AdminStatusButton({
-  bookingId,
-  status,
+function StatusBadge({ status }: { status: BookingStatus }) {
+  if (status === "COMPLETED") {
+    return <Badge variant="success">Completed</Badge>;
+  }
+
+  if (status === "CONFIRMED") {
+    return <Badge variant="primary">Confirmed</Badge>;
+  }
+
+  if (status === "PAID") {
+    return <Badge variant="success">Paid</Badge>;
+  }
+
+  if (status === "PENDING") {
+    return <Badge variant="accent">Pending</Badge>;
+  }
+
+  if (status === "DISPUTED") {
+    return <Badge variant="danger">Disputed</Badge>;
+  }
+
+  if (status === "REFUNDED") {
+    return <Badge variant="danger">Refunded</Badge>;
+  }
+
+  if (status === "CANCELLED") {
+    return <Badge variant="danger">Cancelled</Badge>;
+  }
+
+  return <Badge>Unknown</Badge>;
+}
+
+function PersonBox({
   label,
-  icon,
+  name,
+  email,
 }: {
-  bookingId: string;
-  status: string;
   label: string;
-  icon: "confirm" | "cancel" | "dispute";
+  name: string;
+  email: string;
 }) {
-  const Icon =
-    icon === "confirm" ? CheckCircle2 : icon === "cancel" ? XCircle : ShieldAlert;
-
-  const className =
-    icon === "confirm"
-      ? "btn btn-primary w-full"
-      : icon === "cancel"
-        ? "btn btn-danger w-full"
-        : "btn btn-secondary w-full";
-
   return (
-    <form action={updateBookingStatusByAdminAction}>
-      <input type="hidden" name="bookingId" value={bookingId} />
-      <input type="hidden" name="status" value={status} />
-
-      <button type="submit" className={className}>
-        <Icon size={17} />
+    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        <UserRound size={13} />
         {label}
-      </button>
-    </form>
+      </div>
+
+      <p className="mt-3 font-black tracking-[-0.02em]">{name}</p>
+
+      <p className="mt-1 break-all text-sm font-semibold leading-6 text-muted">
+        {email}
+      </p>
+    </div>
+  );
+}
+
+function SmallFact({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof CalendarDays;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        <Icon size={13} />
+        {label}
+      </div>
+
+      <p className="mt-2 text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
+function IdBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 truncate text-xs font-black" title={value}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function AdminStat({
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: typeof CalendarDays;
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <Card soft className="p-4">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={20} />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+
+      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+    </Card>
   );
 }
 
 function FilterLink({
-  q,
   current,
   value,
   label,
+  q,
 }: {
-  q: string;
   current: string;
   value: string;
   label: string;
+  q: string;
 }) {
   const isActive = current === value;
-  const params = new URLSearchParams();
 
-  if (value !== "active") {
-    params.set("status", value);
-  }
+  const params = new URLSearchParams();
 
   if (q) {
     params.set("q", q);
+  }
+
+  if (value !== "all") {
+    params.set("status", value);
   }
 
   const href = params.toString()
@@ -602,74 +855,30 @@ function FilterLink({
   );
 }
 
-function AdminMiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card soft className="p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
-    </Card>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  if (status === "CONFIRMED") {
-    return <Badge variant="success">Confirmed</Badge>;
-  }
-
-  if (status === "COMPLETED") {
-    return <Badge variant="success">Completed</Badge>;
-  }
-
-  if (status === "PENDING") {
-    return <Badge variant="accent">Pending</Badge>;
-  }
-
-  if (status === "DISPUTED") {
-    return <Badge variant="danger">Disputed</Badge>;
-  }
-
-  if (status === "CANCELLED" || status === "REFUNDED") {
-    return <Badge variant="danger">{status.toLowerCase()}</Badge>;
-  }
-
-  return <Badge>{status.toLowerCase()}</Badge>;
-}
-
-function SmallFact({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof UserRound;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-muted">
-        <Icon size={13} />
-        {label}
-      </div>
-      <p className="mt-2 truncate text-sm font-black" title={value}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
-    </div>
-  );
-}
-
 function formatMoney(cents: number) {
   return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatDate(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function formatDateTime(date: Date) {
@@ -681,22 +890,39 @@ function formatDateTime(date: Date) {
     minute: "2-digit",
   }).format(date);
 }
-function formatDisputeReason(reason: string) {
-  if (reason === "BUYER_NO_SHOW") {
-    return "Buyer no-show";
+
+function formatBookingError(error: string) {
+  if (error === "invalid-status") {
+    return "Invalid booking status.";
   }
 
-  if (reason === "EXPERT_NO_SHOW") {
-    return "Expert no-show";
+  if (error === "booking-not-found") {
+    return "Booking was not found.";
   }
 
-  if (reason === "QUALITY_ISSUE") {
-    return "Quality issue";
+  if (error === "already-refunded") {
+    return "This booking has already been refunded.";
   }
 
-  if (reason === "PAYMENT_ISSUE") {
-    return "Payment issue";
+  if (error === "no-stripe-session") {
+    return "This booking has no Stripe checkout session.";
   }
 
-  return "Other";
+  if (error === "no-payment-intent") {
+    return "Stripe payment intent was not found.";
+  }
+
+  if (error === "missing-dispute-data") {
+    return "Please choose a dispute reason.";
+  }
+
+  if (error === "not-disputed") {
+    return "Only disputed bookings can be resolved here.";
+  }
+
+  if (error === "invalid-resolution") {
+    return "Invalid dispute resolution.";
+  }
+
+  return "Something went wrong while updating this booking.";
 }

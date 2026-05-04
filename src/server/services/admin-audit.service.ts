@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 
 type CreateAdminAuditLogInput = {
@@ -7,7 +9,7 @@ type CreateAdminAuditLogInput = {
   entityType: string;
   entityId?: string | null;
   message?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
 };
 
 export async function createAdminAuditLog({

@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export type AppRole = "buyer" | "expert" | "admin";
 
+type PrismaUserRole = "BUYER" | "EXPERT" | "ADMIN";
+
 function normalizeRole(role?: string | null): AppRole {
   const normalized = role?.toLowerCase();
 
@@ -17,6 +19,45 @@ function normalizeRole(role?: string | null): AppRole {
   }
 
   return "buyer";
+}
+
+function toPrismaRole(role?: string | null): PrismaUserRole {
+  const normalizedRole = normalizeRole(role);
+
+  if (normalizedRole === "expert") {
+    return "EXPERT";
+  }
+
+  if (normalizedRole === "admin") {
+    return "ADMIN";
+  }
+
+  return "BUYER";
+}
+
+function getAuthDisplayName(authUser: {
+  email?: string;
+  user_metadata?: {
+    name?: unknown;
+    full_name?: unknown;
+  };
+}) {
+  const metadataName = authUser.user_metadata?.name;
+  const metadataFullName = authUser.user_metadata?.full_name;
+
+  if (typeof metadataName === "string" && metadataName.trim()) {
+    return metadataName.trim();
+  }
+
+  if (typeof metadataFullName === "string" && metadataFullName.trim()) {
+    return metadataFullName.trim();
+  }
+
+  if (authUser.email) {
+    return authUser.email.split("@")[0];
+  }
+
+  return null;
 }
 
 export function getDashboardHref(role?: string | null) {
@@ -57,16 +98,14 @@ export async function getCurrentUser() {
   });
 
   if (!user) {
-    const metadataRole = normalizeRole(authUser.user_metadata?.role);
-
-    user = await prisma.user.upsert({
+    user = await prisma.user.create({
       data: {
         email,
-        name:
-          authUser.user_metadata?.name ??
-          authUser.user_metadata?.full_name ??
-          email.split("@")[0],
-        role: metadataRole.toUpperCase() as "BUYER" | "EXPERT" | "ADMIN",
+        name: getAuthDisplayName({
+          email,
+          user_metadata: authUser.user_metadata,
+        }),
+        role: toPrismaRole(authUser.user_metadata?.role),
       },
     });
   }

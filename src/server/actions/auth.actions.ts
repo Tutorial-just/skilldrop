@@ -17,7 +17,7 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-function redirectWithError(path: string, message: string) {
+function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
@@ -119,8 +119,10 @@ export async function signInAction(formData: FormData) {
     redirectWithError("/sign-in", "Invalid email or password.");
   }
 
-  const role = data.user.user_metadata?.role as string | undefined;
-  const userEmail = data.user.email?.toLowerCase();
+  const authUser = data.user;
+
+  const role = authUser.user_metadata?.role as string | undefined;
+  const userEmail = authUser.email?.toLowerCase();
 
   if (!userEmail) {
     redirectWithError("/sign-in", "Your account email is missing.");

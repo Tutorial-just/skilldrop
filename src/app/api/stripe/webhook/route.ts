@@ -1,30 +1,16 @@
-import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-import { sendNotification } from "@/server/services/notification.service";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { sendNotification } from "@/server/services/notification.service";
 
-type ConfirmedBookingNotification = {
+type ConfirmedBookingData = {
   id: string;
   buyerEmail: string | null;
   expertEmail: string | null;
   serviceTitle: string;
 };
-
-function createCallRoomData(bookingId: string) {
-  const provider = process.env.VIDEO_PROVIDER || "JITSI";
-  const baseUrl = process.env.JITSI_BASE_URL || "https://meet.jit.si";
-  const roomName = `skilldrop-${bookingId}-${randomUUID()}`;
-  const roomUrl = `${baseUrl}/${roomName}`;
-
-  return {
-    provider,
-    roomName,
-    roomUrl,
-  };
-}
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -61,11 +47,6 @@ export async function POST(request: Request) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-
-    if (session.payment_status !== "paid") {
-      return NextResponse.json({ received: true });
-    }
-
     const bookingId = session.metadata?.bookingId;
 
     if (!bookingId) {
@@ -75,65 +56,67 @@ export async function POST(request: Request) {
       );
     }
 
-    let confirmedBooking: ConfirmedBookingNotification | null = null;
-
-    await prisma.$transaction(async (tx) => {
-      const booking = await tx.booking.findUnique({
-        where: {
-          id: bookingId,
-        },
-        include: {
-          buyer: true,
-          expert: {
-            include: {
-              user: true,
-            },
+    const confirmedBooking = await prisma.$transaction(
+      async (tx): Promise<ConfirmedBookingData | null> => {
+        const booking = await tx.booking.findUnique({
+          where: {
+            id: bookingId,
           },
-          service: true,
-          callRoom: true,
-        },
-      });
-
-      if (!booking) {
-        return;
-      }
-
-      if (booking.status !== "PENDING") {
-        return;
-      }
-
-      await tx.booking.update({
-        where: {
-          id: booking.id,
-        },
-        data: {
-          status: "CONFIRMED",
-          stripeCheckoutSessionId: session.id,
-        },
-      });
-
-      if (!booking.callRoom) {
-        const room = createCallRoomData(booking.id);
-
-        await tx.callRoom.create({
-          data: {
-            bookingId: booking.id,
-            provider: room.provider,
-            roomName: room.roomName,
-            roomUrl: room.roomUrl,
-            startsAt: booking.startTime,
-            endsAt: booking.endTime,
+          include: {
+            buyer: true,
+            expert: {
+              include: {
+                user: true,
+              },
+            },
+            service: true,
+            callRoom: true,
           },
         });
-      }
 
-      confirmedBooking = {
-        id: booking.id,
-        buyerEmail: booking.buyer.email,
-        expertEmail: booking.expert.user.email,
-        serviceTitle: booking.service?.title ?? "Booked call",
-      };
-    });
+        if (!booking) {
+          return null;
+        }
+
+        if (booking.status !== "PENDING" && booking.status !== "PAID") {
+          return null;
+        }
+
+        await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+          data: {
+            status: "CONFIRMED",
+            stripeCheckoutSessionId: session.id,
+            expiresAt: null,
+          },
+        });
+
+        if (!booking.callRoom) {
+          const roomName = `skilldrop-${booking.id}`;
+          const baseUrl = process.env.JITSI_BASE_URL || "https://meet.jit.si";
+
+          await tx.callRoom.create({
+            data: {
+              bookingId: booking.id,
+              provider: process.env.VIDEO_PROVIDER || "JITSI",
+              roomName,
+              roomUrl: `${baseUrl}/${roomName}`,
+              startsAt: booking.startTime,
+              endsAt: booking.endTime,
+            },
+          });
+        }
+
+        return {
+          id: booking.id,
+          buyerEmail: booking.buyer.email,
+          expertEmail: booking.expert.user.email,
+          serviceTitle: booking.service?.title ?? "Booked call",
+        };
+      },
+    );
 
     if (confirmedBooking) {
       await sendNotification({
@@ -143,7 +126,6 @@ export async function POST(request: Request) {
         message: `Your payment was received and your call "${confirmedBooking.serviceTitle}" is confirmed.`,
         metadata: {
           bookingId: confirmedBooking.id,
-          stripeCheckoutSessionId: session.id,
         },
       });
 
@@ -154,7 +136,6 @@ export async function POST(request: Request) {
         message: `A client confirmed and paid for "${confirmedBooking.serviceTitle}".`,
         metadata: {
           bookingId: confirmedBooking.id,
-          stripeCheckoutSessionId: session.id,
         },
       });
     }
