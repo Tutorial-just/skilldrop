@@ -63,7 +63,8 @@ export default async function ExpertBookingsPage() {
       booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
       booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED",
+      booking.status !== "COMPLETED" &&
+      booking.status !== "DISPUTED",
   );
 
   const completedBookings = expert.bookings.filter(
@@ -71,15 +72,14 @@ export default async function ExpertBookingsPage() {
   );
 
   const cancelledBookings = expert.bookings.filter(
-    (booking) => booking.status === "CANCELLED" || booking.status === "REFUNDED",
+    (booking) =>
+      booking.status === "CANCELLED" ||
+      booking.status === "REFUNDED" ||
+      booking.status === "DISPUTED",
   );
 
   const pastUncompletedBookings = expert.bookings.filter(
-    (booking) =>
-      booking.startTime < now &&
-      booking.status !== "COMPLETED" &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED",
+    (booking) => booking.endTime < now && booking.status === "CONFIRMED",
   );
 
   const nextBooking = upcomingBookings[0] ?? null;
@@ -150,9 +150,9 @@ export default async function ExpertBookingsPage() {
 
             <MetricCard
               icon={XCircle}
-              label="Cancelled"
+              label="Closed"
               value={String(cancelledBookings.length)}
-              hint="Cancelled / refunded"
+              hint="Cancelled / refunded / disputed"
             />
           </div>
         </div>
@@ -203,9 +203,10 @@ export default async function ExpertBookingsPage() {
                   </div>
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    {nextBooking.callRoom?.roomUrl ? (
+                    {nextBooking.status === "CONFIRMED" &&
+                    nextBooking.callRoom?.roomUrl ? (
                       <Link
-                        href={nextBooking.callRoom.roomUrl}
+                        href={`/calls/${nextBooking.id}`}
                         className="btn btn-primary"
                       >
                         Join call
@@ -213,9 +214,15 @@ export default async function ExpertBookingsPage() {
                       </Link>
                     ) : null}
 
-                    <CompleteCallForm bookingId={nextBooking.id} />
+                    {nextBooking.status === "CONFIRMED" &&
+                    nextBooking.endTime <= now ? (
+                      <CompleteCallForm bookingId={nextBooking.id} />
+                    ) : null}
 
-                    <CancelCallForm bookingId={nextBooking.id} />
+                    {nextBooking.status === "PENDING" ||
+                    nextBooking.status === "CONFIRMED" ? (
+                      <CancelCallForm bookingId={nextBooking.id} />
+                    ) : null}
                   </div>
                 </div>
               ) : (
@@ -336,11 +343,21 @@ function BookingCard({
   };
   important?: boolean;
 }) {
+  const now = new Date();
+
+  const isPending = booking.status === "PENDING";
+  const isConfirmed = booking.status === "CONFIRMED";
+  const isCompleted = booking.status === "COMPLETED";
   const isCancelled =
     booking.status === "CANCELLED" || booking.status === "REFUNDED";
-  const isCompleted = booking.status === "COMPLETED";
-  const canManage = !isCancelled && !isCompleted;
-  const isUpcoming = booking.startTime >= new Date() && canManage;
+  const isDisputed = booking.status === "DISPUTED";
+
+  const isJoinable =
+    isConfirmed && booking.startTime >= now && Boolean(booking.callRoom?.roomUrl);
+
+  const canComplete = isConfirmed && booking.endTime <= now;
+
+  const canCancel = isPending || isConfirmed;
 
   return (
     <div
@@ -360,6 +377,17 @@ function BookingCard({
                 <Star size={14} />
                 Reviewed
               </Badge>
+            ) : null}
+
+            {canComplete ? (
+              <Badge variant="accent">
+                <Clock3 size={14} />
+                Needs completion
+              </Badge>
+            ) : null}
+
+            {isCompleted && !booking.review ? (
+              <Badge variant="primary">Awaiting review</Badge>
             ) : null}
           </div>
 
@@ -393,6 +421,18 @@ function BookingCard({
             <SmallPill icon={Euro} text={formatMoney(booking.priceCents)} />
           </div>
 
+          {isCancelled ? (
+            <p className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]">
+              This booking is closed and the slot is no longer active.
+            </p>
+          ) : null}
+
+          {isDisputed ? (
+            <p className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]">
+              This booking is disputed and is under SkillDrop review.
+            </p>
+          ) : null}
+
           {booking.review ? (
             <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
               <p className="flex items-center gap-2 text-sm font-black">
@@ -408,16 +448,16 @@ function BookingCard({
         </div>
 
         <div className="flex shrink-0 flex-col gap-2 lg:min-w-[170px]">
-          {isUpcoming && booking.callRoom?.roomUrl ? (
-            <Link href={booking.callRoom.roomUrl} className="btn btn-primary">
+          {isJoinable ? (
+            <Link href={`/calls/${booking.id}`} className="btn btn-primary">
               Join call
               <Video size={17} />
             </Link>
           ) : null}
 
-          {canManage ? <CompleteCallForm bookingId={booking.id} /> : null}
+          {canComplete ? <CompleteCallForm bookingId={booking.id} /> : null}
 
-          {canManage ? <CancelCallForm bookingId={booking.id} /> : null}
+          {canCancel ? <CancelCallForm bookingId={booking.id} /> : null}
         </div>
       </div>
     </div>
@@ -469,6 +509,10 @@ function StatusBadge({ status }: { status: string }) {
 
   if (status === "DISPUTED") {
     return <Badge variant="danger">Disputed</Badge>;
+  }
+
+  if (status === "PENDING") {
+    return <Badge variant="accent">Pending</Badge>;
   }
 
   return <Badge variant="accent">{status.toLowerCase()}</Badge>;

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  Bell,
   Bookmark,
   CalendarDays,
   Search,
@@ -13,6 +14,7 @@ import {
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import { getUnreadNotificationCount } from "@/server/services/notification-count.service";
 
 const buyerLinks = [
   {
@@ -39,6 +41,12 @@ const buyerLinks = [
     label: "Reviews",
     href: "/buyer/reviews",
     icon: Star,
+  },
+  {
+    label: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+    badge: "notifications",
   },
   {
     label: "Settings",
@@ -85,6 +93,11 @@ export default async function BuyerLayout({
     redirect("/sign-in");
   }
 
+  const unreadNotifications = await getUnreadNotificationCount({
+    userId: buyer.id,
+    email: buyer.email,
+  });
+
   const now = new Date();
 
   const upcomingBookings = buyer.bookings.filter(
@@ -92,7 +105,8 @@ export default async function BuyerLayout({
       booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
       booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED",
+      booking.status !== "COMPLETED" &&
+      booking.status !== "DISPUTED",
   );
 
   const completedBookings = buyer.bookings.filter(
@@ -154,12 +168,35 @@ export default async function BuyerLayout({
                     />
                   </div>
                 </div>
+
+                {unreadNotifications > 0 ? (
+                  <Link
+                    href="/notifications?filter=unread"
+                    className="rounded-2xl bg-white/12 p-3 transition hover:bg-white/18"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
+                        Unread
+                      </p>
+
+                      <p className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[var(--primary-dark)]">
+                        {unreadNotifications}
+                      </p>
+                    </div>
+
+                    <p className="mt-1 text-sm font-black">
+                      Notifications waiting
+                    </p>
+                  </Link>
+                ) : null}
               </div>
             </div>
 
             <nav className="mt-4 grid gap-1.5">
               {buyerLinks.map((link) => {
                 const Icon = link.icon;
+                const badgeValue =
+                  link.badge === "notifications" ? unreadNotifications : 0;
 
                 return (
                   <Link
@@ -172,8 +209,16 @@ export default async function BuyerLayout({
                       <span className="truncate">{link.label}</span>
                     </span>
 
-                    <span className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]">
-                      ›
+                    <span className="flex shrink-0 items-center gap-2">
+                      {badgeValue > 0 ? (
+                        <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-black text-white">
+                          {badgeValue}
+                        </span>
+                      ) : null}
+
+                      <span className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]">
+                        ›
+                      </span>
                     </span>
                   </Link>
                 );
@@ -194,6 +239,11 @@ export default async function BuyerLayout({
               <SidebarStat
                 label="Completed"
                 value={String(completedBookings.length)}
+              />
+
+              <SidebarStat
+                label="Unread"
+                value={String(unreadNotifications)}
               />
             </div>
 

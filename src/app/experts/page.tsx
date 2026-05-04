@@ -5,7 +5,6 @@ import {
   CalendarDays,
   Clock3,
   Compass,
-  Euro,
   Globe2,
   HeartHandshake,
   Languages,
@@ -24,6 +23,10 @@ import { Card } from "@/components/ui/card";
 type ExpertsPageProps = {
   searchParams?: Promise<{
     q?: string;
+    verified?: string;
+    maxPrice?: string;
+    language?: string;
+    sort?: string;
   }>;
 };
 
@@ -57,7 +60,15 @@ const quickSearches = [
 
 export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
+
   const query = resolvedSearchParams.q?.trim() ?? "";
+  const verifiedOnly = resolvedSearchParams.verified === "true";
+  const maxPrice = resolvedSearchParams.maxPrice
+    ? Number(resolvedSearchParams.maxPrice) * 100
+    : null;
+  const language = resolvedSearchParams.language?.trim() ?? "";
+  const sort = resolvedSearchParams.sort ?? "best";
+
   const now = new Date();
 
   const searchTerms = query
@@ -65,14 +76,33 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     .map((term) => term.trim())
     .filter(Boolean);
 
-  const experts = await prisma.expertProfile.findMany({
+  const rawExperts = await prisma.expertProfile.findMany({
     where: {
       status: "APPROVED",
+
+      ...(verifiedOnly ? { isVerified: true } : {}),
+
+      ...(language
+        ? {
+            languages: {
+              has: language,
+            },
+          }
+        : {}),
+
       services: {
         some: {
           isActive: true,
+          ...(maxPrice
+            ? {
+                priceCents: {
+                  lte: maxPrice,
+                },
+              }
+            : {}),
         },
       },
+
       availability: {
         some: {
           startTime: {
@@ -81,25 +111,26 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           isBooked: false,
         },
       },
+
       ...(query
         ? {
             OR: [
               {
                 headline: {
                   contains: query,
-                  mode: "insensitive",
+                  mode: "insensitive" as const,
                 },
               },
               {
                 bio: {
                   contains: query,
-                  mode: "insensitive",
+                  mode: "insensitive" as const,
                 },
               },
               {
                 country: {
                   contains: query,
-                  mode: "insensitive",
+                  mode: "insensitive" as const,
                 },
               },
               {
@@ -125,13 +156,13 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                       {
                         title: {
                           contains: query,
-                          mode: "insensitive",
+                          mode: "insensitive" as const,
                         },
                       },
                       {
                         description: {
                           contains: query,
-                          mode: "insensitive",
+                          mode: "insensitive" as const,
                         },
                       },
                     ],
@@ -147,6 +178,13 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       services: {
         where: {
           isActive: true,
+          ...(maxPrice
+            ? {
+                priceCents: {
+                  lte: maxPrice,
+                },
+              }
+            : {}),
         },
         include: {
           category: true,
@@ -172,7 +210,15 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
         orderBy: {
           createdAt: "desc",
         },
-        take: 2,
+        select: {
+          rating: true,
+          helpfulness: true,
+          clarity: true,
+          professionalism: true,
+          wouldRecommend: true,
+          createdAt: true,
+        },
+        take: 20,
       },
     },
     orderBy: [
@@ -188,6 +234,52 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     ],
     take: 30,
   });
+
+  let experts = rawExperts.map((expert) => ({
+    ...expert,
+    qualityScore: calculateQualityScore({
+      rating: expert.rating,
+      totalReviews: expert.totalReviews,
+      totalSessions: expert.totalSessions,
+      isVerified: expert.isVerified,
+      openSlots: expert.availability.length,
+      reviews: expert.reviews,
+    }),
+  }));
+
+  if (sort === "best") {
+    experts = experts.sort((a, b) => {
+      if (b.qualityScore !== a.qualityScore) {
+        return b.qualityScore - a.qualityScore;
+      }
+
+      if (b.rating !== a.rating) {
+        return b.rating - a.rating;
+      }
+
+      return b.totalSessions - a.totalSessions;
+    });
+  }
+
+  if (sort === "cheapest") {
+    experts = experts.sort((a, b) => {
+      const aPrice = a.services[0]?.priceCents ?? Number.MAX_SAFE_INTEGER;
+      const bPrice = b.services[0]?.priceCents ?? Number.MAX_SAFE_INTEGER;
+
+      return aPrice - bPrice;
+    });
+  }
+
+  if (sort === "soonest") {
+    experts = experts.sort((a, b) => {
+      const aTime =
+        a.availability[0]?.startTime.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const bTime =
+        b.availability[0]?.startTime.getTime() ?? Number.MAX_SAFE_INTEGER;
+
+      return aTime - bTime;
+    });
+  }
 
   const totalOpenSlots = experts.reduce(
     (sum, expert) => sum + expert.availability.length,
@@ -232,29 +324,76 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           </div>
 
           <form action="/experts" className="mt-8">
-            <div className="flex flex-col gap-3 rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] md:flex-row md:items-center">
-              <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-white/64 px-4">
-                <Search size={18} className="text-muted" />
+            <div className="rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)]">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-white/64 px-4">
+                  <Search size={18} className="text-muted" />
 
-                <input
-                  name="q"
-                  type="search"
-                  defaultValue={query}
-                  placeholder="Search: translation, career, moving abroad, emotional support..."
-                  className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-muted"
-                />
+                  <input
+                    name="q"
+                    type="search"
+                    defaultValue={query}
+                    placeholder="Search: translation, career, moving abroad, emotional support..."
+                    className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-muted"
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-primary">
+                  Search
+                  <ArrowRight size={18} />
+                </button>
+
+                {query ||
+                verifiedOnly ||
+                resolvedSearchParams.maxPrice ||
+                language ||
+                sort !== "best" ? (
+                  <Link href="/experts" className="btn btn-secondary">
+                    Clear
+                  </Link>
+                ) : null}
               </div>
 
-              <button type="submit" className="btn btn-primary">
-                Search
-                <ArrowRight size={18} />
-              </button>
+              <div className="mt-3 grid gap-3 md:grid-cols-4">
+                <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)]">
+                  <input
+                    type="checkbox"
+                    name="verified"
+                    value="true"
+                    defaultChecked={verifiedOnly}
+                  />
+                  Verified only
+                </label>
 
-              {query ? (
-                <Link href="/experts" className="btn btn-secondary">
-                  Clear
-                </Link>
-              ) : null}
+                <select
+                  name="maxPrice"
+                  defaultValue={resolvedSearchParams.maxPrice ?? ""}
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
+                >
+                  <option value="">Any price</option>
+                  <option value="20">Up to €20</option>
+                  <option value="50">Up to €50</option>
+                  <option value="100">Up to €100</option>
+                </select>
+
+                <input
+                  type="text"
+                  name="language"
+                  defaultValue={language}
+                  placeholder="Language"
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none placeholder:text-muted"
+                />
+
+                <select
+                  name="sort"
+                  defaultValue={sort}
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
+                >
+                  <option value="best">Best match</option>
+                  <option value="cheapest">Cheapest</option>
+                  <option value="soonest">Soonest</option>
+                </select>
+              </div>
             </div>
           </form>
 
@@ -314,7 +453,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 </h2>
 
                 <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                  Showing experts with active offers and future availability.
+                  Showing experts with active offers, future availability and
+                  quality-based ranking.
                 </p>
               </div>
 
@@ -351,6 +491,7 @@ function ExpertSearchCard({
     languages: string[];
     skills: string[];
     rating: number;
+    qualityScore: number;
     totalReviews: number;
     totalSessions: number;
     isVerified: boolean;
@@ -398,6 +539,11 @@ function ExpertSearchCard({
                 ) : (
                   <Badge variant="accent">New</Badge>
                 )}
+
+                <Badge variant={expert.qualityScore >= 80 ? "success" : "primary"}>
+                  <Sparkles size={14} />
+                  Quality {expert.qualityScore}
+                </Badge>
 
                 {expert.country ? (
                   <Badge>
@@ -450,10 +596,9 @@ function ExpertSearchCard({
                 value={nextSlot ? formatShortDateTime(nextSlot.startTime) : "—"}
               />
 
-              <SideRow
-                label="Sessions"
-                value={String(expert.totalSessions)}
-              />
+              <SideRow label="Quality" value={`${expert.qualityScore}/100`} />
+
+              <SideRow label="Sessions" value={String(expert.totalSessions)} />
             </div>
 
             <div className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--foreground)] px-4 py-3 text-sm font-black text-[var(--background)] transition group-hover:shadow-[var(--shadow-sm)]">
@@ -560,6 +705,98 @@ function EmptyState({ title, text }: { title: string; text: string }) {
       </p>
     </Card>
   );
+}
+
+function calculateQualityScore({
+  rating,
+  totalReviews,
+  totalSessions,
+  isVerified,
+  openSlots,
+  reviews,
+}: {
+  rating: number;
+  totalReviews: number;
+  totalSessions: number;
+  isVerified: boolean;
+  openSlots: number;
+  reviews: {
+    rating: number;
+    helpfulness: number | null;
+    clarity: number | null;
+    professionalism: number | null;
+    wouldRecommend: boolean | null;
+    createdAt: Date;
+  }[];
+}) {
+  const ratingScore =
+    totalReviews > 0 ? clamp((rating / 5) * 30, 0, 30) : 8;
+
+  const helpfulnessAvg = averageNullable(reviews.map((review) => review.helpfulness));
+  const clarityAvg = averageNullable(reviews.map((review) => review.clarity));
+  const professionalismAvg = averageNullable(
+    reviews.map((review) => review.professionalism),
+  );
+
+  const detailedReviewScore =
+    helpfulnessAvg || clarityAvg || professionalismAvg
+      ? clamp(
+          ((helpfulnessAvg ?? rating) +
+            (clarityAvg ?? rating) +
+            (professionalismAvg ?? rating)) /
+            3 /
+            5 *
+            25,
+          0,
+          25,
+        )
+      : totalReviews > 0
+        ? clamp((rating / 5) * 18, 0, 18)
+        : 5;
+
+  const recommendationReviews = reviews.filter(
+    (review) => review.wouldRecommend !== null,
+  );
+
+  const recommendationRate =
+    recommendationReviews.length > 0
+      ? recommendationReviews.filter((review) => review.wouldRecommend).length /
+        recommendationReviews.length
+      : null;
+
+  const recommendationScore =
+    recommendationRate !== null ? clamp(recommendationRate * 15, 0, 15) : 6;
+
+  const sessionsScore = clamp((Math.min(totalSessions, 20) / 20) * 15, 0, 15);
+  const verifiedScore = isVerified ? 10 : 0;
+  const availabilityScore = openSlots > 0 ? 5 : 0;
+
+  return Math.round(
+    ratingScore +
+      detailedReviewScore +
+      recommendationScore +
+      sessionsScore +
+      verifiedScore +
+      availabilityScore,
+  );
+}
+
+function averageNullable(values: (number | null)[]) {
+  const cleanValues = values.filter(
+    (value): value is number => typeof value === "number",
+  );
+
+  if (cleanValues.length === 0) {
+    return null;
+  }
+
+  return (
+    cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length
+  );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function formatMoney(cents: number) {

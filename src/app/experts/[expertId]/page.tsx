@@ -86,7 +86,17 @@ export default async function ExpertPublicPage({
         orderBy: {
           createdAt: "desc",
         },
-        take: 6,
+        select: {
+          id: true,
+          rating: true,
+          helpfulness: true,
+          clarity: true,
+          professionalism: true,
+          wouldRecommend: true,
+          comment: true,
+          createdAt: true,
+        },
+        take: 20,
       },
     },
   });
@@ -112,7 +122,9 @@ export default async function ExpertPublicPage({
       : null;
 
   const selectedService =
-    expert.services.find((service) => service.id === resolvedSearchParams.service) ??
+    expert.services.find(
+      (service) => service.id === resolvedSearchParams.service,
+    ) ??
     expert.services[0] ??
     null;
 
@@ -121,6 +133,41 @@ export default async function ExpertPublicPage({
   const startingPrice =
     expert.services.length > 0
       ? Math.min(...expert.services.map((service) => service.priceCents))
+      : null;
+
+  const qualityScore = calculateQualityScore({
+    rating: expert.rating,
+    totalReviews: expert.totalReviews,
+    totalSessions: expert.totalSessions,
+    isVerified: expert.isVerified,
+    openSlots: expert.availability.length,
+    reviews: expert.reviews,
+  });
+
+  const helpfulnessAvg = averageNullable(
+    expert.reviews.map((review) => review.helpfulness),
+  );
+
+  const clarityAvg = averageNullable(
+    expert.reviews.map((review) => review.clarity),
+  );
+
+  const professionalismAvg = averageNullable(
+    expert.reviews.map((review) => review.professionalism),
+  );
+
+  const recommendationReviews = expert.reviews.filter(
+    (review) => review.wouldRecommend !== null,
+  );
+
+  const recommendationRate =
+    recommendationReviews.length > 0
+      ? Math.round(
+          (recommendationReviews.filter((review) => review.wouldRecommend)
+            .length /
+            recommendationReviews.length) *
+            100,
+        )
       : null;
 
   return (
@@ -180,9 +227,9 @@ export default async function ExpertPublicPage({
                   </Badge>
                 ) : null}
 
-                <Badge>
-                  <Star size={14} />
-                  {expert.rating ? expert.rating.toFixed(1) : "New"}
+                <Badge variant={qualityScore >= 80 ? "success" : "primary"}>
+                  <Sparkles size={14} />
+                  Quality {qualityScore}/100
                 </Badge>
               </div>
 
@@ -195,6 +242,18 @@ export default async function ExpertPublicPage({
                   <h1 className="heading-lg max-w-4xl text-balance">
                     {expert.user.name ?? "Provider"}
                   </h1>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {expert.isVerified ? (
+                      <Badge variant="success">✔ Verified expert</Badge>
+                    ) : null}
+
+                    <Badge>
+                      ⭐ {expert.rating ? expert.rating.toFixed(1) : "New"}
+                    </Badge>
+
+                    <Badge>{expert.totalSessions} sessions</Badge>
+                  </div>
 
                   <p className="mt-4 max-w-3xl text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                     {expert.headline}
@@ -209,6 +268,25 @@ export default async function ExpertPublicPage({
                       <HashTag key={skill} text={skill} />
                     ))}
                   </div>
+
+                  {expert.availability.length > 0 ? (
+                    <div className="mt-7 rounded-[24px] border border-[var(--border)] bg-white/55 p-4">
+                      <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                        Next available
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {expert.availability.slice(0, 5).map((slot) => (
+                          <span
+                            key={slot.id}
+                            className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]"
+                          >
+                            {formatDateTime(slot.startTime)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -524,18 +602,40 @@ export default async function ExpertPublicPage({
                       key={review.id}
                       className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="flex items-center gap-2 font-black">
-                          <Star size={16} fill="currentColor" />
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <Badge variant="success">
+                          <Star size={14} />
                           {review.rating}/5
-                        </p>
+                        </Badge>
+
+                        {review.wouldRecommend ? (
+                          <Badge variant="primary">Recommended</Badge>
+                        ) : null}
 
                         <p className="text-xs font-bold text-muted">
                           {formatShortDate(review.createdAt)}
                         </p>
                       </div>
 
-                      <p className="mt-3 line-clamp-4 text-sm font-semibold leading-6 text-muted">
+                      <div className="mt-4 grid gap-2">
+                        <ReviewScore
+                          label="Helpfulness"
+                          value={review.helpfulness}
+                        />
+                        <ReviewScore label="Clarity" value={review.clarity} />
+                        <ReviewScore
+                          label="Professionalism"
+                          value={review.professionalism}
+                        />
+                      </div>
+
+                      {review.wouldRecommend !== null ? (
+                        <p className="mt-3 text-xs font-black text-[var(--primary-dark)]">
+                          Would recommend: {review.wouldRecommend ? "Yes" : "No"}
+                        </p>
+                      ) : null}
+
+                      <p className="mt-4 line-clamp-4 text-sm font-semibold leading-6 text-muted">
                         {review.comment || "No comment left."}
                       </p>
                     </div>
@@ -551,6 +651,55 @@ export default async function ExpertPublicPage({
           </div>
 
           <div className="grid content-start gap-5 xl:sticky xl:top-[96px]">
+            <Card className="p-5">
+              <Badge variant={qualityScore >= 80 ? "success" : "primary"}>
+                <Sparkles size={14} />
+                Quality score
+              </Badge>
+
+              <h2 className="mt-4 text-4xl font-black tracking-[-0.06em]">
+                {qualityScore}/100
+              </h2>
+
+              <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+                Based on reviews, detailed feedback, recommendations, completed
+                sessions and availability.
+              </p>
+
+              <div className="mt-5 grid gap-3">
+                <SideFact
+                  label="Rating"
+                  value={expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"}
+                />
+
+                <SideFact
+                  label="Helpfulness"
+                  value={helpfulnessAvg ? `${helpfulnessAvg.toFixed(1)} / 5` : "—"}
+                />
+
+                <SideFact
+                  label="Clarity"
+                  value={clarityAvg ? `${clarityAvg.toFixed(1)} / 5` : "—"}
+                />
+
+                <SideFact
+                  label="Professionalism"
+                  value={
+                    professionalismAvg
+                      ? `${professionalismAvg.toFixed(1)} / 5`
+                      : "—"
+                  }
+                />
+
+                <SideFact
+                  label="Recommend rate"
+                  value={
+                    recommendationRate !== null ? `${recommendationRate}%` : "—"
+                  }
+                />
+              </div>
+            </Card>
+
             <Card className="p-5">
               <Badge variant="primary">
                 <Globe2 size={14} />
@@ -588,7 +737,11 @@ export default async function ExpertPublicPage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <Step number="1" title="Choose service" text="Pick the help you need." />
+                <Step
+                  number="1"
+                  title="Choose service"
+                  text="Pick the help you need."
+                />
                 <Step number="2" title="Pick time" text="Select an open slot." />
                 <Step number="3" title="Join call" text="Meet through video." />
               </div>
@@ -696,6 +849,21 @@ function EmptyState({ title, text }: { title: string; text: string }) {
   );
 }
 
+function ReviewScore({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 px-3 py-2">
+      <p className="text-xs font-black text-muted">{label}</p>
+      <p className="text-xs font-black">{value ? `${value}/5` : "—"}</p>
+    </div>
+  );
+}
+
 function groupSlotsByDate(
   slots: {
     id: string;
@@ -738,6 +906,100 @@ function groupSlotsByDate(
   });
 
   return Array.from(groups.values());
+}
+
+function calculateQualityScore({
+  rating,
+  totalReviews,
+  totalSessions,
+  isVerified,
+  openSlots,
+  reviews,
+}: {
+  rating: number;
+  totalReviews: number;
+  totalSessions: number;
+  isVerified: boolean;
+  openSlots: number;
+  reviews: {
+    rating: number;
+    helpfulness: number | null;
+    clarity: number | null;
+    professionalism: number | null;
+    wouldRecommend: boolean | null;
+    createdAt: Date;
+  }[];
+}) {
+  const ratingScore =
+    totalReviews > 0 ? clamp((rating / 5) * 30, 0, 30) : 8;
+
+  const helpfulnessAvg = averageNullable(
+    reviews.map((review) => review.helpfulness),
+  );
+
+  const clarityAvg = averageNullable(reviews.map((review) => review.clarity));
+
+  const professionalismAvg = averageNullable(
+    reviews.map((review) => review.professionalism),
+  );
+
+  const detailedReviewScore =
+    helpfulnessAvg || clarityAvg || professionalismAvg
+      ? clamp(
+          (((helpfulnessAvg ?? rating) +
+            (clarityAvg ?? rating) +
+            (professionalismAvg ?? rating)) /
+            3 /
+            5) *
+            25,
+          0,
+          25,
+        )
+      : totalReviews > 0
+        ? clamp((rating / 5) * 18, 0, 18)
+        : 5;
+
+  const recommendationReviews = reviews.filter(
+    (review) => review.wouldRecommend !== null,
+  );
+
+  const recommendationRate =
+    recommendationReviews.length > 0
+      ? recommendationReviews.filter((review) => review.wouldRecommend).length /
+        recommendationReviews.length
+      : null;
+
+  const recommendationScore =
+    recommendationRate !== null ? clamp(recommendationRate * 15, 0, 15) : 6;
+
+  const sessionsScore = clamp((Math.min(totalSessions, 20) / 20) * 15, 0, 15);
+  const verifiedScore = isVerified ? 10 : 0;
+  const availabilityScore = openSlots > 0 ? 5 : 0;
+
+  return Math.round(
+    ratingScore +
+      detailedReviewScore +
+      recommendationScore +
+      sessionsScore +
+      verifiedScore +
+      availabilityScore,
+  );
+}
+
+function averageNullable(values: (number | null)[]) {
+  const cleanValues = values.filter(
+    (value): value is number => typeof value === "number",
+  );
+
+  if (cleanValues.length === 0) {
+    return null;
+  }
+
+  return cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function formatMoney(cents: number) {

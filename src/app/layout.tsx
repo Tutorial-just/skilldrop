@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, LayoutDashboard, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Bell,
+  LayoutDashboard,
+  Sparkles,
+} from "lucide-react";
 
 import "./globals.css";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { getUnreadNotificationCount } from "@/server/services/notification-count.service";
 
 export const metadata: Metadata = {
   title: "SkillDrop — Real people. Useful advice. Short calls.",
@@ -37,32 +44,49 @@ async function getHeaderSession() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (!user?.email) {
     return {
       user: null,
       dashboardHref: "/sign-in",
+      unreadNotifications: 0,
     };
   }
 
-  const role = user.user_metadata?.role as string | undefined;
+  const email = user.email.toLowerCase();
 
-  if (role === "expert") {
-    return {
-      user,
-      dashboardHref: "/expert",
-    };
-  }
+  const dbUser = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+      role: true,
+      email: true,
+    },
+  });
 
-  if (role === "admin") {
-    return {
-      user,
-      dashboardHref: "/admin",
-    };
-  }
+  const role = dbUser?.role ?? user.user_metadata?.role;
+
+  const dashboardHref =
+    role === "EXPERT"
+      ? "/expert"
+      : role === "ADMIN"
+        ? "/admin"
+        : role === "expert"
+          ? "/expert"
+          : role === "admin"
+            ? "/admin"
+            : "/buyer";
+
+  const unreadNotifications = await getUnreadNotificationCount({
+    userId: dbUser?.id,
+    email,
+  });
 
   return {
     user,
-    dashboardHref: "/buyer",
+    dashboardHref,
+    unreadNotifications,
   };
 }
 
@@ -71,7 +95,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { user, dashboardHref } = await getHeaderSession();
+  const { user, dashboardHref, unreadNotifications } = await getHeaderSession();
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -107,6 +131,17 @@ export default async function RootLayout({
                     >
                       <LayoutDashboard size={17} />
                       Dashboard
+                    </Link>
+
+                    <Link href="/notifications" className="btn btn-secondary">
+                      <Bell size={17} />
+                      <span className="hidden sm:inline">Notifications</span>
+
+                      {unreadNotifications > 0 ? (
+                        <span className="ml-1 rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-black text-white">
+                          {unreadNotifications}
+                        </span>
+                      ) : null}
                     </Link>
 
                     <SignOutButton />
@@ -161,6 +196,16 @@ export default async function RootLayout({
                         className="hover:text-[var(--foreground)]"
                       >
                         Dashboard
+                      </Link>
+
+                      <Link
+                        href="/notifications"
+                        className="hover:text-[var(--foreground)]"
+                      >
+                        Notifications
+                        {unreadNotifications > 0
+                          ? ` · ${unreadNotifications}`
+                          : ""}
                       </Link>
 
                       <Link

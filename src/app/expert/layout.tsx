@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   BarChart3,
+  Bell,
   CalendarDays,
+  CircleDollarSign,
   Settings,
   Sparkles,
   UserRound,
@@ -34,6 +36,16 @@ const expertLinks = [
     label: "Bookings",
     href: "/expert/bookings",
     icon: Video,
+  },
+  {
+    label: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+  },
+  {
+    label: "Earnings",
+    href: "/expert/earnings",
+    icon: CircleDollarSign,
   },
   {
     label: "Statistics",
@@ -92,6 +104,20 @@ export default async function ExpertLayout({
   if (!expert) {
     redirect("/become-expert");
   }
+
+  const unreadNotificationsCount = await prisma.notification.count({
+    where: {
+      isRead: false,
+      OR: [
+        {
+          userId: expert.user.id,
+        },
+        {
+          email: expert.user.email,
+        },
+      ],
+    },
+  });
 
   const now = new Date();
 
@@ -172,6 +198,9 @@ export default async function ExpertLayout({
             <nav className="mt-4 grid gap-1.5">
               {expertLinks.map((link) => {
                 const Icon = link.icon;
+                const showUnreadBadge =
+                  link.href === "/notifications" &&
+                  unreadNotificationsCount > 0;
 
                 return (
                   <Link
@@ -179,9 +208,18 @@ export default async function ExpertLayout({
                     href={link.href}
                     className="group flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-sm font-black text-[var(--foreground)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
                   >
-                    <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex min-w-0 flex-1 items-center gap-3">
                       <Icon size={17} className="shrink-0" />
+
                       <span className="truncate">{link.label}</span>
+
+                      {showUnreadBadge ? (
+                        <span className="ml-auto rounded-full bg-[var(--danger)] px-2 py-0.5 text-xs font-black text-white">
+                          {unreadNotificationsCount > 99
+                            ? "99+"
+                            : unreadNotificationsCount}
+                        </span>
+                      ) : null}
                     </span>
 
                     <span className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]">
@@ -200,6 +238,11 @@ export default async function ExpertLayout({
               <SidebarStat
                 label="Upcoming"
                 value={String(upcomingBookings.length)}
+              />
+
+              <SidebarStat
+                label="Unread"
+                value={String(unreadNotificationsCount)}
               />
             </div>
 

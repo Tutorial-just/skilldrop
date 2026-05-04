@@ -9,6 +9,7 @@ import {
   Send,
   ShieldCheck,
   Star,
+  ThumbsUp,
   Video,
 } from "lucide-react";
 
@@ -21,6 +22,7 @@ import { Card } from "@/components/ui/card";
 
 type BuyerReviewsPageProps = {
   searchParams?: Promise<{
+    bookingId?: string;
     reviewed?: string;
     error?: string;
   }>;
@@ -48,6 +50,8 @@ export default async function BuyerReviewsPage({
     redirect("/sign-in");
   }
 
+  const selectedBookingId = resolvedSearchParams.bookingId ?? "";
+
   const completedBookings = await prisma.booking.findMany({
     where: {
       buyerId: buyer.id,
@@ -67,8 +71,37 @@ export default async function BuyerReviewsPage({
     },
   });
 
-  const waitingForReview = completedBookings.filter((booking) => !booking.review);
-  const reviewedBookings = completedBookings.filter((booking) => booking.review);
+  const waitingForReview = completedBookings
+    .filter((booking) => !booking.review)
+    .sort((a, b) => {
+      if (a.id === selectedBookingId) {
+        return -1;
+      }
+
+      if (b.id === selectedBookingId) {
+        return 1;
+      }
+
+      return b.startTime.getTime() - a.startTime.getTime();
+    });
+
+  const reviewedBookings = completedBookings
+    .filter((booking) => booking.review)
+    .sort((a, b) => {
+      if (a.id === selectedBookingId) {
+        return -1;
+      }
+
+      if (b.id === selectedBookingId) {
+        return 1;
+      }
+
+      return b.startTime.getTime() - a.startTime.getTime();
+    });
+
+  const selectedBooking = completedBookings.find(
+    (booking) => booking.id === selectedBookingId,
+  );
 
   return (
     <main>
@@ -93,6 +126,12 @@ export default async function BuyerReviewsPage({
           {resolvedSearchParams.error ? (
             <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
               {formatReviewError(resolvedSearchParams.error)}
+            </div>
+          ) : null}
+
+          {selectedBookingId && !selectedBooking ? (
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+              This booking is not available for review.
             </div>
           ) : null}
 
@@ -153,6 +192,23 @@ export default async function BuyerReviewsPage({
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-start">
           <div className="grid gap-6">
+            {selectedBooking?.review ? (
+              <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6">
+                <Badge variant="success">
+                  <CheckCircle2 size={14} />
+                  Already reviewed
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  You already reviewed this call.
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  You can see your submitted review in the review history.
+                </p>
+              </Card>
+            ) : null}
+
             <Card className="p-5 md:p-6">
               <Badge variant="accent">
                 <MessageCircle size={14} />
@@ -164,13 +220,17 @@ export default async function BuyerReviewsPage({
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-muted">
-                Leave a rating after a completed call.
+                Leave detailed feedback after a completed call.
               </p>
 
               <div className="mt-6 grid gap-4">
                 {waitingForReview.length > 0 ? (
                   waitingForReview.map((booking) => (
-                    <ReviewFormCard key={booking.id} booking={booking} />
+                    <ReviewFormCard
+                      key={booking.id}
+                      booking={booking}
+                      highlighted={booking.id === selectedBookingId}
+                    />
                   ))
                 ) : (
                   <EmptyState
@@ -209,7 +269,11 @@ export default async function BuyerReviewsPage({
               <div className="mt-5 grid gap-4">
                 {reviewedBookings.length > 0 ? (
                   reviewedBookings.map((booking) => (
-                    <ReviewedCard key={booking.id} booking={booking} />
+                    <ReviewedCard
+                      key={booking.id}
+                      booking={booking}
+                      highlighted={booking.id === selectedBookingId}
+                    />
                   ))
                 ) : (
                   <EmptyState
@@ -228,6 +292,7 @@ export default async function BuyerReviewsPage({
 
 function ReviewFormCard({
   booking,
+  highlighted,
 }: {
   booking: {
     id: string;
@@ -243,15 +308,28 @@ function ReviewFormCard({
       };
     };
   };
+  highlighted: boolean;
 }) {
   return (
-    <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+    <div
+      className={
+        highlighted
+          ? "rounded-[26px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] p-4"
+          : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
+      }
+    >
+      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
         <div>
           <Badge variant="primary">
             <Video size={14} />
             Completed call
           </Badge>
+
+          {highlighted ? (
+            <Badge variant="accent" className="ml-2">
+              Selected
+            </Badge>
+          ) : null}
 
           <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
             {booking.service.title}
@@ -270,18 +348,30 @@ function ReviewFormCard({
           </p>
         </div>
 
-        <form action={createReviewAction} className="grid min-w-0 gap-3 lg:w-[360px]">
+        <form
+          action={createReviewAction}
+          className="grid min-w-0 gap-3 lg:w-[430px]"
+        >
           <input type="hidden" name="bookingId" value={booking.id} />
 
-          <div>
-            <label className="text-sm font-black">Rating</label>
+          <ReviewSelect name="rating" label="Overall rating" required />
 
-            <select name="rating" required className="input mt-2">
-              <option value="5">5 — Excellent</option>
-              <option value="4">4 — Good</option>
-              <option value="3">3 — Okay</option>
-              <option value="2">2 — Not great</option>
-              <option value="1">1 — Bad</option>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <ReviewScoreSelect name="helpfulness" label="Helpfulness" />
+            <ReviewScoreSelect name="clarity" label="Clarity" />
+            <ReviewScoreSelect
+              name="professionalism"
+              label="Professionalism"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-black">Would you recommend?</label>
+
+            <select name="wouldRecommend" className="input mt-2">
+              <option value="">Choose</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
             </select>
           </div>
 
@@ -291,6 +381,7 @@ function ReviewFormCard({
             <textarea
               name="comment"
               rows={4}
+              maxLength={1200}
               className="mt-2 w-full rounded-[22px] border border-[var(--border)] bg-white/88 p-4 text-sm font-semibold leading-6 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
               placeholder="What was helpful? What should other clients know?"
             />
@@ -306,8 +397,56 @@ function ReviewFormCard({
   );
 }
 
+function ReviewSelect({
+  name,
+  label,
+  required = false,
+}: {
+  name: string;
+  label: string;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label className="text-sm font-black">{label}</label>
+
+      <select name={name} required={required} className="input mt-2">
+        <option value="5">5 — Excellent</option>
+        <option value="4">4 — Good</option>
+        <option value="3">3 — Okay</option>
+        <option value="2">2 — Not great</option>
+        <option value="1">1 — Bad</option>
+      </select>
+    </div>
+  );
+}
+
+function ReviewScoreSelect({
+  name,
+  label,
+}: {
+  name: string;
+  label: string;
+}) {
+  return (
+    <div>
+      <label className="text-xs font-black">{label}</label>
+
+      <select name={name} className="input mt-2">
+        <option value="">—</option>
+        <option value="5">5</option>
+        <option value="4">4</option>
+        <option value="3">3</option>
+        <option value="2">2</option>
+        <option value="1">1</option>
+      </select>
+    </div>
+  );
+}
+
 function ReviewedCard({
   booking,
+  highlighted,
 }: {
   booking: {
     id: string;
@@ -323,22 +462,44 @@ function ReviewedCard({
     };
     review: {
       rating: number;
+      helpfulness: number | null;
+      clarity: number | null;
+      professionalism: number | null;
+      wouldRecommend: boolean | null;
       comment: string | null;
       createdAt: Date;
     } | null;
   };
+  highlighted: boolean;
 }) {
   if (!booking.review) {
     return null;
   }
 
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+    <div
+      className={
+        highlighted
+          ? "rounded-[22px] border border-[var(--success)]/30 bg-[var(--success-soft)] p-4"
+          : "rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+      }
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Badge variant="success">
           <Star size={14} />
           {booking.review.rating}/5
         </Badge>
+
+        {booking.review.wouldRecommend === true ? (
+          <Badge variant="primary">
+            <ThumbsUp size={14} />
+            Recommended
+          </Badge>
+        ) : null}
+
+        {booking.review.wouldRecommend === false ? (
+          <Badge variant="accent">Not recommended</Badge>
+        ) : null}
 
         <p className="text-xs font-bold text-muted">
           {formatDateTime(booking.review.createdAt)}
@@ -353,9 +514,35 @@ function ReviewedCard({
         Expert: {booking.expert.user.name ?? booking.expert.user.email}
       </p>
 
-      <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <ReviewMiniScore label="Helpfulness" value={booking.review.helpfulness} />
+        <ReviewMiniScore label="Clarity" value={booking.review.clarity} />
+        <ReviewMiniScore
+          label="Professionalism"
+          value={booking.review.professionalism}
+        />
+      </div>
+
+      <p className="mt-4 text-sm font-semibold leading-6 text-muted">
         {booking.review.comment || "No comment left."}
       </p>
+    </div>
+  );
+}
+
+function ReviewMiniScore({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-black">{value ? `${value}/5` : "—"}</p>
     </div>
   );
 }

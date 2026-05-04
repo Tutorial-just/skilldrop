@@ -1,570 +1,623 @@
 import Link from "next/link";
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  CircleDollarSign,
+  MessageCircle,
+  ShieldAlert,
+  ShieldCheck,
+  Star,
+  UserRound,
+  UsersRound,
+  WalletCards,
+} from "lucide-react";
+
+import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
-import { RingStat } from "@/components/dashboard/ring-stat";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
-const PLATFORM_FEE_RATE = 0.15;
+const PLATFORM_FEE_RATE = 0.05;
 
-export default async function AdminOverviewPage() {
-  const [bookings, experts, buyers, reviews, services, availability] =
-    await Promise.all([
-      prisma.booking.findMany({
-        include: {
-          buyer: true,
-          expert: {
-            include: {
-              user: true,
+export default async function AdminPage() {
+  await requireRole(["admin"]);
+
+  const [
+    usersCount,
+    expertsCount,
+    approvedExpertsCount,
+    pendingExpertsCount,
+    bookingsCount,
+    pendingBookingsCount,
+    confirmedBookingsCount,
+    completedBookingsCount,
+    disputedBookingsCount,
+    refundedBookingsCount,
+    reviewsCount,
+    lowReviewsCount,
+    notRecommendedReviewsCount,
+    completedBookings,
+    recentReviews,
+    rawExperts,
+  ] = await Promise.all([
+    prisma.user.count(),
+
+    prisma.expertProfile.count(),
+
+    prisma.expertProfile.count({
+      where: {
+        status: "APPROVED",
+      },
+    }),
+
+    prisma.expertProfile.count({
+      where: {
+        status: "PENDING",
+      },
+    }),
+
+    prisma.booking.count(),
+
+    prisma.booking.count({
+      where: {
+        status: "PENDING",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: "CONFIRMED",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: "COMPLETED",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: "DISPUTED",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: "REFUNDED",
+      },
+    }),
+
+    prisma.review.count(),
+
+    prisma.review.count({
+      where: {
+        OR: [
+          {
+            rating: {
+              lte: 2,
             },
           },
-          service: true,
+          {
+            helpfulness: {
+              lte: 2,
+            },
+          },
+          {
+            clarity: {
+              lte: 2,
+            },
+          },
+          {
+            professionalism: {
+              lte: 2,
+            },
+          },
+          {
+            wouldRecommend: false,
+          },
+        ],
+      },
+    }),
+
+    prisma.review.count({
+      where: {
+        wouldRecommend: false,
+      },
+    }),
+
+    prisma.booking.findMany({
+      where: {
+        status: "COMPLETED",
+      },
+      select: {
+        priceCents: true,
+      },
+    }),
+
+    prisma.review.findMany({
+      where: {
+        OR: [
+          {
+            rating: {
+              lte: 2,
+            },
+          },
+          {
+            wouldRecommend: false,
+          },
+          {
+            helpfulness: {
+              lte: 2,
+            },
+          },
+          {
+            clarity: {
+              lte: 2,
+            },
+          },
+          {
+            professionalism: {
+              lte: 2,
+            },
+          },
+        ],
+      },
+      include: {
+        expert: {
+          include: {
+            user: true,
+          },
         },
-        orderBy: {
-          createdAt: "desc",
+        booking: {
+          include: {
+            service: true,
+          },
         },
-      }),
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 5,
+    }),
 
-      prisma.expertProfile.findMany({
-        include: {
-          user: true,
-          services: true,
+    prisma.expertProfile.findMany({
+      include: {
+        user: true,
+        availability: true,
+        reviews: {
+          select: {
+            rating: true,
+            helpfulness: true,
+            clarity: true,
+            professionalism: true,
+            wouldRecommend: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 10,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-      }),
+      },
+      take: 100,
+    }),
+  ]);
 
-      prisma.user.findMany({
-        where: {
-          role: "BUYER",
-        },
-      }),
-
-      prisma.review.findMany(),
-
-      prisma.service.findMany(),
-
-      prisma.availability.findMany(),
-    ]);
-
-  const revenueBookings = bookings.filter(
-    (booking) =>
-      booking.status === "PAID" ||
-      booking.status === "CONFIRMED" ||
-      booking.status === "COMPLETED",
-  );
-
-  const pendingBookings = bookings.filter(
-    (booking) => booking.status === "PENDING",
-  );
-
-  const completedBookings = bookings.filter(
-    (booking) => booking.status === "COMPLETED",
-  );
-
-  const cancelledBookings = bookings.filter(
-    (booking) => booking.status === "CANCELLED",
-  );
-
-  const approvedExperts = experts.filter(
-    (expert) => expert.status === "APPROVED",
-  );
-
-  const pendingExperts = experts.filter(
-    (expert) => expert.status === "PENDING",
-  );
-
-  const verifiedExperts = experts.filter((expert) => expert.isVerified);
-
-  const openSlots = availability.filter((slot) => !slot.isBooked);
-  const bookedSlots = availability.filter((slot) => slot.isBooked);
-
-  const gmvCents = revenueBookings.reduce(
+  const grossCompletedCents = completedBookings.reduce(
     (sum, booking) => sum + booking.priceCents,
     0,
   );
 
-  const platformRevenueCents = Math.round(gmvCents * PLATFORM_FEE_RATE);
-  const expertPayoutCents = gmvCents - platformRevenueCents;
+  const estimatedPlatformFeeCents = Math.round(
+    grossCompletedCents * PLATFORM_FEE_RATE,
+  );
 
-  const completionRate =
-    bookings.length > 0
-      ? Math.round((completedBookings.length / bookings.length) * 100)
-      : 0;
+  const expertsWithRisk = rawExperts.map((expert) => {
+    const qualityScore = calculateQualityScore({
+      rating: expert.rating,
+      totalReviews: expert.totalReviews,
+      totalSessions: expert.totalSessions,
+      isVerified: expert.isVerified,
+      openSlots: expert.availability.length,
+      reviews: expert.reviews,
+    });
 
-  const cancellationRate =
-    bookings.length > 0
-      ? Math.round((cancelledBookings.length / bookings.length) * 100)
-      : 0;
+    return {
+      ...expert,
+      qualityScore,
+      riskLevel: calculateRiskLevel({
+        qualityScore,
+        reviews: expert.reviews,
+      }),
+    };
+  });
 
-  const expertApprovalRate =
-    experts.length > 0
-      ? Math.round((approvedExperts.length / experts.length) * 100)
-      : 0;
+  const highRiskExperts = expertsWithRisk.filter(
+    (expert) => expert.riskLevel === "HIGH",
+  );
 
-  const reviewRate =
-    completedBookings.length > 0
-      ? Math.round((reviews.length / completedBookings.length) * 100)
-      : 0;
+  const mediumRiskExperts = expertsWithRisk.filter(
+    (expert) => expert.riskLevel === "MEDIUM",
+  );
 
-  const averageRating =
-    reviews.length > 0
-      ? reviews.reduce((sum, review) => sum + review.rating, 0) /
-        reviews.length
-      : 0;
+  const topRiskExperts = expertsWithRisk
+    .filter((expert) => expert.riskLevel !== "LOW")
+    .sort((a, b) => {
+      const riskPriority = {
+        HIGH: 0,
+        MEDIUM: 1,
+        LOW: 2,
+      };
+
+      const aPriority = riskPriority[a.riskLevel];
+      const bPriority = riskPriority[b.riskLevel];
+
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+
+      return a.qualityScore - b.qualityScore;
+    })
+    .slice(0, 5);
+
+  const hasUrgentWork =
+    pendingExpertsCount > 0 ||
+    disputedBookingsCount > 0 ||
+    highRiskExperts.length > 0 ||
+    lowReviewsCount > 0;
 
   return (
-    <main className="container-page py-10">
-      <section className="rounded-[2rem] bg-[#151515] p-6 text-white sm:rounded-[2.5rem] md:p-10">
-        <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:items-end">
-          <div>
-            <p className="text-sm font-black text-[#f97316]">
-              Admin workspace
-            </p>
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
 
-            <h1 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">
-              Control the marketplace.
-            </h1>
+        <div className="relative container-page py-8 md:py-10 lg:py-14">
+          <Badge variant={hasUrgentWork ? "danger" : "primary"}>
+            {hasUrgentWork ? (
+              <>
+                <ShieldAlert size={14} />
+                Admin attention needed
+              </>
+            ) : (
+              <>
+                <ShieldCheck size={14} />
+                Admin
+              </>
+            )}
+          </Badge>
 
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-white/60">
-              Monitor growth, review expert supply, track bookings and spot
-              marketplace issues before they become serious.
-            </p>
+          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+            SkillDrop operations center.
+          </h1>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/admin/experts"
-                className="rounded-full bg-white px-6 py-3 text-center text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                Review experts
-              </Link>
+          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+            Monitor users, experts, bookings, payments, reviews, disputes and
+            marketplace risk from one dashboard.
+          </p>
 
-              <Link
-                href="/admin/metrics"
-                className="rounded-full bg-[#2563eb] px-6 py-3 text-center text-sm font-black text-white transition hover:bg-[#1d4ed8]"
-              >
-                Open metrics
-              </Link>
-            </div>
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <AdminStat
+              icon={UsersRound}
+              label="Users"
+              value={String(usersCount)}
+              hint="Total accounts"
+            />
+
+            <AdminStat
+              icon={UserRound}
+              label="Experts"
+              value={String(expertsCount)}
+              hint={`${approvedExpertsCount} approved · ${pendingExpertsCount} pending`}
+            />
+
+            <AdminStat
+              icon={CalendarDays}
+              label="Bookings"
+              value={String(bookingsCount)}
+              hint={`${confirmedBookingsCount} confirmed · ${disputedBookingsCount} disputed`}
+            />
+
+            <AdminStat
+              icon={CircleDollarSign}
+              label="Est. commission"
+              value={formatMoney(estimatedPlatformFeeCents)}
+              hint="5% from completed calls"
+            />
           </div>
+        </div>
+      </section>
 
-          <div className="rounded-[2rem] bg-white p-5 text-[#151515]">
-            <p className="text-sm font-black text-[#2563eb]">
-              Needs attention
-            </p>
+      <section className="container-page py-8 md:py-10 lg:py-12">
+        <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr] xl:items-start">
+          <div className="grid gap-6">
+            <Card className="p-5 md:p-6">
+              <Badge variant={hasUrgentWork ? "danger" : "success"}>
+                <AlertTriangle size={14} />
+                Early warning
+              </Badge>
 
-            {pendingExperts.length > 0 ? (
-              <div>
-                <h2 className="mt-3 text-2xl font-black">
-                  {pendingExperts.length} expert profiles pending
-                </h2>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Marketplace health signals
+              </h2>
 
-                <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                  Review and approve high-quality experts to improve marketplace
-                  supply.
-                </p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                These are the most important things to check before they become
+                bigger problems.
+              </p>
 
-                <Link
+              <div className="mt-6 grid gap-3">
+                <WarningRow
+                  label="Pending experts"
+                  value={String(pendingExpertsCount)}
+                  href="/admin/experts?status=pending"
+                  danger={pendingExpertsCount > 0}
+                />
+
+                <WarningRow
+                  label="Disputed bookings"
+                  value={String(disputedBookingsCount)}
+                  href="/admin/bookings?status=disputed"
+                  danger={disputedBookingsCount > 0}
+                />
+
+                <WarningRow
+                  label="High-risk experts"
+                  value={String(highRiskExperts.length)}
                   href="/admin/experts"
-                  className="mt-4 block rounded-full bg-[#151515] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-                >
-                  Moderate experts
-                </Link>
+                  danger={highRiskExperts.length > 0}
+                />
+
+                <WarningRow
+                  label="Medium-risk experts"
+                  value={String(mediumRiskExperts.length)}
+                  href="/admin/experts"
+                  danger={mediumRiskExperts.length > 3}
+                />
+
+                <WarningRow
+                  label="Low / risky reviews"
+                  value={String(lowReviewsCount)}
+                  href="/admin/reviews?bad=true"
+                  danger={lowReviewsCount > 0}
+                />
+
+                <WarningRow
+                  label="Not recommended"
+                  value={String(notRecommendedReviewsCount)}
+                  href="/admin/reviews?recommend=no"
+                  danger={notRecommendedReviewsCount > 0}
+                />
               </div>
-            ) : pendingBookings.length > 0 ? (
-              <div>
-                <h2 className="mt-3 text-2xl font-black">
-                  {pendingBookings.length} pending bookings
-                </h2>
+            </Card>
 
-                <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                  Some bookings are still pending payment or confirmation.
-                </p>
+            <Card className="p-5 md:p-6">
+              <Badge variant="accent">
+                <WalletCards size={14} />
+                Marketplace status
+              </Badge>
 
-                <Link
-                  href="/dashboard/bookings"
-                  className="mt-4 block rounded-full bg-[#151515] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-                >
-                  View bookings
-                </Link>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Operations overview
+              </h2>
+
+              <div className="mt-6 grid gap-3">
+                <StatusRow
+                  label="Pending experts"
+                  value={String(pendingExpertsCount)}
+                />
+                <StatusRow
+                  label="Approved experts"
+                  value={String(approvedExpertsCount)}
+                />
+                <StatusRow
+                  label="Pending bookings"
+                  value={String(pendingBookingsCount)}
+                />
+                <StatusRow
+                  label="Confirmed bookings"
+                  value={String(confirmedBookingsCount)}
+                />
+                <StatusRow
+                  label="Completed bookings"
+                  value={String(completedBookingsCount)}
+                />
+                <StatusRow
+                  label="Refunded bookings"
+                  value={String(refundedBookingsCount)}
+                />
+                <StatusRow label="Reviews" value={String(reviewsCount)} />
+                <StatusRow
+                  label="Completed booking volume"
+                  value={formatMoney(grossCompletedCents)}
+                />
+                <StatusRow
+                  label="Estimated platform commission"
+                  value={formatMoney(estimatedPlatformFeeCents)}
+                />
               </div>
-            ) : (
-              <div>
-                <h2 className="mt-3 text-2xl font-black">All clear</h2>
+            </Card>
 
-                <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                  No urgent moderation tasks right now.
-                </p>
+            <Card className="p-5 md:p-6">
+              <Badge variant="danger">
+                <ShieldAlert size={14} />
+                Risk watchlist
+              </Badge>
 
-                <Link
-                  href="/admin/metrics"
-                  className="mt-4 block rounded-full bg-[#151515] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#2563eb]"
-                >
-                  Check metrics
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Experts to review
+              </h2>
 
-        <div className="mt-8 grid gap-3 md:grid-cols-4">
-          <DashboardStat label="GMV" value={formatMoney(gmvCents)} />
-          <DashboardStat
-            label="Platform revenue"
-            value={formatMoney(platformRevenueCents)}
-          />
-          <DashboardStat label="Bookings" value={`${bookings.length}`} />
-          <DashboardStat label="Pending experts" value={`${pendingExperts.length}`} />
-        </div>
-      </section>
-
-      <section className="mt-8 grid gap-5 lg:grid-cols-4">
-        <RingStat
-          label="Completion"
-          value={completionRate}
-          description="Completed bookings compared to all bookings."
-          tone={completionRate >= 50 ? "green" : "orange"}
-        />
-
-        <RingStat
-          label="Cancellation"
-          value={cancellationRate}
-          description="Lower cancellation rate means healthier marketplace."
-          tone={cancellationRate <= 20 ? "green" : "orange"}
-        />
-
-        <RingStat
-          label="Expert supply"
-          value={expertApprovalRate}
-          description="Approved experts compared to all expert profiles."
-          tone={expertApprovalRate >= 50 ? "green" : "blue"}
-        />
-
-        <RingStat
-          label="Review rate"
-          value={reviewRate}
-          description="Reviews compared to completed sessions."
-          tone={reviewRate >= 50 ? "green" : "dark"}
-        />
-      </section>
-
-      <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
-        <div className="space-y-8">
-          <section>
-            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <h2 className="text-2xl font-black">Marketplace health</h2>
-                <p className="mt-1 text-sm text-[#6f6a63]">
-                  A quick view of supply, demand and quality.
-                </p>
-              </div>
-
-              <Link
-                href="/admin/metrics"
-                className="w-fit rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                Detailed metrics
-              </Link>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <MetricCard
-                title="Buyers"
-                value={`${buyers.length}`}
-                text="Users created as clients through booking or sign-in."
-              />
-              <MetricCard
-                title="Approved experts"
-                value={`${approvedExperts.length}`}
-                text={`${pendingExperts.length} profiles still waiting for review.`}
-              />
-              <MetricCard
-                title="Services"
-                value={`${services.length}`}
-                text="Active and inactive offers created by experts."
-              />
-              <MetricCard
-                title="Average rating"
-                value={`${averageRating.toFixed(1)} / 5`}
-                text={`${reviews.length} total reviews collected.`}
-              />
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <h2 className="text-2xl font-black">Recent bookings</h2>
-                <p className="mt-1 text-sm text-[#6f6a63]">
-                  Latest marketplace activity.
-                </p>
-              </div>
-
-              <Link
-                href="/dashboard/bookings"
-                className="w-fit rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                View all
-              </Link>
-            </div>
-
-            {bookings.length === 0 ? (
-              <EmptyCard
-                icon="📅"
-                title="No bookings yet"
-                text="Marketplace bookings will appear here once clients book sessions."
-              />
-            ) : (
-              <div className="space-y-4">
-                {bookings.slice(0, 6).map((booking) => (
-                  <Link
-                    key={booking.id}
-                    href={`/dashboard/bookings/${booking.id}`}
-                    className="card card-hover block rounded-[1.75rem] p-5"
-                  >
-                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-black">
-                            {booking.service.title}
-                          </h3>
-                          <StatusBadge status={booking.status} />
-                        </div>
-
-                        <p className="mt-1 text-sm text-[#6f6a63]">
-                          {booking.expert.user.name} · {booking.buyer.email}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full bg-[#eef4ff] px-3 py-1.5 text-xs font-black text-[#2563eb]">
-                          {formatMoney(booking.priceCents)}
-                        </span>
-
-                        <span className="rounded-full bg-[#f7f4ef] px-3 py-1.5 text-xs font-bold text-[#6f6a63]">
-                          {new Intl.DateTimeFormat("en", {
-                            dateStyle: "medium",
-                          }).format(booking.startTime)}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section>
-            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <h2 className="text-2xl font-black">Expert moderation queue</h2>
-                <p className="mt-1 text-sm text-[#6f6a63]">
-                  Expert profiles that may need review.
-                </p>
-              </div>
-
-              <Link
-                href="/admin/experts"
-                className="w-fit rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-              >
-                Manage experts
-              </Link>
-            </div>
-
-            {pendingExperts.length === 0 ? (
-              <EmptyCard
-                icon="✅"
-                title="No pending experts"
-                text="New expert applications will appear here for moderation."
-              />
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {pendingExperts.slice(0, 4).map((expert) => (
-                  <Link
-                    key={expert.id}
-                    href="/admin/experts"
-                    className="card card-hover rounded-[2rem] p-6"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f97316] text-xl font-black text-white">
-                        {expert.user.name?.charAt(0) ?? "E"}
-                      </div>
-
-                      <StatusBadge status={expert.status} />
-                    </div>
-
-                    <h3 className="mt-5 text-xl font-black">
-                      {expert.user.name}
-                    </h3>
-
-                    <p className="mt-2 min-h-[48px] text-sm leading-6 text-[#6f6a63]">
-                      {expert.headline}
+              <div className="mt-6 grid gap-3">
+                {topRiskExperts.length > 0 ? (
+                  topRiskExperts.map((expert) => (
+                    <RiskExpertRow key={expert.id} expert={expert} />
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                    <p className="font-black">No risky experts right now.</p>
+                    <p className="mt-1 text-sm font-semibold text-muted">
+                      Keep monitoring reviews and disputes as marketplace volume
+                      grows.
                     </p>
-
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {expert.skills.slice(0, 3).map((skill) => (
-                        <span
-                          key={skill}
-                          className="rounded-full bg-[#f7f4ef] px-3 py-1 text-xs font-bold text-[#6f6a63]"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </Link>
-                ))}
+                  </div>
+                )}
               </div>
-            )}
-          </section>
+            </Card>
+          </div>
+
+          <div className="grid gap-6">
+            <Card className="p-5 md:p-6">
+              <Badge variant="primary">
+                <MessageCircle size={14} />
+                Admin tools
+              </Badge>
+
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Manage platform
+              </h2>
+
+              <div className="mt-6 grid gap-3">
+                <AdminLink href="/admin/users" title="Users" text="View platform users." />
+                <AdminLink
+                  href="/admin/experts"
+                  title="Experts"
+                  text="Review quality, risk and expert profiles."
+                />
+                <AdminLink
+                  href="/admin/bookings"
+                  title="Bookings"
+                  text="Monitor pending, confirmed, disputed and refunded calls."
+                />
+                <AdminLink
+                  href="/admin/reviews"
+                  title="Reviews"
+                  text="Find low ratings, bad signals and client feedback."
+                />
+                <AdminLink
+                  href="/admin/audit"
+                  title="Audit log"
+                  text="Review sensitive admin actions and changes."
+                />
+                <AdminLink
+                  href="/notifications"
+                  title="Notifications"
+                  text="View your SkillDrop account notifications."
+                />
+              </div>
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="danger">
+                <Star size={14} />
+                Recent quality issues
+              </Badge>
+
+              <div className="mt-6 grid gap-3">
+                {recentReviews.length > 0 ? (
+                  recentReviews.map((review) => (
+                    <RecentReviewRow key={review.id} review={review} />
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                    <p className="font-black">No recent quality issues.</p>
+                    <p className="mt-1 text-sm font-semibold text-muted">
+                      Low ratings and not recommended reviews will appear here.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5">
+                <Link href="/admin/reviews?bad=true" className="btn btn-secondary">
+                  View quality issues
+                </Link>
+              </div>
+            </Card>
+
+            <Card soft className="p-5 md:p-6">
+              <Badge variant="success">
+                <CheckCircle2 size={14} />
+                Operating rule
+              </Badge>
+
+              <p className="mt-4 text-sm font-bold leading-6 text-muted">
+                Approve slowly, monitor reviews weekly, resolve disputes fast,
+                and promote only experts with strong quality and low risk.
+              </p>
+            </Card>
+          </div>
         </div>
-
-        <aside className="space-y-6 lg:sticky lg:top-28 lg:h-fit">
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#f97316]">Quick actions</p>
-
-            <div className="mt-5 grid gap-3">
-              <QuickAction
-                href="/admin/experts"
-                title="Moderate experts"
-                text="Approve, reject or verify expert profiles."
-              />
-              <QuickAction
-                href="/admin/metrics"
-                title="Open metrics"
-                text="View GMV, revenue and quality details."
-              />
-              <QuickAction
-                href="/dashboard/bookings"
-                title="Review bookings"
-                text="Inspect all client sessions."
-              />
-              <QuickAction
-                href="/expert/availability"
-                title="Check availability"
-                text="Inspect marketplace supply slots."
-              />
-            </div>
-          </div>
-
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#2563eb]">
-              Revenue snapshot
-            </p>
-
-            <div className="mt-5 space-y-3 rounded-[1.5rem] bg-[#f7f4ef] p-5">
-              <SummaryRow label="GMV" value={formatMoney(gmvCents)} />
-              <SummaryRow
-                label="Platform revenue"
-                value={formatMoney(platformRevenueCents)}
-              />
-              <SummaryRow
-                label="Expert payouts"
-                value={formatMoney(expertPayoutCents)}
-              />
-              <SummaryRow
-                label="Revenue bookings"
-                value={`${revenueBookings.length}`}
-              />
-            </div>
-          </div>
-
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#2563eb]">Supply health</p>
-
-            <div className="mt-5 space-y-3 rounded-[1.5rem] bg-[#f7f4ef] p-5">
-              <SummaryRow label="Experts" value={`${experts.length}`} />
-              <SummaryRow
-                label="Approved"
-                value={`${approvedExperts.length}`}
-              />
-              <SummaryRow label="Pending" value={`${pendingExperts.length}`} />
-              <SummaryRow label="Verified" value={`${verifiedExperts.length}`} />
-              <SummaryRow label="Open slots" value={`${openSlots.length}`} />
-              <SummaryRow label="Booked slots" value={`${bookedSlots.length}`} />
-            </div>
-          </div>
-
-          <div className="card rounded-[2rem] p-6">
-            <p className="text-sm font-black text-[#f97316]">Admin focus</p>
-
-            <div className="mt-5 rounded-[1.5rem] bg-[#fff3e8] p-5">
-              <p className="font-black text-[#f97316]">
-                Keep supply quality high
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                Early marketplace trust depends more on expert quality,
-                completed sessions and reviews than on the number of users.
-              </p>
-            </div>
-          </div>
-        </aside>
       </section>
     </main>
   );
 }
 
-function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2)}`;
-}
-
-function DashboardStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.5rem] bg-white/10 p-5">
-      <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-2 text-2xl font-black text-white">{value}</p>
-    </div>
-  );
-}
-
-function MetricCard({
-  title,
+function AdminStat({
+  icon: Icon,
+  label,
   value,
-  text,
+  hint,
 }: {
-  title: string;
+  icon: typeof UsersRound;
+  label: string;
   value: string;
-  text: string;
+  hint: string;
 }) {
   return (
-    <div className="card rounded-[2rem] p-6">
-      <p className="text-sm font-black text-[#2563eb]">{title}</p>
-      <p className="mt-4 text-4xl font-black">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-[#6f6a63]">{text}</p>
-    </div>
+    <Card soft className="p-4">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={20} />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+
+      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+    </Card>
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function WarningRow({
+  label,
+  value,
+  href,
+  danger,
+}: {
+  label: string;
+  value: string;
+  href: string;
+  danger: boolean;
+}) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#e8e1d8] pb-3 last:border-0 last:pb-0">
-      <span className="text-sm text-[#6f6a63]">{label}</span>
-      <span className="text-right text-sm font-black">{value}</span>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    PENDING: "bg-[#fff3e8] text-[#f97316]",
-    PAID: "bg-[#eef4ff] text-[#2563eb]",
-    APPROVED: "bg-[#eef4ff] text-[#2563eb]",
-    CONFIRMED: "bg-green-100 text-green-700",
-    COMPLETED: "bg-[#151515] text-white",
-    CANCELLED: "bg-red-100 text-red-700",
-    REJECTED: "bg-red-100 text-red-700",
-    SUSPENDED: "bg-[#f7f4ef] text-[#6f6a63]",
-  };
-
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-black ${
-        styles[status] ?? "bg-[#f7f4ef] text-[#6f6a63]"
-      }`}
+    <Link
+      href={href}
+      className={
+        danger
+          ? "flex items-center justify-between gap-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-[var(--danger)] transition hover:-translate-y-0.5"
+          : "flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white"
+      }
     >
-      {status}
-    </span>
+      <p className="text-sm font-black">{label}</p>
+      <p className="text-sm font-black">{value}</p>
+    </Link>
   );
 }
 
-function QuickAction({
+function StatusRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
+function AdminLink({
   href,
   title,
   text,
@@ -576,32 +629,300 @@ function QuickAction({
   return (
     <Link
       href={href}
-      className="rounded-[1.5rem] bg-[#f7f4ef] p-4 transition hover:bg-[#eef4ff]"
+      className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--shadow-sm)]"
     >
-      <p className="font-black">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-[#6f6a63]">{text}</p>
+      <p className="font-black tracking-[-0.02em]">{title}</p>
+      <p className="mt-1 text-sm font-semibold leading-6 text-muted">{text}</p>
     </Link>
   );
 }
 
-function EmptyCard({
-  icon,
-  title,
-  text,
+function RiskExpertRow({
+  expert,
 }: {
-  icon: string;
-  title: string;
-  text: string;
+  expert: {
+    id: string;
+    qualityScore: number;
+    riskLevel: "LOW" | "MEDIUM" | "HIGH";
+    rating: number;
+    totalReviews: number;
+    user: {
+      name: string | null;
+      email: string;
+    };
+  };
 }) {
   return (
-    <div className="card rounded-[2rem] p-10 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eef4ff] text-2xl">
-        {icon}
+    <Link
+      href={`/experts/${expert.id}`}
+      className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-black tracking-[-0.02em]">
+            {expert.user.name ?? expert.user.email}
+          </p>
+          <p className="mt-1 text-xs font-bold text-muted">
+            {expert.user.email}
+          </p>
+        </div>
+
+        <RiskBadge riskLevel={expert.riskLevel} />
       </div>
 
-      <h3 className="mt-5 text-2xl font-black">{title}</h3>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <MiniFact label="Quality" value={`${expert.qualityScore}/100`} />
+        <MiniFact
+          label="Rating"
+          value={expert.rating ? `${expert.rating.toFixed(1)}/5` : "New"}
+        />
+        <MiniFact label="Reviews" value={String(expert.totalReviews)} />
+      </div>
+    </Link>
+  );
+}
 
-      <p className="mx-auto mt-3 max-w-md leading-7 text-[#6f6a63]">{text}</p>
+function RecentReviewRow({
+  review,
+}: {
+  review: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    wouldRecommend: boolean | null;
+    createdAt: Date;
+    expert: {
+      id: string;
+      user: {
+        name: string | null;
+        email: string;
+      };
+    };
+    booking: {
+      service: {
+        title: string;
+      };
+    };
+  };
+}) {
+  return (
+    <Link
+      href="/admin/reviews?bad=true"
+      className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Badge variant={review.rating <= 2 ? "danger" : "accent"}>
+          <Star size={14} />
+          {review.rating}/5
+        </Badge>
+
+        {review.wouldRecommend === false ? (
+          <Badge variant="danger">Not recommended</Badge>
+        ) : null}
+      </div>
+
+      <p className="mt-3 font-black tracking-[-0.02em]">
+        {review.booking.service.title}
+      </p>
+
+      <p className="mt-1 text-sm font-bold text-muted">
+        Expert: {review.expert.user.name ?? review.expert.user.email}
+      </p>
+
+      <p className="mt-3 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+        {review.comment || "No comment left."}
+      </p>
+    </Link>
+  );
+}
+
+function MiniFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-white/64 p-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+      <p className="mt-1 text-xs font-black">{value}</p>
     </div>
   );
+}
+
+function RiskBadge({
+  riskLevel,
+}: {
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+}) {
+  if (riskLevel === "HIGH") {
+    return <Badge variant="danger">Risk: High</Badge>;
+  }
+
+  if (riskLevel === "MEDIUM") {
+    return <Badge variant="accent">Risk: Medium</Badge>;
+  }
+
+  return <Badge variant="success">Risk: Low</Badge>;
+}
+
+function calculateRiskLevel({
+  reviews,
+  qualityScore,
+}: {
+  qualityScore: number;
+  reviews: {
+    rating: number;
+    helpfulness: number | null;
+    clarity: number | null;
+    professionalism: number | null;
+    wouldRecommend: boolean | null;
+    createdAt: Date;
+  }[];
+}): "LOW" | "MEDIUM" | "HIGH" {
+  const recentReviews = reviews.slice(0, 10);
+
+  const badSignals = recentReviews.reduce((count, review) => {
+    let signals = 0;
+
+    if (review.rating <= 2) {
+      signals += 1;
+    }
+
+    if (review.helpfulness !== null && review.helpfulness <= 2) {
+      signals += 1;
+    }
+
+    if (review.clarity !== null && review.clarity <= 2) {
+      signals += 1;
+    }
+
+    if (review.professionalism !== null && review.professionalism <= 2) {
+      signals += 1;
+    }
+
+    if (review.wouldRecommend === false) {
+      signals += 1;
+    }
+
+    return count + signals;
+  }, 0);
+
+  const notRecommendedCount = recentReviews.filter(
+    (review) => review.wouldRecommend === false,
+  ).length;
+
+  const lowRatingCount = recentReviews.filter(
+    (review) => review.rating <= 2,
+  ).length;
+
+  if (
+    qualityScore < 40 ||
+    badSignals >= 4 ||
+    notRecommendedCount >= 2 ||
+    lowRatingCount >= 2
+  ) {
+    return "HIGH";
+  }
+
+  if (qualityScore < 60 || badSignals >= 2 || notRecommendedCount >= 1) {
+    return "MEDIUM";
+  }
+
+  return "LOW";
+}
+
+function calculateQualityScore({
+  rating,
+  totalReviews,
+  totalSessions,
+  isVerified,
+  openSlots,
+  reviews,
+}: {
+  rating: number;
+  totalReviews: number;
+  totalSessions: number;
+  isVerified: boolean;
+  openSlots: number;
+  reviews: {
+    rating: number;
+    helpfulness: number | null;
+    clarity: number | null;
+    professionalism: number | null;
+    wouldRecommend: boolean | null;
+    createdAt: Date;
+  }[];
+}) {
+  const ratingScore =
+    totalReviews > 0 ? clamp((rating / 5) * 30, 0, 30) : 8;
+
+  const helpfulnessAvg = averageNullable(
+    reviews.map((review) => review.helpfulness),
+  );
+
+  const clarityAvg = averageNullable(reviews.map((review) => review.clarity));
+
+  const professionalismAvg = averageNullable(
+    reviews.map((review) => review.professionalism),
+  );
+
+  const detailedReviewScore =
+    helpfulnessAvg || clarityAvg || professionalismAvg
+      ? clamp(
+          (((helpfulnessAvg ?? rating) +
+            (clarityAvg ?? rating) +
+            (professionalismAvg ?? rating)) /
+            3 /
+            5) *
+            25,
+          0,
+          25,
+        )
+      : totalReviews > 0
+        ? clamp((rating / 5) * 18, 0, 18)
+        : 5;
+
+  const recommendationReviews = reviews.filter(
+    (review) => review.wouldRecommend !== null,
+  );
+
+  const recommendationRate =
+    recommendationReviews.length > 0
+      ? recommendationReviews.filter((review) => review.wouldRecommend).length /
+        recommendationReviews.length
+      : null;
+
+  const recommendationScore =
+    recommendationRate !== null ? clamp(recommendationRate * 15, 0, 15) : 6;
+
+  const sessionsScore = clamp((Math.min(totalSessions, 20) / 20) * 15, 0, 15);
+  const verifiedScore = isVerified ? 10 : 0;
+  const availabilityScore = openSlots > 0 ? 5 : 0;
+
+  return Math.round(
+    ratingScore +
+      detailedReviewScore +
+      recommendationScore +
+      sessionsScore +
+      verifiedScore +
+      availabilityScore,
+  );
+}
+
+function averageNullable(values: (number | null)[]) {
+  const cleanValues = values.filter(
+    (value): value is number => typeof value === "number",
+  );
+
+  if (cleanValues.length === 0) {
+    return null;
+  }
+
+  return cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function formatMoney(cents: number) {
+  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
 }

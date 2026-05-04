@@ -7,13 +7,17 @@ import {
   Clock3,
   Euro,
   Search,
+  ShieldAlert,
   ShieldCheck,
   Star,
   Video,
   XCircle,
 } from "lucide-react";
 
-import { cancelBookingAction } from "@/server/actions/booking.actions";
+import {
+  cancelBookingAction,
+  releaseExpiredPendingBookings,
+} from "@/server/actions/booking.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +27,9 @@ import { Card } from "@/components/ui/card";
 type BuyerBookingsPageProps = {
   searchParams?: Promise<{
     booked?: string;
+    paid?: string;
+    payment?: string;
+    error?: string;
   }>;
 };
 
@@ -48,6 +55,8 @@ export default async function BuyerBookingsPage({
     redirect("/sign-in");
   }
 
+  await releaseExpiredPendingBookings();
+
   const now = new Date();
 
   const bookings = await prisma.booking.findMany({
@@ -62,6 +71,7 @@ export default async function BuyerBookingsPage({
       },
       service: true,
       callRoom: true,
+      review: true,
     },
     orderBy: {
       startTime: "asc",
@@ -72,7 +82,9 @@ export default async function BuyerBookingsPage({
     (booking) =>
       booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED",
+      booking.status !== "REFUNDED" &&
+      booking.status !== "COMPLETED" &&
+      booking.status !== "DISPUTED",
   );
 
   const completedBookings = bookings.filter(
@@ -80,15 +92,23 @@ export default async function BuyerBookingsPage({
   );
 
   const cancelledBookings = bookings.filter(
-    (booking) => booking.status === "CANCELLED" || booking.status === "REFUNDED",
+    (booking) =>
+      booking.status === "CANCELLED" ||
+      booking.status === "REFUNDED" ||
+      booking.status === "DISPUTED",
   );
 
   const pastBookings = bookings.filter(
     (booking) =>
-      booking.startTime < now &&
+      booking.endTime < now &&
       booking.status !== "COMPLETED" &&
       booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED",
+      booking.status !== "REFUNDED" &&
+      booking.status !== "DISPUTED",
+  );
+
+  const waitingReviewBookings = bookings.filter(
+    (booking) => booking.status === "COMPLETED" && !booking.review,
   );
 
   const nextBooking = upcomingBookings[0] ?? null;
@@ -109,7 +129,19 @@ export default async function BuyerBookingsPage({
 
           {resolvedSearchParams.booked ? (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Booking confirmed. Your call is now saved here.
+              Booking saved. Complete payment to confirm your call.
+            </div>
+          ) : null}
+
+          {resolvedSearchParams.payment === "success" ? (
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+              Payment received. Your call is now confirmed.
+            </div>
+          ) : null}
+
+          {resolvedSearchParams.error === "booking-expired" ? (
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+              This booking expired. Please choose a new time slot.
             </div>
           ) : null}
 
@@ -130,7 +162,7 @@ export default async function BuyerBookingsPage({
               </p>
             </div>
 
-            <ButtonLink href="/" variant="secondary">
+            <ButtonLink href="/experts" variant="secondary">
               <Search size={18} />
               Find more help
             </ButtonLink>
@@ -152,17 +184,17 @@ export default async function BuyerBookingsPage({
             />
 
             <MiniStat
-              icon={Clock3}
-              label="Past"
-              value={String(pastBookings.length)}
-              hint="Needs status update"
+              icon={Star}
+              label="Reviews"
+              value={String(waitingReviewBookings.length)}
+              hint="Waiting feedback"
             />
 
             <MiniStat
               icon={XCircle}
-              label="Cancelled"
+              label="Closed"
               value={String(cancelledBookings.length)}
-              hint="Cancelled / refunded"
+              hint="Cancelled / refunded / disputed"
             />
           </div>
         </div>
@@ -213,9 +245,19 @@ export default async function BuyerBookingsPage({
                   </div>
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    {nextBooking.callRoom?.roomUrl ? (
+                    {nextBooking.status === "PENDING" ? (
                       <Link
-                        href={nextBooking.callRoom.roomUrl}
+                        href={`/buyer/bookings/${nextBooking.id}/checkout`}
+                        className="btn btn-primary"
+                      >
+                        Complete payment
+                      </Link>
+                    ) : null}
+
+                    {nextBooking.status === "CONFIRMED" &&
+                    nextBooking.callRoom?.roomUrl ? (
+                      <Link
+                        href={`/calls/${nextBooking.id}`}
                         className="btn btn-primary"
                       >
                         Join call
@@ -247,7 +289,7 @@ export default async function BuyerBookingsPage({
                   </p>
 
                   <div className="mt-5">
-                    <ButtonLink href="/">
+                    <ButtonLink href="/experts">
                       Find help
                       <Search size={18} />
                     </ButtonLink>
@@ -255,6 +297,34 @@ export default async function BuyerBookingsPage({
                 </div>
               )}
             </Card>
+
+            {waitingReviewBookings.length > 0 ? (
+              <Card className="border-[var(--accent)]/20 bg-[var(--accent-soft)] p-5 md:p-6">
+                <Badge variant="accent">
+                  <Star size={14} />
+                  Reviews waiting
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  Leave feedback after your calls.
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  Reviews help good experts grow and help other clients choose
+                  safely.
+                </p>
+
+                <div className="mt-6 grid gap-4">
+                  {waitingReviewBookings.slice(0, 3).map((booking) => (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      highlighted={booking.id === resolvedSearchParams.booked}
+                    />
+                  ))}
+                </div>
+              </Card>
+            ) : null}
 
             <Card soft className="p-5 md:p-6">
               <Badge variant="primary">
@@ -342,20 +412,36 @@ function BookingCard({
     callRoom: {
       roomUrl: string;
     } | null;
+    review: {
+      id: string;
+      rating: number;
+    } | null;
   };
   highlighted: boolean;
 }) {
+  const now = new Date();
+
+  const isPending = booking.status === "PENDING";
+  const isConfirmed = booking.status === "CONFIRMED";
+  const isCompleted = booking.status === "COMPLETED";
+  const isDisputed = booking.status === "DISPUTED";
   const isCancelled =
     booking.status === "CANCELLED" || booking.status === "REFUNDED";
-  const isCompleted = booking.status === "COMPLETED";
-  const isUpcoming = booking.startTime >= new Date() && !isCancelled && !isCompleted;
+
+  const isUpcoming = booking.startTime >= now && !isCancelled && !isCompleted;
+  const canJoin =
+    isUpcoming && isConfirmed && Boolean(booking.callRoom?.roomUrl);
+  const canCancel = isPending || isConfirmed;
+  const canReview = isCompleted && !booking.review;
 
   return (
     <div
       className={
         highlighted
           ? "rounded-[26px] border border-[var(--success)]/30 bg-[var(--success-soft)] p-4"
-          : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
+          : canReview
+            ? "rounded-[26px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] p-4"
+            : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
       }
     >
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -364,6 +450,20 @@ function BookingCard({
             <StatusBadge status={booking.status} />
 
             {highlighted ? <Badge variant="success">New booking</Badge> : null}
+
+            {canReview ? (
+              <Badge variant="accent">
+                <Star size={14} />
+                Review waiting
+              </Badge>
+            ) : null}
+
+            {booking.review ? (
+              <Badge variant="success">
+                <Star size={14} />
+                Reviewed {booking.review.rating}/5
+              </Badge>
+            ) : null}
           </div>
 
           <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
@@ -379,6 +479,7 @@ function BookingCard({
 
           <div className="mt-4 flex flex-wrap gap-2">
             <SmallPill icon={Clock3} text={formatDateTime(booking.startTime)} />
+
             <SmallPill
               icon={Video}
               text={`${getDurationMinutes(
@@ -386,15 +487,53 @@ function BookingCard({
                 booking.endTime,
               )} min`}
             />
+
             <SmallPill icon={Euro} text={formatMoney(booking.priceCents)} />
           </div>
+
+          {isDisputed ? (
+            <p className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]">
+              This booking is under SkillDrop review.
+            </p>
+          ) : null}
+
+          {isCancelled ? (
+            <p className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]">
+              This booking is closed.
+            </p>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 flex-col gap-2 md:min-w-[160px]">
-          {isUpcoming && booking.callRoom?.roomUrl ? (
-            <Link href={booking.callRoom.roomUrl} className="btn btn-primary">
+          {isPending ? (
+            <Link
+              href={`/buyer/bookings/${booking.id}/checkout`}
+              className="btn btn-primary"
+            >
+              Complete payment
+            </Link>
+          ) : null}
+
+          {canJoin ? (
+            <Link href={`/calls/${booking.id}`} className="btn btn-primary">
               Join call
               <Video size={17} />
+            </Link>
+          ) : null}
+
+          {canReview ? (
+            <Link
+              href={`/buyer/reviews?bookingId=${booking.id}`}
+              className="btn btn-primary"
+            >
+              Leave review
+              <Star size={17} />
+            </Link>
+          ) : null}
+
+          {isCompleted && booking.review ? (
+            <Link href="/buyer/reviews" className="btn btn-secondary">
+              View review
             </Link>
           ) : null}
 
@@ -405,7 +544,7 @@ function BookingCard({
             View expert
           </Link>
 
-          {isUpcoming ? (
+          {canCancel ? (
             <form action={cancelBookingAction}>
               <input type="hidden" name="bookingId" value={booking.id} />
 
@@ -459,6 +598,19 @@ function StatusBadge({ status }: { status: string }) {
 
   if (status === "CONFIRMED") {
     return <Badge variant="primary">Confirmed</Badge>;
+  }
+
+  if (status === "PENDING") {
+    return <Badge variant="accent">Pending payment</Badge>;
+  }
+
+  if (status === "DISPUTED") {
+    return (
+      <Badge variant="danger">
+        <ShieldAlert size={14} />
+        Disputed
+      </Badge>
+    );
   }
 
   return <Badge variant="accent">{status.toLowerCase()}</Badge>;

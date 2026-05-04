@@ -1,373 +1,855 @@
 import Link from "next/link";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  Ban,
+  CheckCircle2,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  UserRound,
+  XCircle,
+} from "lucide-react";
+
+import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import {
-  approveExpertAction,
-  rejectExpertAction,
-  setExpertPendingAction,
-  verifyExpertAction,
-  unverifyExpertAction,
+  toggleExpertVerificationAction,
+  updateExpertStatusAction,
 } from "@/server/actions/admin.actions";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
-export default async function AdminExpertsPage() {
-  const experts = await prisma.expertProfile.findMany({
+type AdminExpertsPageProps = {
+  searchParams?: Promise<{
+    updated?: string;
+    error?: string;
+    q?: string;
+    status?: string;
+    verified?: string;
+  }>;
+};
+
+export default async function AdminExpertsPage({
+  searchParams,
+}: AdminExpertsPageProps) {
+  await requireRole(["admin"]);
+
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+
+  const query = resolvedSearchParams.q?.trim() ?? "";
+  const statusFilter = resolvedSearchParams.status ?? "all";
+  const verifiedFilter = resolvedSearchParams.verified ?? "all";
+
+  const expertWhere = {
+    ...(statusFilter === "all"
+      ? {}
+      : {
+          status: statusFilter.toUpperCase() as
+            | "PENDING"
+            | "APPROVED"
+            | "REJECTED"
+            | "SUSPENDED",
+        }),
+
+    ...(verifiedFilter === "all"
+      ? {}
+      : {
+          isVerified: verifiedFilter === "true",
+        }),
+
+    ...(query
+      ? {
+          OR: [
+            {
+              headline: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              bio: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              country: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              user: {
+                is: {
+                  OR: [
+                    {
+                      name: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      email: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const rawExperts = await prisma.expertProfile.findMany({
+    where: expertWhere,
     include: {
       user: true,
-      services: {
-        orderBy: {
-          priceCents: "asc",
+      services: true,
+      availability: true,
+      reviews: {
+        select: {
+          id: true,
+          rating: true,
+          helpfulness: true,
+          clarity: true,
+          professionalism: true,
+          wouldRecommend: true,
+          createdAt: true,
         },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
       },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: [
+      {
+        status: "asc",
+      },
+      {
+        createdAt: "desc",
+      },
+    ],
   });
 
-  const pendingCount = experts.filter(
-    (expert) => expert.status === "PENDING",
-  ).length;
+  const experts = rawExperts
+  .map((expert) => {
+    const qualityScore = calculateQualityScore({
+      rating: expert.rating,
+      totalReviews: expert.totalReviews,
+      totalSessions: expert.totalSessions,
+      isVerified: expert.isVerified,
+      openSlots: expert.availability.length,
+      reviews: expert.reviews,
+    });
 
-  const approvedCount = experts.filter(
-    (expert) => expert.status === "APPROVED",
-  ).length;
+    return {
+      ...expert,
+      qualityScore,
+      riskLevel: calculateRiskLevel({
+        reviews: expert.reviews,
+        qualityScore,
+      }),
+    };
+  })
+  .sort((a, b) => {
+    const statusPriority = {
+      PENDING: 0,
+      APPROVED: 1,
+      SUSPENDED: 2,
+      REJECTED: 3,
+    };
 
-  const rejectedCount = experts.filter(
-    (expert) => expert.status === "REJECTED",
-  ).length;
+    const aPriority =
+      statusPriority[a.status as keyof typeof statusPriority] ?? 9;
+    const bPriority =
+      statusPriority[b.status as keyof typeof statusPriority] ?? 9;
 
-  const verifiedCount = experts.filter((expert) => expert.isVerified).length;
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+
+    if (b.qualityScore !== a.qualityScore) {
+      return b.qualityScore - a.qualityScore;
+    }
+
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+
+  const totalExperts = await prisma.expertProfile.count();
+  const approvedExperts = await prisma.expertProfile.count({
+    where: { status: "APPROVED" },
+  });
+  const pendingExperts = await prisma.expertProfile.count({
+    where: { status: "PENDING" },
+  });
+  const verifiedExperts = await prisma.expertProfile.count({
+    where: { isVerified: true },
+  });
+
+  const averageQuality =
+    experts.length > 0
+      ? Math.round(
+          experts.reduce((sum, expert) => sum + expert.qualityScore, 0) /
+            experts.length,
+        )
+      : 0;
 
   return (
-    <main className="container-page py-10">
-      <section className="rounded-[2rem] bg-[#151515] p-6 text-white sm:rounded-[2.5rem] md:p-10">
-        <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
-          <div>
-            <p className="text-sm font-black text-[#f97316]">
-              Admin moderation
-            </p>
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
 
-            <h1 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">
-              Expert applications
-            </h1>
+        <div className="relative container-page py-8 md:py-10 lg:py-14">
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+          >
+            <ArrowLeft size={16} />
+            Back to admin
+          </Link>
 
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-white/60">
-              Review expert profiles, approve trusted experts, verify profiles
-              and reject weak applications before they appear in the marketplace.
-            </p>
+          {resolvedSearchParams.updated ? (
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+              Expert updated successfully.
+            </div>
+          ) : null}
+
+          {resolvedSearchParams.error ? (
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+              Something went wrong while updating this expert.
+            </div>
+          ) : null}
+
+          <Badge variant="primary" className="mt-8">
+            <ShieldCheck size={14} />
+            Expert moderation
+          </Badge>
+
+          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+            Review and manage expert profiles.
+          </h1>
+
+          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+            Approve experts, monitor quality, suspend unsafe profiles and manage
+            manual verification.
+          </p>
+
+          <div className="mt-8 grid gap-3 md:grid-cols-5">
+            <AdminMiniStat label="Experts" value={String(totalExperts)} />
+            <AdminMiniStat label="Approved" value={String(approvedExperts)} />
+            <AdminMiniStat label="Pending" value={String(pendingExperts)} />
+            <AdminMiniStat label="Verified" value={String(verifiedExperts)} />
+            <AdminMiniStat label="Avg quality" value={`${averageQuality}/100`} />
           </div>
 
-          <Link
-            href="/experts"
-            className="rounded-full bg-white px-6 py-3 text-center text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-          >
-            View marketplace
-          </Link>
-        </div>
+          <form action="/admin/experts" className="mt-6">
+            <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] xl:grid-cols-[1fr_180px_180px_auto_auto] xl:items-center">
+              <div className="relative">
+                <Search
+                  size={17}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+                />
 
-        <div className="mt-8 grid gap-3 md:grid-cols-5">
-          <AdminStat label="Total experts" value={`${experts.length}`} />
-          <AdminStat label="Pending" value={`${pendingCount}`} />
-          <AdminStat label="Approved" value={`${approvedCount}`} />
-          <AdminStat label="Rejected" value={`${rejectedCount}`} />
-          <AdminStat label="Verified" value={`${verifiedCount}`} />
+                <input
+                  name="q"
+                  type="search"
+                  defaultValue={query}
+                  placeholder="Search experts by name, email, headline or country..."
+                  className="input min-h-12 w-full pl-11"
+                />
+              </div>
+
+              <select
+                name="status"
+                defaultValue={statusFilter}
+                className="input min-h-12"
+              >
+                <option value="all">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="suspended">Suspended</option>
+              </select>
+
+              <select
+                name="verified"
+                defaultValue={verifiedFilter}
+                className="input min-h-12"
+              >
+                <option value="all">All verification</option>
+                <option value="true">Verified only</option>
+                <option value="false">Not verified</option>
+              </select>
+
+              <button type="submit" className="btn btn-primary">
+                Search
+              </button>
+
+              {query || statusFilter !== "all" || verifiedFilter !== "all" ? (
+                <Link href="/admin/experts" className="btn btn-secondary">
+                  Clear
+                </Link>
+              ) : null}
+            </div>
+          </form>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            <FilterLink
+              q={query}
+              status="all"
+              verified={verifiedFilter}
+              current={statusFilter}
+              label="All"
+            />
+            <FilterLink
+              q={query}
+              status="pending"
+              verified={verifiedFilter}
+              current={statusFilter}
+              label="Pending"
+            />
+            <FilterLink
+              q={query}
+              status="approved"
+              verified={verifiedFilter}
+              current={statusFilter}
+              label="Approved"
+            />
+            <FilterLink
+              q={query}
+              status="rejected"
+              verified={verifiedFilter}
+              current={statusFilter}
+              label="Rejected"
+            />
+            <FilterLink
+              q={query}
+              status="suspended"
+              verified={verifiedFilter}
+              current={statusFilter}
+              label="Suspended"
+            />
+          </div>
         </div>
       </section>
 
-      <section className="mt-8">
-        <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <h2 className="text-2xl font-black">All expert profiles</h2>
-            <p className="mt-1 text-sm text-[#6f6a63]">
-              Approve experts to make them visible. Verify experts after manual
-              trust review.
-            </p>
-          </div>
+      <section className="container-page py-8 md:py-10 lg:py-12">
+        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <p className="text-sm font-black text-muted">
+            Showing {experts.length} expert{experts.length === 1 ? "" : "s"}
+          </p>
 
-          <div className="rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-bold text-[#6f6a63]">
-            Manual review mode
+          <div className="flex flex-wrap gap-2">
+            <Badge>Search: {query || "none"}</Badge>
+            <Badge>Status: {statusFilter}</Badge>
+            <Badge>Verified: {verifiedFilter}</Badge>
           </div>
         </div>
 
-        {experts.length === 0 ? (
-          <EmptyExperts />
-        ) : (
-          <div className="space-y-5">
-            {experts.map((expert) => (
-              <article key={expert.id} className="card rounded-[2rem] p-6">
-                <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-                  <div>
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-2xl font-black text-white">
-                        {expert.user.name?.charAt(0) ?? "E"}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-xl font-black">
-                            {expert.user.name}
-                          </h3>
-
-                          <StatusBadge status={expert.status} />
-
-                          {expert.isVerified ? (
-                            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-black text-green-700">
-                              VERIFIED
-                            </span>
-                          ) : (
-                            <span className="rounded-full bg-[#f7f4ef] px-3 py-1 text-xs font-black text-[#6f6a63]">
-                              NOT VERIFIED
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="mt-1 text-sm font-bold text-[#6f6a63]">
-                          {expert.user.email}
-                        </p>
-
-                        <p className="mt-3 max-w-2xl text-lg font-black">
-                          {expert.headline}
-                        </p>
-
-                        <p className="mt-3 max-w-3xl leading-7 text-[#6f6a63]">
-                          {expert.bio}
-                        </p>
-
-                        {expert.verificationNote ? (
-                          <div className="mt-4 rounded-[1.25rem] bg-green-50 p-4">
-                            <p className="text-xs font-black text-green-700">
-                              Verification note
-                            </p>
-                            <p className="mt-1 text-sm leading-6 text-green-800">
-                              {expert.verificationNote}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="mt-6 grid gap-4 md:grid-cols-3">
-                      <MiniInfo label="Country" value={expert.country ?? "—"} />
-                      <MiniInfo label="Timezone" value={expert.timezone} />
-                      <MiniInfo
-                        label="Sessions"
-                        value={`${expert.totalSessions}`}
-                      />
-                    </div>
-
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {expert.skills.map((skill) => (
-                        <span
-                          key={skill}
-                          className="rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-black text-[#2563eb]"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {expert.languages.map((language) => (
-                        <span
-                          key={language}
-                          className="rounded-full bg-[#f7f4ef] px-3 py-1 text-xs font-bold text-[#6f6a63]"
-                        >
-                          {language}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <aside>
-                    <div className="rounded-[1.75rem] bg-[#f7f4ef] p-5">
-                      <p className="text-sm font-black text-[#f97316]">
-                        Services
-                      </p>
-
-                      <div className="mt-4 space-y-3">
-                        {expert.services.length === 0 ? (
-                          <p className="text-sm text-[#6f6a63]">
-                            No services yet.
-                          </p>
-                        ) : (
-                          expert.services.map((service) => (
-                            <div
-                              key={service.id}
-                              className="rounded-[1.25rem] bg-white p-4"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-black">{service.title}</p>
-                                  <p className="mt-1 text-xs leading-5 text-[#6f6a63]">
-                                    {service.durationMinutes} min
-                                  </p>
-                                </div>
-
-                                <p className="font-black text-[#2563eb]">
-                                  €{service.priceCents / 100}
-                                </p>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-2">
-                      {expert.status !== "APPROVED" ? (
-                        <form action={approveExpertAction}>
-                          <input
-                            type="hidden"
-                            name="expertId"
-                            value={expert.id}
-                          />
-                          <button
-                            type="submit"
-                            className="w-full rounded-full bg-[#2563eb] px-5 py-3 text-sm font-black text-white transition hover:bg-[#1d4ed8]"
-                          >
-                            Approve expert
-                          </button>
-                        </form>
-                      ) : null}
-
-                      {expert.status !== "REJECTED" ? (
-                        <form action={rejectExpertAction}>
-                          <input
-                            type="hidden"
-                            name="expertId"
-                            value={expert.id}
-                          />
-                          <button
-                            type="submit"
-                            className="w-full rounded-full bg-[#151515] px-5 py-3 text-sm font-black text-white transition hover:bg-black"
-                          >
-                            Reject expert
-                          </button>
-                        </form>
-                      ) : null}
-
-                      {expert.status !== "PENDING" ? (
-                        <form action={setExpertPendingAction}>
-                          <input
-                            type="hidden"
-                            name="expertId"
-                            value={expert.id}
-                          />
-                          <button
-                            type="submit"
-                            className="w-full rounded-full border border-[#e8e1d8] bg-white px-5 py-3 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-                          >
-                            Move to pending
-                          </button>
-                        </form>
-                      ) : null}
-
-                      {expert.isVerified ? (
-                        <form action={unverifyExpertAction}>
-                          <input
-                            type="hidden"
-                            name="expertId"
-                            value={expert.id}
-                          />
-                          <button
-                            type="submit"
-                            className="w-full rounded-full border border-[#e8e1d8] bg-white px-5 py-3 text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-                          >
-                            Remove verification
-                          </button>
-                        </form>
-                      ) : (
-                        <form action={verifyExpertAction}>
-                          <input
-                            type="hidden"
-                            name="expertId"
-                            value={expert.id}
-                          />
-                          <button
-                            type="submit"
-                            className="w-full rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white transition hover:bg-green-700"
-                          >
-                            Verify expert
-                          </button>
-                        </form>
-                      )}
-
-                      {expert.status === "APPROVED" ? (
-                        <Link
-                          href={`/experts/${expert.id}`}
-                          className="w-full rounded-full border border-[#e8e1d8] bg-white px-5 py-3 text-center text-sm font-black text-[#151515] transition hover:bg-[#f7f4ef]"
-                        >
-                          View public profile
-                        </Link>
-                      ) : null}
-                    </div>
-                  </aside>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+        <div className="grid gap-5">
+          {experts.length > 0 ? (
+            experts.map((expert) => (
+              <ExpertAdminCard key={expert.id} expert={expert} />
+            ))
+          ) : (
+            <Card className="p-8 text-center">
+              <h2 className="text-2xl font-black tracking-[-0.04em]">
+                No experts found
+              </h2>
+              <p className="mt-3 text-sm font-semibold text-muted">
+                Try another search query, status or verification filter.
+              </p>
+            </Card>
+          )}
+        </div>
       </section>
     </main>
   );
 }
 
-function AdminStat({ label, value }: { label: string; value: string }) {
+function ExpertAdminCard({
+  expert,
+}: {
+  expert: {
+    id: string;
+    headline: string;
+    country: string | null;
+    status: string;
+    isVerified: boolean;
+    rating: number;
+    qualityScore: number;
+    riskLevel: "LOW" | "MEDIUM" | "HIGH";
+    totalReviews: number;
+    totalSessions: number;
+    createdAt: Date;
+    user: {
+      name: string | null;
+      email: string;
+    };
+    services: {
+      id: string;
+    }[];
+    availability: {
+      id: string;
+    }[];
+    reviews: {
+      id: string;
+      rating: number;
+      helpfulness: number | null;
+      clarity: number | null;
+      professionalism: number | null;
+      wouldRecommend: boolean | null;
+      createdAt: Date;
+    }[];
+  };
+}) {
+  const helpfulnessAvg = averageNullable(
+    expert.reviews.map((review) => review.helpfulness),
+  );
+
+  const clarityAvg = averageNullable(
+    expert.reviews.map((review) => review.clarity),
+  );
+
+  const professionalismAvg = averageNullable(
+    expert.reviews.map((review) => review.professionalism),
+  );
+
+  const recommendationReviews = expert.reviews.filter(
+    (review) => review.wouldRecommend !== null,
+  );
+
+  const recommendationRate =
+    recommendationReviews.length > 0
+      ? Math.round(
+          (recommendationReviews.filter((review) => review.wouldRecommend)
+            .length /
+            recommendationReviews.length) *
+            100,
+        )
+      : null;
+
   return (
-    <div className="rounded-[1.5rem] bg-white/10 p-5">
-      <p className="text-sm text-white/45">{label}</p>
-      <p className="mt-2 text-2xl font-black text-white">{value}</p>
-    </div>
+    <Card className="p-5 md:p-6">
+      <div className="grid gap-5 xl:grid-cols-[1fr_280px] xl:items-start">
+        <div className="flex gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+            <UserRound size={24} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge status={expert.status} />
+
+              {expert.isVerified ? (
+                <Badge variant="success">
+                  <BadgeCheck size={14} />
+                  Verified
+                </Badge>
+              ) : (
+                <Badge variant="accent">Not verified</Badge>
+              )}
+
+              <Badge variant={expert.qualityScore >= 80 ? "success" : "primary"}>
+                <Sparkles size={14} />
+                Quality {expert.qualityScore}/100
+              </Badge>
+              
+              <RiskBadge riskLevel={expert.riskLevel} />
+
+              <Badge>
+                <Star size={14} />
+                {expert.rating ? expert.rating.toFixed(1) : "New"}
+              </Badge>
+            </div>
+
+            <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              {expert.user.name ?? expert.user.email}
+            </h2>
+
+            <p className="mt-1 break-all text-sm font-bold text-muted">
+              {expert.user.email}
+            </p>
+
+            <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+              {expert.headline}
+            </p>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-4">
+              <SmallFact label="Country" value={expert.country ?? "—"} />
+              <SmallFact label="Services" value={String(expert.services.length)} />
+              <SmallFact label="Slots" value={String(expert.availability.length)} />
+              <SmallFact label="Sessions" value={String(expert.totalSessions)} />
+            </div>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-5">
+              <SmallFact label="Reviews" value={String(expert.totalReviews)} />
+              <SmallFact
+                label="Helpful"
+                value={helpfulnessAvg ? `${helpfulnessAvg.toFixed(1)}/5` : "—"}
+              />
+              <SmallFact
+                label="Clarity"
+                value={clarityAvg ? `${clarityAvg.toFixed(1)}/5` : "—"}
+              />
+              <SmallFact
+                label="Pro"
+                value={
+                  professionalismAvg
+                    ? `${professionalismAvg.toFixed(1)}/5`
+                    : "—"
+                }
+              />
+              <SmallFact
+                label="Recommend"
+                value={
+                  recommendationRate !== null ? `${recommendationRate}%` : "—"
+                }
+              />
+            </div>
+
+            {expert.qualityScore < 45 ? (
+              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black text-[var(--danger)]">
+                Low quality signal. Review this expert before promoting.
+              </div>
+            ) : null}
+
+            {expert.riskLevel === "HIGH" ? (
+              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black text-[var(--danger)]">
+                High risk expert. Check recent reviews, complaints and booking history before approving or promoting.
+             </div>
+            ) : null}
+
+            {expert.riskLevel === "MEDIUM" ? (
+               <div className="mt-4 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-3 text-sm font-black text-[var(--accent)]">
+                 Medium risk signal. Monitor this expert before promotion.
+               </div>
+             ) : null}
+
+
+
+            {expert.qualityScore >= 80 ? (
+              <div className="mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-black text-[var(--success)]">
+                Strong quality signal. Good candidate for promotion.
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link href={`/experts/${expert.id}`} className="btn btn-secondary">
+                View public profile
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+          <form action={updateExpertStatusAction} className="grid gap-2">
+            <input type="hidden" name="expertId" value={expert.id} />
+            <input type="hidden" name="status" value="APPROVED" />
+
+            <button type="submit" className="btn btn-primary w-full">
+              <CheckCircle2 size={17} />
+              Approve
+            </button>
+          </form>
+
+          <form action={updateExpertStatusAction} className="grid gap-2">
+            <input type="hidden" name="expertId" value={expert.id} />
+            <input type="hidden" name="status" value="REJECTED" />
+
+            <button type="submit" className="btn btn-secondary w-full">
+              <XCircle size={17} />
+              Reject
+            </button>
+          </form>
+
+          <form action={updateExpertStatusAction} className="grid gap-2">
+            <input type="hidden" name="expertId" value={expert.id} />
+            <input type="hidden" name="status" value="SUSPENDED" />
+
+            <button type="submit" className="btn btn-danger w-full">
+              <Ban size={17} />
+              Suspend
+            </button>
+          </form>
+
+          <form action={toggleExpertVerificationAction} className="grid gap-2">
+            <input type="hidden" name="expertId" value={expert.id} />
+
+            <button type="submit" className="btn btn-secondary w-full">
+              <BadgeCheck size={17} />
+              {expert.isVerified ? "Remove verification" : "Verify manually"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function FilterLink({
+  q,
+  status,
+  verified,
+  current,
+  label,
+}: {
+  q: string;
+  status: string;
+  verified: string;
+  current: string;
+  label: string;
+}) {
+  const isActive = current === status;
+
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (status !== "all") {
+    params.set("status", status);
+  }
+
+  if (verified !== "all") {
+    params.set("verified", verified);
+  }
+
+  const href = params.toString()
+    ? `/admin/experts?${params.toString()}`
+    : "/admin/experts";
+
+  return (
+    <Link
+      href={href}
+      className={
+        isActive
+          ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
+          : "rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function RiskBadge({
+  riskLevel,
+}: {
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+}) {
+  if (riskLevel === "HIGH") {
+    return <Badge variant="danger">Risk: High</Badge>;
+  }
+
+  if (riskLevel === "MEDIUM") {
+    return <Badge variant="accent">Risk: Medium</Badge>;
+  }
+
+  return <Badge variant="success">Risk: Low</Badge>;
+}
+
+function AdminMiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <Card soft className="p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+    </Card>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    PENDING: "bg-[#fff3e8] text-[#f97316]",
-    APPROVED: "bg-[#eef4ff] text-[#2563eb]",
-    REJECTED: "bg-red-100 text-red-700",
-    SUSPENDED: "bg-[#f7f4ef] text-[#6f6a63]",
-  };
+  if (status === "APPROVED") {
+    return <Badge variant="success">Approved</Badge>;
+  }
 
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-black ${
-        styles[status] ?? "bg-[#f7f4ef] text-[#6f6a63]"
-      }`}
-    >
-      {status}
-    </span>
-  );
+  if (status === "REJECTED") {
+    return <Badge variant="danger">Rejected</Badge>;
+  }
+
+  if (status === "SUSPENDED") {
+    return <Badge variant="danger">Suspended</Badge>;
+  }
+
+  return <Badge variant="accent">Pending</Badge>;
 }
 
-function MiniInfo({ label, value }: { label: string; value: string }) {
+function SmallFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.25rem] bg-[#f7f4ef] p-4">
-      <p className="text-xs font-bold text-[#6f6a63]">{label}</p>
-      <p className="mt-1 truncate text-sm font-black">{value}</p>
-    </div>
-  );
-}
-
-function EmptyExperts() {
-  return (
-    <div className="card rounded-[2rem] p-10 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eef4ff] text-2xl">
-        🧑‍💼
-      </div>
-
-      <h3 className="mt-5 text-2xl font-black">No experts yet</h3>
-
-      <p className="mx-auto mt-3 max-w-md leading-7 text-[#6f6a63]">
-        Expert applications will appear here after someone submits the Become
-        Expert form.
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
       </p>
-
-      <Link
-        href="/become-expert"
-        className="mt-6 inline-flex rounded-full bg-[#2563eb] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1d4ed8]"
-      >
-        Go to application form
-      </Link>
+      <p className="mt-1 text-sm font-black">{value}</p>
     </div>
   );
+}
+
+function calculateRiskLevel({
+  reviews,
+  qualityScore,
+}: {
+  qualityScore: number;
+  reviews: {
+    rating: number;
+    helpfulness: number | null;
+    clarity: number | null;
+    professionalism: number | null;
+    wouldRecommend: boolean | null;
+    createdAt: Date;
+  }[];
+}): "LOW" | "MEDIUM" | "HIGH" {
+  const recentReviews = reviews.slice(0, 10);
+
+  const badSignals = recentReviews.reduce((count, review) => {
+    let signals = 0;
+
+    if (review.rating <= 2) {
+      signals += 1;
+    }
+
+    if (review.helpfulness !== null && review.helpfulness <= 2) {
+      signals += 1;
+    }
+
+    if (review.clarity !== null && review.clarity <= 2) {
+      signals += 1;
+    }
+
+    if (review.professionalism !== null && review.professionalism <= 2) {
+      signals += 1;
+    }
+
+    if (review.wouldRecommend === false) {
+      signals += 1;
+    }
+
+    return count + signals;
+  }, 0);
+
+  const notRecommendedCount = recentReviews.filter(
+    (review) => review.wouldRecommend === false,
+  ).length;
+
+  const lowRatingCount = recentReviews.filter(
+    (review) => review.rating <= 2,
+  ).length;
+
+  if (
+    qualityScore < 40 ||
+    badSignals >= 4 ||
+    notRecommendedCount >= 2 ||
+    lowRatingCount >= 2
+  ) {
+    return "HIGH";
+  }
+
+  if (qualityScore < 60 || badSignals >= 2 || notRecommendedCount >= 1) {
+    return "MEDIUM";
+  }
+
+  return "LOW";
+}
+
+function calculateQualityScore({
+  rating,
+  totalReviews,
+  totalSessions,
+  isVerified,
+  openSlots,
+  reviews,
+}: {
+  rating: number;
+  totalReviews: number;
+  totalSessions: number;
+  isVerified: boolean;
+  openSlots: number;
+  reviews: {
+    rating: number;
+    helpfulness: number | null;
+    clarity: number | null;
+    professionalism: number | null;
+    wouldRecommend: boolean | null;
+    createdAt: Date;
+  }[];
+}) {
+  const ratingScore =
+    totalReviews > 0 ? clamp((rating / 5) * 30, 0, 30) : 8;
+
+  const helpfulnessAvg = averageNullable(
+    reviews.map((review) => review.helpfulness),
+  );
+
+  const clarityAvg = averageNullable(reviews.map((review) => review.clarity));
+
+  const professionalismAvg = averageNullable(
+    reviews.map((review) => review.professionalism),
+  );
+
+  const detailedReviewScore =
+    helpfulnessAvg || clarityAvg || professionalismAvg
+      ? clamp(
+          (((helpfulnessAvg ?? rating) +
+            (clarityAvg ?? rating) +
+            (professionalismAvg ?? rating)) /
+            3 /
+            5) *
+            25,
+          0,
+          25,
+        )
+      : totalReviews > 0
+        ? clamp((rating / 5) * 18, 0, 18)
+        : 5;
+
+  const recommendationReviews = reviews.filter(
+    (review) => review.wouldRecommend !== null,
+  );
+
+  const recommendationRate =
+    recommendationReviews.length > 0
+      ? recommendationReviews.filter((review) => review.wouldRecommend).length /
+        recommendationReviews.length
+      : null;
+
+  const recommendationScore =
+    recommendationRate !== null ? clamp(recommendationRate * 15, 0, 15) : 6;
+
+  const sessionsScore = clamp((Math.min(totalSessions, 20) / 20) * 15, 0, 15);
+  const verifiedScore = isVerified ? 10 : 0;
+  const availabilityScore = openSlots > 0 ? 5 : 0;
+
+  return Math.round(
+    ratingScore +
+      detailedReviewScore +
+      recommendationScore +
+      sessionsScore +
+      verifiedScore +
+      availabilityScore,
+  );
+}
+
+function averageNullable(values: (number | null)[]) {
+  const cleanValues = values.filter(
+    (value): value is number => typeof value === "number",
+  );
+
+  if (cleanValues.length === 0) {
+    return null;
+  }
+
+  return cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }

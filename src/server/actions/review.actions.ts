@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import { sendNotification } from "@/server/services/notification.service";
+
+const MAX_COMMENT_LENGTH = 1200;
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -16,8 +19,8 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-function getRatingValue(formData: FormData) {
-  const rawRating = getStringValue(formData, "rating");
+function getRequiredRatingValue(formData: FormData, key: string) {
+  const rawRating = getStringValue(formData, key);
   const rating = Number(rawRating);
 
   if (!Number.isFinite(rating)) {
@@ -27,7 +30,37 @@ function getRatingValue(formData: FormData) {
   return Math.min(Math.max(Math.round(rating), 1), 5);
 }
 
-export async function createReviewAction(formData: FormData) {
+function getOptionalRatingValue(formData: FormData, key: string) {
+  const rawRating = getStringValue(formData, key);
+
+  if (!rawRating) {
+    return null;
+  }
+
+  const rating = Number(rawRating);
+
+  if (!Number.isFinite(rating)) {
+    return null;
+  }
+
+  return Math.min(Math.max(Math.round(rating), 1), 5);
+}
+
+function getBooleanValue(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  return null;
+}
+
+async function getCurrentUserRecord() {
   const { user } = await requireRole(["buyer", "admin"]);
 
   const email = user.email?.toLowerCase();
@@ -36,22 +69,57 @@ export async function createReviewAction(formData: FormData) {
     redirect("/sign-in");
   }
 
-  const bookingId = getStringValue(formData, "bookingId");
-  const rating = getRatingValue(formData);
-  const comment = getStringValue(formData, "comment");
-
-  if (!bookingId || rating < 1 || rating > 5) {
-    redirect("/buyer/reviews?error=invalid-review");
-  }
-
-  const buyer = await prisma.user.findUnique({
+  const currentUser = await prisma.user.findUnique({
     where: {
       email,
     },
   });
 
-  if (!buyer) {
+  if (!currentUser) {
     redirect("/sign-in");
+  }
+
+  return currentUser;
+}
+
+function revalidateReviewPaths(expertId: string) {
+  revalidatePath("/");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
+
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/bookings");
+  revalidatePath("/buyer/reviews");
+
+  revalidatePath("/expert");
+  revalidatePath("/expert/bookings");
+  revalidatePath("/expert/stats");
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/reviews");
+  revalidatePath("/admin/experts");
+
+  revalidatePath("/notifications");
+}
+
+export async function createReviewAction(formData: FormData) {
+  const currentUser = await getCurrentUserRecord();
+
+  const bookingId = getStringValue(formData, "bookingId");
+
+  const rating = getRequiredRatingValue(formData, "rating");
+  const helpfulness = getOptionalRatingValue(formData, "helpfulness");
+  const clarity = getOptionalRatingValue(formData, "clarity");
+  const professionalism = getOptionalRatingValue(formData, "professionalism");
+  const wouldRecommend = getBooleanValue(formData, "wouldRecommend");
+
+  const rawComment = getStringValue(formData, "comment");
+  const comment = rawComment
+    ? rawComment.slice(0, MAX_COMMENT_LENGTH)
+    : null;
+
+  if (!bookingId || rating < 1 || rating > 5) {
+    redirect("/buyer/reviews?error=invalid-review");
   }
 
   const booking = await prisma.booking.findUnique({
@@ -59,8 +127,14 @@ export async function createReviewAction(formData: FormData) {
       id: bookingId,
     },
     include: {
+      buyer: true,
       review: true,
-      expert: true,
+      expert: {
+        include: {
+          user: true,
+        },
+      },
+      service: true,
     },
   });
 
@@ -68,46 +142,50 @@ export async function createReviewAction(formData: FormData) {
     redirect("/buyer/reviews?error=booking-not-found");
   }
 
-  const isOwnerBuyer = booking.buyerId === buyer.id;
-  const isAdmin = buyer.role === "ADMIN";
+  const isOwnerBuyer = booking.buyerId === currentUser.id;
+  const isAdmin = currentUser.role === "ADMIN";
 
   if (!isOwnerBuyer && !isAdmin) {
     redirect("/buyer/reviews?error=not-allowed");
   }
 
   if (booking.status !== "COMPLETED") {
-    redirect("/buyer/reviews?error=not-completed");
+    redirect(`/buyer/reviews?bookingId=${booking.id}&error=not-completed`);
   }
 
   if (booking.review) {
-    redirect("/buyer/reviews?error=already-reviewed");
+    redirect(`/buyer/reviews?bookingId=${booking.id}&error=already-reviewed`);
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.review.create({
+  const createdReview = await prisma.$transaction(async (tx) => {
+    const review = await tx.review.create({
       data: {
         bookingId: booking.id,
         buyerId: booking.buyerId,
         expertId: booking.expertId,
         rating,
-        comment: comment || null,
+        helpfulness,
+        clarity,
+        professionalism,
+        wouldRecommend,
+        comment,
       },
     });
 
-    const reviews = await tx.review.findMany({
+    const reviewStats = await tx.review.aggregate({
       where: {
         expertId: booking.expertId,
       },
-      select: {
+      _avg: {
+        rating: true,
+      },
+      _count: {
         rating: true,
       },
     });
 
-    const totalReviews = reviews.length;
-    const averageRating =
-      totalReviews > 0
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
-        : 0;
+    const totalReviews = reviewStats._count.rating;
+    const averageRating = reviewStats._avg.rating ?? 0;
 
     const shouldVerify =
       booking.expert.totalSessions >= 3 && averageRating >= 3.8;
@@ -126,14 +204,26 @@ export async function createReviewAction(formData: FormData) {
             : booking.expert.verifiedAt,
       },
     });
+
+    return review;
   });
 
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/bookings");
-  revalidatePath("/buyer/reviews");
-  revalidatePath("/expert");
-  revalidatePath("/expert/stats");
-  revalidatePath(`/experts/${booking.expertId}`);
+  await sendNotification({
+    to: booking.expert.user.email,
+    type: "REVIEW_RECEIVED",
+    subject: "You received a new review",
+    message: `A client left a ${createdReview.rating}/5 review for "${
+      booking.service?.title ?? "Booked call"
+    }".`,
+    metadata: {
+      bookingId: booking.id,
+      expertId: booking.expertId,
+      reviewId: createdReview.id,
+      rating: createdReview.rating,
+    },
+  });
+
+  revalidateReviewPaths(booking.expertId);
 
   redirect("/buyer/reviews?reviewed=1");
 }

@@ -9,6 +9,7 @@ import {
   Clock3,
   Compass,
   Euro,
+  Bell,
   HeartHandshake,
   Lightbulb,
   Search,
@@ -258,6 +259,11 @@ export default async function BuyerDashboardPage() {
               <ButtonLink href="/buyer/bookings" variant="secondary">
                 My bookings
                 <ArrowRight size={18} />
+              </ButtonLink>
+
+              <ButtonLink href="/notifications" variant="secondary">
+                <Bell size={18} />
+                Notifications
               </ButtonLink>
             </div>
           </div>
@@ -687,6 +693,13 @@ export default async function BuyerDashboardPage() {
               title="Manage calls"
               text="See upcoming, completed and cancelled bookings."
               href="/buyer/bookings"
+            />
+
+            <QuickAction
+              icon={Bell}
+              title="Notifications"
+              text="See booking updates, payment confirmations and review reminders."
+              href="/notifications"
             />
 
             <QuickAction

@@ -59,7 +59,7 @@ export async function getCurrentUser() {
   if (!user) {
     const metadataRole = normalizeRole(authUser.user_metadata?.role);
 
-    user = await prisma.user.create({
+    user = await prisma.user.upsert({
       data: {
         email,
         name:

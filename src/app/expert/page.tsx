@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   Clock3,
   Eye,
+  Bell,
   Lightbulb,
   ListChecks,
   Plus,
@@ -52,6 +53,18 @@ const workspaceLinks = [
     text: "See upcoming calls and manage sessions.",
     href: "/expert/bookings",
     icon: Video,
+  },
+  {
+    title: "Notifications",
+    text: "See booking updates, payments, refunds, disputes and review requests.",
+    href: "/notifications",
+    icon: Bell,
+  },
+  {
+    title: "Earnings",
+    text: "Track completed calls, estimated fees and payout-ready income.",
+    href: "/expert/earnings",
+    icon: CircleDollarSign,
   },
   {
     title: "Statistics",
@@ -363,7 +376,7 @@ export default async function ExpertDashboardPage() {
                     <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                       {nextBooking.callRoom?.roomUrl ? (
                         <Link
-                          href={nextBooking.callRoom.roomUrl}
+                          href={`/calls/${nextBooking.id}`}
                           className="btn btn-primary"
                         >
                           Join call

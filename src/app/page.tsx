@@ -3,7 +3,6 @@ import {
   ArrowRight,
   BadgeCheck,
   BriefcaseBusiness,
-  CalendarCheck,
   CheckCircle2,
   Clock3,
   CreditCard,
@@ -169,9 +168,7 @@ export default function HomePage() {
               support, explain or help you solve practical life problems.
             </p>
 
-            <form action="/sign-up" className="mt-9 max-w-2xl">
-              <input type="hidden" name="role" value="buyer" />
-
+            <form action="/experts" className="mt-9 max-w-2xl">
               <div className="rounded-[30px] border border-[var(--border)] bg-white/80 p-3 shadow-[var(--shadow-md)] backdrop-blur">
                 <div className="flex flex-col gap-3 md:flex-row">
                   <div className="relative flex-1">
@@ -181,7 +178,7 @@ export default function HomePage() {
                     />
 
                     <input
-                      name="query"
+                      name="q"
                       type="search"
                       placeholder="What do you need help with?"
                       className="input min-h-[56px] border-transparent bg-white pl-12 shadow-none"
@@ -189,7 +186,7 @@ export default function HomePage() {
                   </div>
 
                   <button type="submit" className="btn btn-primary min-h-[56px]">
-                    Get started
+                    Search experts
                     <ArrowRight size={18} />
                   </button>
                 </div>
@@ -200,7 +197,7 @@ export default function HomePage() {
               {popularSearches.map((item) => (
                 <Link
                   key={item}
-                  href="/sign-up?role=buyer"
+                  href={`/experts?q=${encodeURIComponent(item)}`}
                   className="rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:text-[var(--primary-dark)]"
                 >
                   {item}
@@ -257,8 +254,8 @@ export default function HomePage() {
               </p>
             </div>
 
-            <ButtonLink href="/sign-up?role=buyer" variant="secondary">
-              Create account to explore
+            <ButtonLink href="/experts" variant="secondary">
+              Explore experts
               <ArrowRight size={18} />
             </ButtonLink>
           </div>
@@ -404,8 +401,8 @@ export default function HomePage() {
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                Providers set their own prices. SkillDrop keeps a platform
-                commission to support payments, safety, product and marketplace
+                Providers set their own prices. During launch, SkillDrop keeps only a
+                5% platform commission to support payments, safety, product and marketplace
                 growth.
               </p>
             </div>
@@ -435,12 +432,12 @@ export default function HomePage() {
                   <CommissionRow
                     icon={ShieldCheck}
                     title="Platform commission"
-                    value="15%"
+                    value="5%"
                   />
                   <CommissionRow
                     icon={WalletCards}
                     title="Provider receives"
-                    value="€25.50"
+                    value="€28.50"
                   />
                 </div>
               </div>
@@ -459,6 +456,11 @@ export default function HomePage() {
                 Many people. Many skills. One simple call.
               </h2>
             </div>
+
+            <ButtonLink href="/experts" variant="secondary">
+              See marketplace
+              <ArrowRight size={18} />
+            </ButtonLink>
           </div>
 
           <div className="mt-10 grid gap-5 lg:grid-cols-3">
@@ -614,7 +616,7 @@ function CategoryCard({
   const Icon = category.icon;
 
   return (
-    <Link href="/sign-up?role=buyer" className="group">
+    <Link href={`/experts?q=${encodeURIComponent(category.title)}`} className="group">
       <Card className="h-full p-6 transition group-hover:-translate-y-1 group-hover:shadow-[var(--shadow-md)]">
         <div className="flex items-center justify-between gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
@@ -777,7 +779,7 @@ function HelperPreviewCard({
         <Badge>{helper.tag}</Badge>
 
         <Link
-          href="/sign-up?role=buyer"
+          href="/experts"
           className="text-sm font-black text-[var(--primary-dark)]"
         >
           Book →

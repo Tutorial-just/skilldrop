@@ -1,3 +1,569 @@
-export default function Page() {
-  return <main className="mx-auto max-w-5xl px-6 py-12"><h1 className="text-3xl font-bold">admin/users</h1><p className="mt-4 text-gray-600">Coming soon.</p></main>;
+import Link from "next/link";
+import {
+  ArrowLeft,
+  BriefcaseBusiness,
+  CalendarDays,
+  Crown,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Star,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
+
+import { requireRole } from "@/lib/auth/get-current-user";
+import { prisma } from "@/lib/prisma";
+import { updateUserRoleByAdminAction } from "@/server/actions/admin.actions";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+
+type AdminUsersPageProps = {
+  searchParams?: Promise<{
+    updated?: string;
+    error?: string;
+    role?: string;
+    q?: string;
+  }>;
+};
+
+export default async function AdminUsersPage({
+  searchParams,
+}: AdminUsersPageProps) {
+  await requireRole(["admin"]);
+
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const roleFilter = resolvedSearchParams.role ?? "all";
+  const query = resolvedSearchParams.q?.trim() ?? "";
+
+  const userWhere = {
+    ...(roleFilter === "all"
+      ? {}
+      : {
+          role: roleFilter.toUpperCase() as "BUYER" | "EXPERT" | "ADMIN",
+        }),
+
+    ...(query
+      ? {
+          OR: [
+            {
+              email: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              name: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const users = await prisma.user.findMany({
+    where: userWhere,
+    include: {
+      expertProfile: true,
+      bookings: {
+        select: {
+          id: true,
+          status: true,
+          priceCents: true,
+        },
+      },
+      reviews: {
+        select: {
+          id: true,
+          rating: true,
+          wouldRecommend: true,
+        },
+      },
+      savedExperts: {
+        select: {
+          id: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 100,
+  });
+
+  const totalUsers = await prisma.user.count();
+  const buyersCount = await prisma.user.count({ where: { role: "BUYER" } });
+  const expertsCount = await prisma.user.count({ where: { role: "EXPERT" } });
+  const adminsCount = await prisma.user.count({ where: { role: "ADMIN" } });
+  const expertsWithoutProfileCount = await prisma.user.count({
+    where: {
+      role: "EXPERT",
+      expertProfile: null,
+    },
+  });
+
+  return (
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
+
+        <div className="relative container-page py-8 md:py-10 lg:py-14">
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+          >
+            <ArrowLeft size={16} />
+            Back to admin
+          </Link>
+
+          {resolvedSearchParams.updated ? (
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+              User updated successfully.
+            </div>
+          ) : null}
+
+          {resolvedSearchParams.error ? (
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+              {formatUserAdminError(resolvedSearchParams.error)}
+            </div>
+          ) : null}
+
+          <Badge variant="primary" className="mt-8">
+            <UsersRound size={14} />
+            User management
+          </Badge>
+
+          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+            Manage SkillDrop users.
+          </h1>
+
+          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+            View user accounts, roles, expert profiles, bookings, reviews and
+            marketplace activity.
+          </p>
+
+          <div className="mt-8 grid gap-3 md:grid-cols-5">
+            <AdminMiniStat label="Total" value={String(totalUsers)} />
+            <AdminMiniStat label="Buyers" value={String(buyersCount)} />
+            <AdminMiniStat label="Experts" value={String(expertsCount)} />
+            <AdminMiniStat label="Admins" value={String(adminsCount)} />
+            <AdminMiniStat
+              label="Experts missing profile"
+              value={String(expertsWithoutProfileCount)}
+            />
+          </div>
+
+          <form action="/admin/users" className="mt-6">
+            <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] lg:grid-cols-[1fr_180px_auto_auto] lg:items-center">
+              <div className="relative">
+                <Search
+                  size={17}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+                />
+
+                <input
+                  name="q"
+                  type="search"
+                  defaultValue={query}
+                  placeholder="Search users by name or email..."
+                  className="input min-h-12 w-full pl-11"
+                />
+              </div>
+
+              <select
+                name="role"
+                defaultValue={roleFilter}
+                className="input min-h-12"
+              >
+                <option value="all">All roles</option>
+                <option value="buyer">Buyers</option>
+                <option value="expert">Experts</option>
+                <option value="admin">Admins</option>
+              </select>
+
+              <button type="submit" className="btn btn-primary">
+                Search
+              </button>
+
+              {query || roleFilter !== "all" ? (
+                <Link href="/admin/users" className="btn btn-secondary">
+                  Clear
+                </Link>
+              ) : null}
+            </div>
+          </form>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            <FilterLink current={roleFilter} value="all" label="All" q={query} />
+            <FilterLink
+              current={roleFilter}
+              value="buyer"
+              label="Buyers"
+              q={query}
+            />
+            <FilterLink
+              current={roleFilter}
+              value="expert"
+              label="Experts"
+              q={query}
+            />
+            <FilterLink
+              current={roleFilter}
+              value="admin"
+              label="Admins"
+              q={query}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="container-page py-8 md:py-10 lg:py-12">
+        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <p className="text-sm font-black text-muted">
+            Showing {users.length} user{users.length === 1 ? "" : "s"}
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            <Badge>Search: {query || "none"}</Badge>
+            <Badge>Role: {roleFilter}</Badge>
+          </div>
+        </div>
+
+        <div className="grid gap-5">
+          {users.length > 0 ? (
+            users.map((user) => <UserAdminCard key={user.id} user={user} />)
+          ) : (
+            <Card className="p-8 text-center">
+              <h2 className="text-2xl font-black tracking-[-0.04em]">
+                No users found
+              </h2>
+
+              <p className="mt-3 text-sm font-semibold text-muted">
+                Try another role filter or search query.
+              </p>
+            </Card>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function UserAdminCard({
+  user,
+}: {
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    role: string;
+    createdAt: Date;
+    expertProfile: {
+      id: string;
+      status: string;
+      isVerified: boolean;
+      rating: number;
+      totalReviews: number;
+      totalSessions: number;
+    } | null;
+    bookings: {
+      id: string;
+      status: string;
+      priceCents: number;
+    }[];
+    reviews: {
+      id: string;
+      rating: number;
+      wouldRecommend: boolean | null;
+    }[];
+    savedExperts: {
+      id: string;
+    }[];
+  };
+}) {
+  const completedBookings = user.bookings.filter(
+    (booking) => booking.status === "COMPLETED",
+  );
+
+  const confirmedBookings = user.bookings.filter(
+    (booking) => booking.status === "CONFIRMED",
+  );
+
+  const disputedBookings = user.bookings.filter(
+    (booking) => booking.status === "DISPUTED",
+  );
+
+  const completedSpendCents = completedBookings.reduce(
+    (sum, booking) => sum + booking.priceCents,
+    0,
+  );
+
+  const lowReviews = user.reviews.filter((review) => review.rating <= 2);
+  const notRecommendedReviews = user.reviews.filter(
+    (review) => review.wouldRecommend === false,
+  );
+
+  const expertWithoutProfile = user.role === "EXPERT" && !user.expertProfile;
+
+  return (
+    <Card className="p-5 md:p-6">
+      <div className="grid gap-5 xl:grid-cols-[1fr_280px] xl:items-start">
+        <div className="flex gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+            <UserRound size={24} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap gap-2">
+              <RoleBadge role={user.role} />
+
+              {user.expertProfile ? (
+                <Badge variant="primary">Expert profile</Badge>
+              ) : null}
+
+              {user.expertProfile?.isVerified ? (
+                <Badge variant="success">
+                  <ShieldCheck size={14} />
+                  Verified expert
+                </Badge>
+              ) : null}
+
+              {expertWithoutProfile ? (
+                <Badge variant="danger">
+                  <ShieldAlert size={14} />
+                  Missing expert profile
+                </Badge>
+              ) : null}
+            </div>
+
+            <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              {user.name ?? user.email}
+            </h2>
+
+            <p className="mt-2 break-all text-sm font-semibold leading-6 text-muted">
+              {user.email}
+            </p>
+
+            {expertWithoutProfile ? (
+              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black text-[var(--danger)]">
+                This user has EXPERT role but no expert profile. They may need
+                to complete onboarding or be changed back to buyer.
+              </div>
+            ) : null}
+
+            <div className="mt-4 grid gap-2 md:grid-cols-4">
+              <SmallFact label="Bookings" value={String(user.bookings.length)} />
+              <SmallFact label="Confirmed" value={String(confirmedBookings.length)} />
+              <SmallFact label="Completed" value={String(completedBookings.length)} />
+              <SmallFact label="Disputed" value={String(disputedBookings.length)} />
+            </div>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-4">
+              <SmallFact label="Spend" value={formatMoney(completedSpendCents)} />
+              <SmallFact label="Reviews" value={String(user.reviews.length)} />
+              <SmallFact
+                label="Bad reviews"
+                value={String(lowReviews.length + notRecommendedReviews.length)}
+              />
+              <SmallFact label="Saved" value={String(user.savedExperts.length)} />
+            </div>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-4">
+              <SmallFact label="Created" value={formatShortDate(user.createdAt)} />
+
+              {user.expertProfile ? (
+                <>
+                  <SmallFact
+                    label="Expert status"
+                    value={user.expertProfile.status.toLowerCase()}
+                  />
+                  <SmallFact
+                    label="Expert rating"
+                    value={
+                      user.expertProfile.rating
+                        ? `${user.expertProfile.rating.toFixed(1)}/5`
+                        : "New"
+                    }
+                  />
+                  <SmallFact
+                    label="Expert sessions"
+                    value={String(user.expertProfile.totalSessions)}
+                  />
+                </>
+              ) : (
+                <>
+                  <SmallFact label="Expert status" value="—" />
+                  <SmallFact label="Expert rating" value="—" />
+                  <SmallFact label="Expert sessions" value="—" />
+                </>
+              )}
+            </div>
+
+            {user.expertProfile ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link
+                  href={`/experts/${user.expertProfile.id}`}
+                  className="btn btn-secondary"
+                >
+                  View expert profile
+                </Link>
+
+                <Link href="/admin/experts" className="btn btn-secondary">
+                  Manage experts
+                </Link>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+          {user.role !== "BUYER" ? (
+            <RoleForm userId={user.id} role="BUYER" label="Make buyer" />
+          ) : null}
+
+          {user.role !== "EXPERT" ? (
+            <RoleForm userId={user.id} role="EXPERT" label="Make expert" />
+          ) : null}
+
+          {user.role !== "ADMIN" ? (
+            <RoleForm userId={user.id} role="ADMIN" label="Make admin" />
+          ) : null}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function RoleForm({
+  userId,
+  role,
+  label,
+}: {
+  userId: string;
+  role: "BUYER" | "EXPERT" | "ADMIN";
+  label: string;
+}) {
+  return (
+    <form action={updateUserRoleByAdminAction}>
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="role" value={role} />
+
+      <button type="submit" className="btn btn-secondary w-full">
+        {label}
+      </button>
+    </form>
+  );
+}
+
+function RoleBadge({ role }: { role: string }) {
+  if (role === "ADMIN") {
+    return (
+      <Badge variant="success">
+        <Crown size={14} />
+        Admin
+      </Badge>
+    );
+  }
+
+  if (role === "EXPERT") {
+    return (
+      <Badge variant="primary">
+        <BriefcaseBusiness size={14} />
+        Expert
+      </Badge>
+    );
+  }
+
+  return <Badge variant="accent">Buyer</Badge>;
+}
+
+function FilterLink({
+  current,
+  value,
+  label,
+  q,
+}: {
+  current: string;
+  value: string;
+  label: string;
+  q: string;
+}) {
+  const isActive = current === value;
+
+  const params = new URLSearchParams();
+
+  if (value !== "all") {
+    params.set("role", value);
+  }
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  const href = params.toString()
+    ? `/admin/users?${params.toString()}`
+    : "/admin/users";
+
+  return (
+    <Link
+      href={href}
+      className={
+        isActive
+          ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
+          : "rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function AdminMiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <Card soft className="p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+    </Card>
+  );
+}
+
+function SmallFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-black">{value}</p>
+    </div>
+  );
+}
+function formatUserAdminError(error: string) {
+  if (error === "invalid-role") {
+    return "Invalid role selected.";
+  }
+
+  if (error === "user-not-found") {
+    return "User was not found.";
+  }
+
+  if (error === "cannot-change-own-admin-role") {
+    return "You cannot remove your own admin role.";
+  }
+
+  return "Something went wrong while updating this user.";
+}
+function formatMoney(cents: number) {
+  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
 }
