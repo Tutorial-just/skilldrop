@@ -30,13 +30,14 @@ type BuyerBookingsPageProps = {
     paid?: string;
     payment?: string;
     error?: string;
+    booking?: string;
   }>;
 };
 
 export default async function BuyerBookingsPage({
   searchParams,
 }: BuyerBookingsPageProps) {
-  const { user } = await requireRole(["buyer", "expert", "admin"]);
+  const { user } = await requireRole(["buyer", "admin"]);
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const email = user.email?.toLowerCase();
@@ -74,44 +75,49 @@ export default async function BuyerBookingsPage({
       review: true,
     },
     orderBy: {
-      startTime: "asc",
+      startTime: "desc",
     },
   });
 
-  const upcomingBookings = bookings.filter(
-    (booking) =>
-      booking.startTime >= now &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED" &&
-      booking.status !== "DISPUTED",
-  );
+  const upcomingBookings = bookings
+    .filter(
+      (booking) =>
+        booking.startTime >= now &&
+        booking.status !== "CANCELLED" &&
+        booking.status !== "REFUNDED" &&
+        booking.status !== "COMPLETED" &&
+        booking.status !== "DISPUTED",
+    )
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
   const completedBookings = bookings.filter(
     (booking) => booking.status === "COMPLETED",
   );
 
-  const cancelledBookings = bookings.filter(
+  const closedBookings = bookings.filter(
     (booking) =>
       booking.status === "CANCELLED" ||
       booking.status === "REFUNDED" ||
       booking.status === "DISPUTED",
   );
 
-  const pastBookings = bookings.filter(
-    (booking) =>
-      booking.endTime < now &&
-      booking.status !== "COMPLETED" &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED" &&
-      booking.status !== "DISPUTED",
-  );
-
   const waitingReviewBookings = bookings.filter(
     (booking) => booking.status === "COMPLETED" && !booking.review,
   );
 
+  const pendingPaymentBookings = bookings.filter(
+    (booking) => booking.status === "PENDING" && booking.startTime >= now,
+  );
+
   const nextBooking = upcomingBookings[0] ?? null;
+  const highlightedBookingId =
+    resolvedSearchParams.booked ?? resolvedSearchParams.booking ?? "";
+
+  const topMessage = getTopMessage({
+    payment: resolvedSearchParams.payment,
+    booked: resolvedSearchParams.booked,
+    error: resolvedSearchParams.error,
+  });
 
   return (
     <main>
@@ -127,21 +133,15 @@ export default async function BuyerBookingsPage({
             Back to dashboard
           </Link>
 
-          {resolvedSearchParams.booked ? (
-            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Booking saved. Complete payment to confirm your call.
-            </div>
-          ) : null}
-
-          {resolvedSearchParams.payment === "success" ? (
-            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Payment received. Your call is now confirmed.
-            </div>
-          ) : null}
-
-          {resolvedSearchParams.error === "booking-expired" ? (
-            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
-              This booking expired. Please choose a new time slot.
+          {topMessage ? (
+            <div
+              className={
+                topMessage.variant === "success"
+                  ? "mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]"
+                  : "mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]"
+              }
+            >
+              {topMessage.text}
             </div>
           ) : null}
 
@@ -157,8 +157,8 @@ export default async function BuyerBookingsPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                See upcoming calls, join video rooms, review past sessions and
-                manage your bookings.
+                See upcoming calls, complete payments, join video rooms, review
+                past sessions and manage your bookings.
               </p>
             </div>
 
@@ -173,7 +173,14 @@ export default async function BuyerBookingsPage({
               icon={Video}
               label="Upcoming"
               value={String(upcomingBookings.length)}
-              hint="Scheduled calls"
+              hint="Reserved or scheduled calls"
+            />
+
+            <MiniStat
+              icon={Clock3}
+              label="Payment"
+              value={String(pendingPaymentBookings.length)}
+              hint="Waiting for payment"
             />
 
             <MiniStat
@@ -188,13 +195,6 @@ export default async function BuyerBookingsPage({
               label="Reviews"
               value={String(waitingReviewBookings.length)}
               hint="Waiting feedback"
-            />
-
-            <MiniStat
-              icon={XCircle}
-              label="Closed"
-              value={String(cancelledBookings.length)}
-              hint="Cancelled / refunded / disputed"
             />
           </div>
         </div>
@@ -218,7 +218,8 @@ export default async function BuyerBookingsPage({
                   <p className="mt-3 text-sm font-semibold leading-6 text-muted">
                     With{" "}
                     <span className="font-black text-[var(--foreground)]">
-                      {nextBooking.expert.user.name ?? "Expert"}
+                      {nextBooking.expert.user.name ??
+                        nextBooking.expert.user.email}
                     </span>
                   </p>
 
@@ -241,7 +242,10 @@ export default async function BuyerBookingsPage({
                       value={formatMoney(nextBooking.priceCents)}
                     />
 
-                    <InfoRow label="Status" value={nextBooking.status} />
+                    <InfoRow
+                      label="Status"
+                      value={formatStatus(nextBooking.status)}
+                    />
                   </div>
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -254,8 +258,7 @@ export default async function BuyerBookingsPage({
                       </Link>
                     ) : null}
 
-                    {nextBooking.status === "CONFIRMED" &&
-                    nextBooking.callRoom?.roomUrl ? (
+                    {canJoinBooking(nextBooking) ? (
                       <Link
                         href={`/calls/${nextBooking.id}`}
                         className="btn btn-primary"
@@ -269,7 +272,7 @@ export default async function BuyerBookingsPage({
                       href={`/experts/${nextBooking.expertId}`}
                       variant="secondary"
                     >
-                      View expert
+                      View provider
                     </ButtonLink>
                   </div>
                 </div>
@@ -284,7 +287,7 @@ export default async function BuyerBookingsPage({
                   </h2>
 
                   <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-muted">
-                    Find an expert, choose a service and book a time that works
+                    Find a provider, choose a service and book a time that works
                     for you.
                   </p>
 
@@ -298,6 +301,34 @@ export default async function BuyerBookingsPage({
               )}
             </Card>
 
+            {pendingPaymentBookings.length > 0 ? (
+              <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
+                <Badge variant="accent">
+                  <Clock3 size={14} />
+                  Payment waiting
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  Complete payment to confirm your calls.
+                </h2>
+
+                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                  Pending reservations are held only for a short time. If the
+                  countdown expires, the slot becomes available again.
+                </p>
+
+                <div className="mt-6 grid gap-4">
+                  {pendingPaymentBookings.slice(0, 3).map((booking) => (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      highlighted={booking.id === highlightedBookingId}
+                    />
+                  ))}
+                </div>
+              </Card>
+            ) : null}
+
             {waitingReviewBookings.length > 0 ? (
               <Card className="border-[var(--accent)]/20 bg-[var(--accent-soft)] p-5 md:p-6">
                 <Badge variant="accent">
@@ -309,8 +340,8 @@ export default async function BuyerBookingsPage({
                   Leave feedback after your calls.
                 </h2>
 
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  Reviews help good experts grow and help other clients choose
+                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                  Reviews help good providers grow and help other clients choose
                   safely.
                 </p>
 
@@ -319,7 +350,7 @@ export default async function BuyerBookingsPage({
                     <BookingCard
                       key={booking.id}
                       booking={booking}
-                      highlighted={booking.id === resolvedSearchParams.booked}
+                      highlighted={booking.id === highlightedBookingId}
                     />
                   ))}
                 </div>
@@ -352,8 +383,9 @@ export default async function BuyerBookingsPage({
                   Booking history
                 </h2>
 
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                  Upcoming, completed and cancelled calls appear here.
+                <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                  Upcoming, completed, cancelled, refunded and disputed calls
+                  appear here.
                 </p>
               </div>
 
@@ -366,7 +398,7 @@ export default async function BuyerBookingsPage({
                   <BookingCard
                     key={booking.id}
                     booking={booking}
-                    highlighted={booking.id === resolvedSearchParams.booked}
+                    highlighted={booking.id === highlightedBookingId}
                   />
                 ))
               ) : (
@@ -376,11 +408,23 @@ export default async function BuyerBookingsPage({
                   </h3>
 
                   <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
-                    Once you book your first expert, it will appear here.
+                    Once you book your first provider, it will appear here.
                   </p>
                 </div>
               )}
             </div>
+
+            {closedBookings.length > 0 ? (
+              <div className="mt-6 rounded-2xl border border-[var(--border)] bg-white/55 p-4">
+                <div className="flex items-center gap-3">
+                  <XCircle size={18} className="text-muted" />
+                  <p className="text-sm font-bold leading-6 text-muted">
+                    You have {closedBookings.length} closed booking
+                    {closedBookings.length === 1 ? "" : "s"}.
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </Card>
         </div>
       </section>
@@ -422,17 +466,20 @@ function BookingCard({
   const now = new Date();
 
   const isPending = booking.status === "PENDING";
-  const isConfirmed = booking.status === "CONFIRMED";
+  const isPaid = booking.status === "PAID";
   const isCompleted = booking.status === "COMPLETED";
   const isDisputed = booking.status === "DISPUTED";
-  const isCancelled =
-    booking.status === "CANCELLED" || booking.status === "REFUNDED";
+  const isRefunded = booking.status === "REFUNDED";
+  const isCancelled = booking.status === "CANCELLED" || isRefunded;
 
   const isUpcoming = booking.startTime >= now && !isCancelled && !isCompleted;
-  const canJoin =
-    isUpcoming && isConfirmed && Boolean(booking.callRoom?.roomUrl);
-  const canCancel = isPending || isConfirmed;
+  const canJoin = canJoinBooking(booking);
+  const canCancel =
+    (booking.status === "PENDING" || booking.status === "CONFIRMED") &&
+    booking.startTime > now;
   const canReview = isCompleted && !booking.review;
+
+  const providerName = booking.expert.user.name ?? booking.expert.user.email;
 
   return (
     <div
@@ -441,7 +488,9 @@ function BookingCard({
           ? "rounded-[26px] border border-[var(--success)]/30 bg-[var(--success-soft)] p-4"
           : canReview
             ? "rounded-[26px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] p-4"
-            : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
+            : isPending
+              ? "rounded-[26px] border border-[var(--warning)]/30 bg-[var(--warning-soft)] p-4"
+              : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
       }
     >
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -449,7 +498,7 @@ function BookingCard({
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
 
-            {highlighted ? <Badge variant="success">New booking</Badge> : null}
+            {highlighted ? <Badge variant="success">Selected booking</Badge> : null}
 
             {canReview ? (
               <Badge variant="accent">
@@ -473,7 +522,7 @@ function BookingCard({
           <p className="mt-2 text-sm font-semibold leading-6 text-muted">
             With{" "}
             <span className="font-black text-[var(--foreground)]">
-              {booking.expert.user.name ?? booking.expert.user.email}
+              {providerName}
             </span>
           </p>
 
@@ -491,6 +540,18 @@ function BookingCard({
             <SmallPill icon={Euro} text={formatMoney(booking.priceCents)} />
           </div>
 
+          {isPending ? (
+            <p className="mt-4 rounded-2xl border border-[var(--warning)]/20 bg-white/55 p-3 text-sm font-bold text-[var(--warning)]">
+              Payment is required to confirm this reservation.
+            </p>
+          ) : null}
+
+          {isPaid ? (
+            <p className="mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]">
+              Payment was received. This booking is waiting for confirmation.
+            </p>
+          ) : null}
+
           {isDisputed ? (
             <p className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]">
               This booking is under SkillDrop review.
@@ -500,6 +561,12 @@ function BookingCard({
           {isCancelled ? (
             <p className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]">
               This booking is closed.
+            </p>
+          ) : null}
+
+          {!isUpcoming && !isCompleted && !isCancelled && !isDisputed ? (
+            <p className="mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-3 text-sm font-bold text-muted">
+              This call time has passed.
             </p>
           ) : null}
         </div>
@@ -541,7 +608,7 @@ function BookingCard({
             href={`/experts/${booking.expertId}`}
             className="btn btn-secondary"
           >
-            View expert
+            View provider
           </Link>
 
           {canCancel ? (
@@ -592,12 +659,20 @@ function StatusBadge({ status }: { status: string }) {
     return <Badge variant="success">Completed</Badge>;
   }
 
-  if (status === "CANCELLED" || status === "REFUNDED") {
-    return <Badge variant="danger">{status.toLowerCase()}</Badge>;
+  if (status === "CANCELLED") {
+    return <Badge variant="danger">Cancelled</Badge>;
+  }
+
+  if (status === "REFUNDED") {
+    return <Badge variant="danger">Refunded</Badge>;
   }
 
   if (status === "CONFIRMED") {
     return <Badge variant="primary">Confirmed</Badge>;
+  }
+
+  if (status === "PAID") {
+    return <Badge variant="primary">Paid</Badge>;
   }
 
   if (status === "PENDING") {
@@ -649,6 +724,26 @@ function Tip({ text }: { text: string }) {
   );
 }
 
+function canJoinBooking(booking: {
+  startTime: Date;
+  endTime: Date;
+  status: string;
+  callRoom: {
+    roomUrl: string;
+  } | null;
+}) {
+  const now = new Date();
+  const joinWindowStart = new Date(booking.startTime.getTime() - 10 * 60 * 1000);
+  const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
+
+  return (
+    booking.status === "CONFIRMED" &&
+    Boolean(booking.callRoom?.roomUrl) &&
+    now >= joinWindowStart &&
+    now <= joinWindowEnd
+  );
+}
+
 function getDurationMinutes(startTime: Date, endTime: Date) {
   return Math.max(
     Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
@@ -668,4 +763,83 @@ function formatDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatStatus(status: string) {
+  if (status === "PENDING") {
+    return "Pending payment";
+  }
+
+  if (status === "PAID") {
+    return "Paid";
+  }
+
+  if (status === "CONFIRMED") {
+    return "Confirmed";
+  }
+
+  if (status === "COMPLETED") {
+    return "Completed";
+  }
+
+  if (status === "CANCELLED") {
+    return "Cancelled";
+  }
+
+  if (status === "REFUNDED") {
+    return "Refunded";
+  }
+
+  if (status === "DISPUTED") {
+    return "Disputed";
+  }
+
+  return status.toLowerCase();
+}
+
+function getTopMessage({
+  payment,
+  booked,
+  error,
+}: {
+  payment?: string;
+  booked?: string;
+  error?: string;
+}) {
+  if (payment === "success") {
+    return {
+      variant: "success" as const,
+      text: "Payment received. Your call is now confirmed.",
+    };
+  }
+
+  if (booked) {
+    return {
+      variant: "success" as const,
+      text: "Booking saved. Complete payment to confirm your call.",
+    };
+  }
+
+  if (error === "booking-expired") {
+    return {
+      variant: "danger" as const,
+      text: "This booking expired. Please choose a new time slot.",
+    };
+  }
+
+  if (error === "booking-not-found") {
+    return {
+      variant: "danger" as const,
+      text: "This booking could not be found.",
+    };
+  }
+
+  if (error === "cannot-cancel") {
+    return {
+      variant: "danger" as const,
+      text: "This booking cannot be cancelled anymore.",
+    };
+  }
+
+  return null;
 }

@@ -78,11 +78,11 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
   if (booking.status !== "CONFIRMED") {
     return (
       <CallBlockedPage
-        title="This call is not confirmed yet."
+        title="This call is not open yet."
         text={getBlockedStatusText(booking.status)}
         backHref={backHref}
         timeLabel="Booking status"
-        timeValue={booking.status.toLowerCase()}
+        timeValue={formatStatus(booking.status)}
       />
     );
   }
@@ -119,22 +119,41 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     );
   }
 
-  if (now > joinClosesAt && !isAdmin) {
-    return (
-      <CallBlockedPage
-        title="This call room is closed."
-        text="The video room is no longer available for this booking."
-        backHref={backHref}
-        timeLabel="Call ended"
-        timeValue={formatDateTime(booking.endTime)}
-      />
-    );
-  }
-
-  if (booking.callRoom.status !== "LIVE") {
-    await prisma.callRoom.update({
+ if (now > joinClosesAt && !isAdmin) {
+  if (booking.callRoom.status !== "ENDED") {
+    await prisma.callRoom.updateMany({
       where: {
         bookingId: booking.id,
+        status: {
+          not: "ENDED",
+        },
+      },
+      data: {
+        status: "ENDED",
+        endsAt: booking.endTime,
+      },
+    });
+  }
+
+  return (
+    <CallBlockedPage
+      title="This call room is closed."
+      text="The video room is no longer available for this booking."
+      backHref={backHref}
+      timeLabel="Call ended"
+      timeValue={formatDateTime(booking.endTime)}
+    />
+   );
+ }
+
+
+  if (booking.callRoom.status !== "LIVE") {
+    await prisma.callRoom.updateMany({
+      where: {
+        bookingId: booking.id,
+        status: {
+          not: "LIVE",
+        },
       },
       data: {
         status: "LIVE",
@@ -184,13 +203,13 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
 
               <InfoBox
                 icon={UserRound}
-                label="Buyer"
+                label="Client"
                 value={booking.buyer.name ?? booking.buyer.email}
               />
 
               <InfoBox
                 icon={ShieldCheck}
-                label="Expert"
+                label="Provider"
                 value={booking.expert.user.name ?? booking.expert.user.email}
               />
             </div>
@@ -228,7 +247,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
                 href={booking.callRoom.roomUrl}
                 className="btn btn-primary w-full"
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
                 Join video room
                 <ExternalLink size={18} />
@@ -240,10 +259,10 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
             </div>
 
             <div className="mt-6 grid gap-3">
-              <SideFact label="Status" value={booking.status.toLowerCase()} />
+              <SideFact label="Status" value={formatStatus(booking.status)} />
               <SideFact
                 label="Room status"
-                value={booking.callRoom.status.toLowerCase()}
+                value={formatRoomStatus(booking.callRoom.status)}
               />
               <SideFact
                 label="Duration"
@@ -385,6 +404,7 @@ function getBlockedStatusText(status: string) {
     return "The video room opens only after payment is confirmed.";
   }
 
+
   if (status === "COMPLETED") {
     return "This call has already been marked as completed.";
   }
@@ -419,4 +439,50 @@ function formatDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatStatus(status: string) {
+  if (status === "PENDING") {
+    return "Pending payment";
+  }
+
+ 
+
+  if (status === "CONFIRMED") {
+    return "Confirmed";
+  }
+
+  if (status === "COMPLETED") {
+    return "Completed";
+  }
+
+  if (status === "CANCELLED") {
+    return "Cancelled";
+  }
+
+  if (status === "REFUNDED") {
+    return "Refunded";
+  }
+
+  if (status === "DISPUTED") {
+    return "Disputed";
+  }
+
+  return status.toLowerCase();
+}
+
+function formatRoomStatus(status: string) {
+  if (status === "CREATED") {
+    return "Created";
+  }
+
+  if (status === "LIVE") {
+    return "Live";
+  }
+
+  if (status === "ENDED") {
+    return "Ended";
+  }
+
+  return status.toLowerCase();
 }

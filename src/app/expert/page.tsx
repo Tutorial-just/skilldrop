@@ -28,6 +28,13 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
+import { UnreadNotificationsCard } from "@/components/notifications/unread-notifications-card";
+
+type ExpertDashboardPageProps = {
+  searchParams?: Promise<{
+    profile?: string;
+  }>;
+};
 
 const workspaceLinks = [
   {
@@ -80,8 +87,11 @@ const workspaceLinks = [
   },
 ];
 
-export default async function ExpertDashboardPage() {
+export default async function ExpertDashboardPage({
+  searchParams,
+}: ExpertDashboardPageProps) {
   const { user } = await requireRole(["expert", "admin"]);
+  const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const email = user.email?.toLowerCase();
 
@@ -145,11 +155,27 @@ export default async function ExpertDashboardPage() {
   const openSlots = expert.availability.filter((slot) => !slot.isBooked);
   const nextOpenSlots = openSlots.slice(0, 8);
 
-  const upcomingBookings = expert.bookings.filter(
-    (booking) =>
-      booking.startTime >= now &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED",
+  const upcomingBookings = expert.bookings
+    .filter(
+      (booking) =>
+        booking.startTime >= now &&
+        booking.status !== "CANCELLED" &&
+        booking.status !== "REFUNDED" &&
+        booking.status !== "COMPLETED" &&
+        booking.status !== "DISPUTED",
+    )
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+  const pendingBookings = expert.bookings.filter(
+    (booking) => booking.status === "PENDING",
+  );
+
+  const paidBookings = expert.bookings.filter(
+    (booking) => booking.status === "PAID",
+  );
+
+  const confirmedBookings = expert.bookings.filter(
+    (booking) => booking.status === "CONFIRMED",
   );
 
   const completedBookings = expert.bookings.filter(
@@ -173,7 +199,7 @@ export default async function ExpertDashboardPage() {
   const nextBooking = todaysBookings[0] ?? upcomingBookings[0] ?? null;
   const nextTodayOpenSlot = todaysOpenSlots[0] ?? null;
 
-  const upcomingRevenueCents = upcomingBookings.reduce(
+  const upcomingRevenueCents = confirmedBookings.reduce(
     (sum, booking) => sum + booking.priceCents,
     0,
   );
@@ -239,12 +265,25 @@ export default async function ExpertDashboardPage() {
   const completedChecklist = checklist.filter((item) => item.done).length;
   const checklistProgress = Math.round((completedChecklist / checklist.length) * 100);
 
+  const providerName = expert.user.name ?? "Provider";
+  const avatarLetter = (
+    expert.user.name?.charAt(0) ||
+    expert.user.email.charAt(0) ||
+    "P"
+  ).toUpperCase();
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
 
         <div className="relative p-6 md:p-8 lg:p-10">
+          {resolvedSearchParams.profile === "created" ? (
+            <div className="mb-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+              Your provider profile is live. Add availability so clients can book your calls.
+            </div>
+          ) : null}
+
           <div className="grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
               <Badge variant={expert.isVerified ? "success" : "accent"}>
@@ -262,7 +301,7 @@ export default async function ExpertDashboardPage() {
               </Badge>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Welcome back, {expert.user.name ?? "Provider"}.
+                Welcome back, {providerName}.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
@@ -303,7 +342,7 @@ export default async function ExpertDashboardPage() {
 
             <MetricCard
               icon={CircleDollarSign}
-              label="Upcoming value"
+              label="Confirmed value"
               value={formatMoney(upcomingRevenueCents)}
               hint="Before commission"
             />
@@ -374,7 +413,7 @@ export default async function ExpertDashboardPage() {
                     </p>
 
                     <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                      {nextBooking.callRoom?.roomUrl ? (
+                      {canJoinBooking(nextBooking) ? (
                         <Link
                           href={`/calls/${nextBooking.id}`}
                           className="btn btn-primary"
@@ -388,6 +427,18 @@ export default async function ExpertDashboardPage() {
                         View booking
                       </Link>
                     </div>
+
+                    {nextBooking.status === "PENDING" ? (
+                      <p className="mt-4 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-3 text-sm font-bold text-[var(--warning)]">
+                        Waiting for client payment.
+                      </p>
+                    ) : null}
+
+                    {nextBooking.status === "PAID" ? (
+                      <p className="mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]">
+                        Payment received. Confirm this booking from your bookings page.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ) : (
@@ -569,8 +620,8 @@ export default async function ExpertDashboardPage() {
                 </h2>
 
                 <p className="mt-3 text-sm leading-6 text-muted">
-                  Verification appears after 3 successful calls and rating of at
-                  least 3.8.
+                  Verification appears automatically after 3 successful calls and
+                  a rating of at least 3.8.
                 </p>
 
                 <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
@@ -659,7 +710,7 @@ export default async function ExpertDashboardPage() {
 
                   <div className="mt-5 grid gap-3">
                     <MoneyRow
-                      label="Upcoming value"
+                      label="Confirmed value"
                       value={formatMoney(upcomingRevenueCents)}
                     />
 
@@ -672,6 +723,16 @@ export default async function ExpertDashboardPage() {
                       label="Active offers"
                       value={String(activeServices.length)}
                     />
+
+                    <MoneyRow
+                      label="Waiting payment"
+                      value={String(pendingBookings.length)}
+                    />
+
+                    <MoneyRow
+                      label="Paid pending confirmation"
+                      value={String(paidBookings.length)}
+                    />
                   </div>
                 </Card>
 
@@ -683,16 +744,16 @@ export default async function ExpertDashboardPage() {
 
                   <div className="mt-5 flex items-start gap-4">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-black text-white">
-                      {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
+                      {avatarLetter}
                     </div>
 
                     <div className="min-w-0">
                       <p className="font-black tracking-[-0.02em]">
-                        {expert.user.name ?? "Provider"}
+                        {providerName}
                       </p>
 
                       <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">
-                        {expert.headline}
+                        {expert.headline || "Practical help through short calls"}
                       </p>
                     </div>
                   </div>
@@ -723,7 +784,8 @@ export default async function ExpertDashboardPage() {
               </div>
             </div>
           </div>
-
+          <UnreadNotificationsCard userId={expert.user.id} email={expert.user.email} />
+          
           <Card soft className="p-5 md:p-6">
             <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
@@ -894,6 +956,26 @@ function MoneyRow({ label, value }: { label: string; value: string }) {
       <p className="text-sm font-bold text-muted">{label}</p>
       <p className="font-black">{value}</p>
     </div>
+  );
+}
+
+function canJoinBooking(booking: {
+  startTime: Date;
+  endTime: Date;
+  status: string;
+  callRoom: {
+    roomUrl: string;
+  } | null;
+}) {
+  const now = new Date();
+  const joinWindowStart = new Date(booking.startTime.getTime() - 10 * 60 * 1000);
+  const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
+
+  return (
+    booking.status === "CONFIRMED" &&
+    Boolean(booking.callRoom?.roomUrl) &&
+    now >= joinWindowStart &&
+    now <= joinWindowEnd
   );
 }
 

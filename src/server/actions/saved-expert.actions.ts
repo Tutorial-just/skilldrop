@@ -16,19 +16,36 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-export async function saveExpertAction(formData: FormData) {
+function getSafeReturnTo(value: string) {
+  if (!value) {
+    return "/buyer/saved";
+  }
+
+  if (!value.startsWith("/")) {
+    return "/buyer/saved";
+  }
+
+  if (value.startsWith("//")) {
+    return "/buyer/saved";
+  }
+
+  return value;
+}
+
+function revalidateSavedProviderPaths(expertId: string) {
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/saved");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
+}
+
+async function getCurrentBuyerRecord() {
   const { user } = await requireRole(["buyer", "admin"]);
 
   const email = user.email?.toLowerCase();
 
   if (!email) {
     redirect("/sign-in");
-  }
-
-  const expertId = getStringValue(formData, "expertId");
-
-  if (!expertId) {
-    redirect("/experts");
   }
 
   const buyer = await prisma.user.findUnique({
@@ -41,6 +58,18 @@ export async function saveExpertAction(formData: FormData) {
     redirect("/sign-in");
   }
 
+  return buyer;
+}
+
+export async function saveExpertAction(formData: FormData) {
+  const buyer = await getCurrentBuyerRecord();
+
+  const expertId = getStringValue(formData, "expertId");
+
+  if (!expertId) {
+    redirect("/experts");
+  }
+
   const expert = await prisma.expertProfile.findUnique({
     where: {
       id: expertId,
@@ -50,8 +79,8 @@ export async function saveExpertAction(formData: FormData) {
     },
   });
 
-  if (!expert) {
-    redirect("/experts");
+  if (!expert || expert.status !== "APPROVED") {
+    redirect("/experts?error=provider-not-found");
   }
 
   if (expert.userId === buyer.id) {
@@ -72,38 +101,19 @@ export async function saveExpertAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/saved");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expertId}`);
+  revalidateSavedProviderPaths(expertId);
 
   redirect(`/experts/${expertId}?saved=1`);
 }
 
 export async function unsaveExpertAction(formData: FormData) {
-  const { user } = await requireRole(["buyer", "admin"]);
-
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
+  const buyer = await getCurrentBuyerRecord();
 
   const expertId = getStringValue(formData, "expertId");
-  const returnTo = getStringValue(formData, "returnTo") || "/buyer/saved";
+  const returnTo = getSafeReturnTo(getStringValue(formData, "returnTo"));
 
   if (!expertId) {
     redirect(returnTo);
-  }
-
-  const buyer = await prisma.user.findUnique({
-    where: {
-      email,
-    },
-  });
-
-  if (!buyer) {
-    redirect("/sign-in");
   }
 
   await prisma.savedExpert.deleteMany({
@@ -113,10 +123,7 @@ export async function unsaveExpertAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/saved");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expertId}`);
+  revalidateSavedProviderPaths(expertId);
 
   redirect(returnTo);
 }

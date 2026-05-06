@@ -1,34 +1,121 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Sparkles, X } from "lucide-react";
 
 type TagInputProps = {
   name: string;
   label: string;
   defaultValue?: string[];
+  suggestions?: string[];
   placeholder?: string;
   helperText?: string;
   required?: boolean;
+  maxItems?: number;
 };
 
 export function TagInput({
   name,
   label,
   defaultValue = [],
+  suggestions = [],
   placeholder = "Type and press Enter",
   helperText,
   required = false,
+  maxItems = 18,
 }: TagInputProps) {
-  const [items, setItems] = useState<string[]>(defaultValue);
+  const hiddenInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [items, setItems] = useState<string[]>(() =>
+    normalizeInitialItems(defaultValue).slice(0, maxItems),
+  );
+
   const [value, setValue] = useState("");
 
   const serializedValue = useMemo(() => items.join(", "), [items]);
 
+  const normalizedItems = useMemo(
+    () => items.map((item) => item.toLowerCase()),
+    [items],
+  );
+
+  const filteredSuggestions = useMemo(() => {
+    const query = value.trim().toLowerCase();
+
+    return suggestions
+      .map((suggestion) => normalizeTag(suggestion))
+      .filter(Boolean)
+      .filter(
+        (suggestion, index, array) =>
+          array.findIndex(
+            (item) => item.toLowerCase() === suggestion.toLowerCase(),
+          ) === index,
+      )
+      .filter((suggestion) => !normalizedItems.includes(suggestion.toLowerCase()))
+      .filter((suggestion) => {
+        if (!query) {
+          return true;
+        }
+
+        return suggestion.toLowerCase().includes(query);
+      })
+      .slice(0, 8);
+  }, [normalizedItems, suggestions, value]);
+
+  useEffect(() => {
+    const hiddenInput = hiddenInputRef.current;
+
+    if (!hiddenInput) {
+      return;
+    }
+
+    function syncFromHiddenInput() {
+      if (!hiddenInput) {
+        return;
+      }
+
+      const nextItems = parseSerializedTags(hiddenInput.value).slice(0, maxItems);
+
+      setItems((currentItems) => {
+        if (areSameTags(currentItems, nextItems)) {
+          return currentItems;
+        }
+
+        return nextItems;
+      });
+    }
+
+    syncFromHiddenInput();
+
+    hiddenInput.addEventListener("input", syncFromHiddenInput);
+    hiddenInput.addEventListener("change", syncFromHiddenInput);
+
+    return () => {
+      hiddenInput.removeEventListener("input", syncFromHiddenInput);
+      hiddenInput.removeEventListener("change", syncFromHiddenInput);
+    };
+  }, [maxItems]);
+
+  function updateItems(nextItems: string[]) {
+    setItems(nextItems);
+
+    window.requestAnimationFrame(() => {
+      const hiddenInput = hiddenInputRef.current;
+
+      if (!hiddenInput) {
+        return;
+      }
+
+      hiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
+      hiddenInput.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
   function addItem(rawValue: string) {
-    const nextValue = rawValue.trim();
+    const nextValue = normalizeTag(rawValue);
 
     if (!nextValue) {
+      setValue("");
       return;
     }
 
@@ -41,21 +128,42 @@ export function TagInput({
       return;
     }
 
-    setItems((currentItems) => [...currentItems, nextValue]);
+    if (items.length >= maxItems) {
+      setValue("");
+      return;
+    }
+
+    updateItems([...items, nextValue]);
     setValue("");
   }
 
   function removeItem(itemToRemove: string) {
-    setItems((currentItems) =>
-      currentItems.filter((item) => item !== itemToRemove),
-    );
+    updateItems(items.filter((item) => item !== itemToRemove));
   }
 
   return (
     <div>
-      <label className="text-sm font-black">{label}</label>
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-sm font-black">{label}</label>
 
-      <input type="hidden" name={name} value={serializedValue} />
+        <p
+          className={
+            required && items.length === 0
+              ? "text-xs font-black text-[var(--danger)]"
+              : "text-xs font-bold text-muted"
+          }
+        >
+          {items.length}/{maxItems}
+        </p>
+      </div>
+
+      <input
+        ref={hiddenInputRef}
+        type="hidden"
+        name={name}
+        value={serializedValue}
+        readOnly
+      />
 
       <div className="mt-2 rounded-[24px] border border-[var(--border)] bg-white/64 p-3 transition focus-within:border-[var(--primary)]/50 focus-within:shadow-[0_0_0_4px_rgba(139,92,246,0.12)]">
         <div className="flex flex-wrap gap-2">
@@ -111,13 +219,75 @@ export function TagInput({
             </button>
           </div>
         </div>
+
+        {filteredSuggestions.length > 0 ? (
+          <div className="mt-3 rounded-[20px] border border-[var(--border)] bg-white/70 p-3">
+            <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-muted">
+              <Sparkles size={13} />
+              Suggestions
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {filteredSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    addItem(suggestion);
+                  }}
+                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)] transition hover:border-[var(--primary)]/30 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
+                >
+                  #{suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      {helperText ? (
+      {required && items.length === 0 ? (
+        <p className="mt-2 text-xs font-black leading-5 text-[var(--danger)]">
+          Add at least one item.
+        </p>
+      ) : helperText ? (
         <p className="mt-2 text-xs font-semibold leading-5 text-muted">
           {helperText}
         </p>
       ) : null}
     </div>
   );
+}
+
+function normalizeInitialItems(items: string[]) {
+  return items
+    .map((item) => normalizeTag(item))
+    .filter(Boolean)
+    .filter(
+      (item, index, array) =>
+        array.findIndex(
+          (currentItem) => currentItem.toLowerCase() === item.toLowerCase(),
+        ) === index,
+    );
+}
+
+function parseSerializedTags(value: string) {
+  return normalizeInitialItems(value.split(","));
+}
+
+function normalizeTag(value: string) {
+  return value
+    .replace(/^#+/, "")
+    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}\s+-]/gu, "")
+    .trim()
+    .slice(0, 40);
+}
+
+function areSameTags(first: string[], second: string[]) {
+  if (first.length !== second.length) {
+    return false;
+  }
+
+  return first.every((item, index) => item === second[index]);
 }

@@ -14,16 +14,19 @@ model User {
   avatarUrl String?
   role      UserRole @default(BUYER)
 
-  expertProfile ExpertProfile?
-  bookings      Booking[] @relation("BuyerBookings")
-  reviews       Review[]
-  savedExperts  SavedExpert[]
+  expertProfile  ExpertProfile?
+  bookings       Booking[] @relation("BuyerBookings")
+  reviews        Review[]
+  savedExperts   SavedExpert[]
   adminAuditLogs AdminAuditLog[]
-  buyerSettings BuyerSettings?
+  buyerSettings  BuyerSettings?
   notifications  Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([createdAt])
 }
 
 enum UserRole {
@@ -33,18 +36,18 @@ enum UserRole {
 }
 
 model ExpertProfile {
-  id          String @id @default(cuid())
-  userId      String @unique
-  user        User   @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  headline    String
-  bio         String
-  country     String?
-  timezone    String
-  languages   String[]
-  skills      String[]
+  headline  String
+  bio       String
+  country   String?
+  timezone  String
+  languages String[]
+  skills    String[]
   tags      String[] @default([])
-  status      ExpertStatus @default(PENDING)
+  status    ExpertStatus @default(PENDING)
 
   isVerified       Boolean   @default(false)
   verifiedAt       DateTime?
@@ -60,10 +63,17 @@ model ExpertProfile {
   availability Availability[]
   bookings     Booking[] @relation("ExpertBookings")
   reviews      Review[]
-  savedBy SavedExpert[]
+  savedBy      SavedExpert[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([status, isVerified])
+  @@index([rating])
+  @@index([totalSessions])
+  @@index([createdAt])
+  @@index([country])
 }
 
 enum ExpertStatus {
@@ -85,26 +95,37 @@ model Category {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([createdAt])
 }
 
 model Service {
-  id              String @id @default(cuid())
-  expertId        String
-  expert          ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
-  categoryId      String?
-  category        Category? @relation(fields: [categoryId], references: [id])
+  id       String        @id @default(cuid())
+  expertId String
+  expert   ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   title           String
   description     String
   durationMinutes Int
   priceCents      Int
-  currency        String @default("EUR")
+  currency        String  @default("EUR")
   isActive        Boolean @default(true)
 
   bookings Booking[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([expertId])
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([priceCents])
+  @@index([durationMinutes])
+  @@index([createdAt])
 }
 
 model Availability {
@@ -121,6 +142,13 @@ model Availability {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([expertId])
+  @@index([startTime])
+  @@index([endTime])
+  @@index([isBooked])
+  @@index([expertId, startTime])
+  @@index([expertId, isBooked])
 }
 
 model Booking {
@@ -143,6 +171,11 @@ model Booking {
   status    BookingStatus @default(PENDING)
 
   expiresAt DateTime?
+  paidAt    DateTime?
+  cancelledAt DateTime?
+  completedAt DateTime?
+  refundedAt DateTime?
+
   disputeReason String?
   disputeNote   String?
   disputedAt    DateTime?
@@ -150,13 +183,30 @@ model Booking {
   priceCents Int
   currency   String @default("EUR")
 
+  platformFeeCents Int?
+  providerNetCents Int?
+  clientServiceFeeCents Int?
+  clientTotalCents      Int?
+
   stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
 
   review   Review?
   callRoom CallRoom?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([buyerId])
+  @@index([expertId])
+  @@index([serviceId])
+  @@index([availabilityId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([startTime])
+  @@index([endTime])
+  @@index([stripeCheckoutSessionId])
+  @@index([stripePaymentIntentId])
 }
 
 enum BookingStatus {
@@ -189,22 +239,33 @@ model Review {
   comment         String?
 
   createdAt DateTime @default(now())
+
+  @@index([buyerId])
+  @@index([expertId])
+  @@index([rating])
+  @@index([createdAt])
 }
 model CallRoom {
-  id        String         @id @default(cuid())
-  bookingId String        @unique
-  booking   Booking       @relation(fields: [bookingId], references: [id])
+  id String @id @default(cuid())
 
-  provider  String        @default("DAILY")
-  roomName  String
-  roomUrl   String
-  status    CallRoomStatus @default(CREATED)
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
-  startsAt  DateTime?
-  endsAt    DateTime?
+  provider String @default("DAILY")
+  roomName String
+  roomUrl  String
+  status   CallRoomStatus @default(CREATED)
+
+  startsAt DateTime?
+  endsAt   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([startsAt])
+  @@index([createdAt])
 }
 
 enum CallRoomStatus {
@@ -212,11 +273,12 @@ enum CallRoomStatus {
   LIVE
   ENDED
 }
-model SavedExpert {
-  id       String @id @default(cuid())
 
-  buyerId  String
-  buyer    User @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+model SavedExpert {
+  id String @id @default(cuid())
+
+  buyerId String
+  buyer   User @relation(fields: [buyerId], references: [id], onDelete: Cascade)
 
   expertId String
   expert   ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
@@ -224,9 +286,13 @@ model SavedExpert {
   createdAt DateTime @default(now())
 
   @@unique([buyerId, expertId])
+  @@index([buyerId])
+  @@index([expertId])
+  @@index([createdAt])
 }
+
 model BuyerSettings {
-  id     String @id @default(cuid())
+  id String @id @default(cuid())
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -244,7 +310,11 @@ model BuyerSettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
 }
+
 model AdminAuditLog {
   id String @id @default(cuid())
 
@@ -268,6 +338,7 @@ model AdminAuditLog {
   @@index([entityId])
   @@index([createdAt])
 }
+
 model Notification {
   id String @id @default(cuid())
 
@@ -282,8 +353,8 @@ model Notification {
 
   metadata Json?
 
-  isRead Boolean @default(false)
-  readAt  DateTime?
+  isRead Boolean   @default(false)
+  readAt DateTime?
 
   createdAt DateTime @default(now())
 
@@ -291,5 +362,15 @@ model Notification {
   @@index([email])
   @@index([type])
   @@index([isRead])
+  @@index([createdAt])
+}
+model StripeEvent {
+  id        String   @id
+  type      String
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([processed])
   @@index([createdAt])
 }

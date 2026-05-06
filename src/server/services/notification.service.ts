@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 
 export type NotificationType =
   | "BOOKING_CREATED"
+  | "BOOKING_PENDING_PAYMENT"
+  | "BOOKING_EXPIRED"
   | "PAYMENT_CONFIRMED"
   | "BOOKING_CANCELLED"
   | "CALL_COMPLETED"
@@ -20,6 +22,31 @@ type NotificationPayload = {
   metadata?: Prisma.InputJsonValue;
 };
 
+type UserNotificationPayload = {
+  userId: string;
+  email?: string | null;
+  type: NotificationType;
+  subject: string;
+  message: string;
+  metadata?: Prisma.InputJsonValue;
+};
+
+function normalizeEmail(email?: string | null) {
+  const normalized = email?.trim().toLowerCase();
+
+  return normalized || null;
+}
+
+function normalizeText(value: string, fallback: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  return normalized || fallback;
+}
+
+function normalizeMetadata(metadata?: Prisma.InputJsonValue) {
+  return metadata ?? {};
+}
+
 export async function sendNotification({
   to,
   type,
@@ -27,7 +54,7 @@ export async function sendNotification({
   message,
   metadata,
 }: NotificationPayload) {
-  const email = to?.toLowerCase() ?? null;
+  const email = normalizeEmail(to);
 
   let userId: string | null = null;
 
@@ -49,12 +76,32 @@ export async function sendNotification({
       userId,
       email,
       type,
-      subject,
-      message,
-      metadata: metadata ?? {},
+      subject: normalizeText(subject, "SkillDrop notification"),
+      message: normalizeText(message, "You have a new SkillDrop update."),
+      metadata: normalizeMetadata(metadata),
     },
   });
 
   // Later we can connect Resend / SendGrid here.
   // For now this stores the notification inside SkillDrop.
+}
+
+export async function createNotificationForUser({
+  userId,
+  email,
+  type,
+  subject,
+  message,
+  metadata,
+}: UserNotificationPayload) {
+  await prisma.notification.create({
+    data: {
+      userId,
+      email: normalizeEmail(email),
+      type,
+      subject: normalizeText(subject, "SkillDrop notification"),
+      message: normalizeText(message, "You have a new SkillDrop update."),
+      metadata: normalizeMetadata(metadata),
+    },
+  });
 }

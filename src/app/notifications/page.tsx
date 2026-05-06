@@ -1,15 +1,18 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   ArrowLeft,
   Bell,
+  BellRing,
   CalendarDays,
   CheckCircle2,
-  CircleDollarSign,
-  Eye,
+  Clock3,
+  ExternalLink,
   MessageCircle,
   ShieldAlert,
   Star,
-  Video,
+  WalletCards,
+  XCircle,
 } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/get-current-user";
@@ -17,27 +20,17 @@ import { prisma } from "@/lib/prisma";
 import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
-  markNotificationUnreadAction,
 } from "@/server/actions/notification.actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-type NotificationsPageProps = {
-  searchParams?: Promise<{
-    filter?: string;
-  }>;
-};
-
-export default async function NotificationsPage({
-  searchParams,
-}: NotificationsPageProps) {
+export default async function NotificationsPage() {
   const { user } = await requireRole(["buyer", "expert", "admin"]);
-  const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const email = user.email?.toLowerCase();
 
   if (!email) {
-    return null;
+    redirect("/sign-in");
   }
 
   const currentUser = await prisma.user.findUnique({
@@ -47,191 +40,144 @@ export default async function NotificationsPage({
   });
 
   if (!currentUser) {
-    return null;
+    redirect("/sign-in");
   }
 
-  const filter = normalizeFilter(resolvedSearchParams.filter);
+  const notifications = await prisma.notification.findMany({
+    where: {
+      OR: [
+        {
+          userId: currentUser.id,
+        },
+        {
+          email: currentUser.email,
+        },
+      ],
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 80,
+  });
 
-  const notificationWhere = {
-    OR: [
-      {
-        userId: currentUser.id,
-      },
-      {
-        email: currentUser.email,
-      },
-    ],
-    ...(filter === "unread"
-      ? {
-          isRead: false,
-        }
-      : {}),
-    ...(filter === "read"
-      ? {
-          isRead: true,
-        }
-      : {}),
-  };
+  const unreadCount = notifications.filter(
+    (notification) => !notification.isRead,
+  ).length;
 
-  const [notifications, totalCount, unreadCount, readCount] = await Promise.all([
-    prisma.notification.findMany({
-      where: notificationWhere,
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 100,
-    }),
-    prisma.notification.count({
-      where: {
-        OR: [
-          {
-            userId: currentUser.id,
-          },
-          {
-            email: currentUser.email,
-          },
-        ],
-      },
-    }),
-    prisma.notification.count({
-      where: {
-        isRead: false,
-        OR: [
-          {
-            userId: currentUser.id,
-          },
-          {
-            email: currentUser.email,
-          },
-        ],
-      },
-    }),
-    prisma.notification.count({
-      where: {
-        isRead: true,
-        OR: [
-          {
-            userId: currentUser.id,
-          },
-          {
-            email: currentUser.email,
-          },
-        ],
-      },
-    }),
-  ]);
-
-  const returnTo = `/notifications${filter === "all" ? "" : `?filter=${filter}`}`;
+  const backHref = getDashboardHref(currentUser.role);
 
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
 
-        <div className="relative container-page py-8 md:py-10 lg:py-14">
+        <div className="relative p-6 md:p-8 lg:p-10">
           <Link
-            href={getBackHref(currentUser.role)}
+            href={backHref}
             className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
           >
             <ArrowLeft size={16} />
             Back to dashboard
           </Link>
 
-          <Badge variant="primary" className="mt-8">
-            <Bell size={14} />
-            Notifications
-          </Badge>
-
-          <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end">
+          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
-              <h1 className="heading-lg max-w-4xl text-balance">
-                Your SkillDrop notifications.
+              <Badge variant={unreadCount > 0 ? "accent" : "primary"}>
+                {unreadCount > 0 ? <BellRing size={14} /> : <Bell size={14} />}
+                Notifications
+              </Badge>
+
+              <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+                Your SkillDrop updates.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Booking updates, payments, reviews, refunds, disputes and call
-                reminders appear here.
+                Booking updates, payment confirmations, review requests and
+                important account activity appear here.
               </p>
             </div>
 
-            {unreadCount > 0 ? (
-              <form action={markAllNotificationsReadAction}>
-                <input type="hidden" name="returnTo" value={returnTo} />
-
-                <button type="submit" className="btn btn-secondary">
-                  Mark all as read
-                </button>
-              </form>
-            ) : null}
+            <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
+              {unreadCount > 0 ? (
+                <form action={markAllNotificationsReadAction}>
+                  <button type="submit" className="btn btn-primary w-full">
+                    Mark all read
+                    <CheckCircle2 size={18} />
+                  </button>
+                </form>
+              ) : (
+                <Link href={backHref} className="btn btn-secondary">
+                  Dashboard
+                </Link>
+              )}
+            </div>
           </div>
 
           <div className="mt-8 grid gap-3 md:grid-cols-3">
-            <MiniStat label="Total" value={String(totalCount)} />
-            <MiniStat label="Unread" value={String(unreadCount)} />
-            <MiniStat label="Read" value={String(readCount)} />
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-2">
-            <FilterLink current={filter} value="all" label="All" />
-            <FilterLink
-              current={filter}
-              value="unread"
-              label={`Unread · ${unreadCount}`}
+            <MetricCard
+              label="Unread"
+              value={String(unreadCount)}
+              hint="Needs attention"
             />
-            <FilterLink
-              current={filter}
-              value="read"
-              label={`Read · ${readCount}`}
+
+            <MetricCard
+              label="Total"
+              value={String(notifications.length)}
+              hint="Latest updates"
+            />
+
+            <MetricCard
+              label="Account"
+              value={formatRole(currentUser.role)}
+              hint="Current workspace"
             />
           </div>
         </div>
       </section>
 
-      <section className="container-page py-8 md:py-10 lg:py-12">
-        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <p className="text-sm font-black text-muted">
-            Showing {notifications.length} notification
-            {notifications.length === 1 ? "" : "s"}
-          </p>
+      <section className="p-6 md:p-8 lg:p-10">
+        <Card className="p-5 md:p-6">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+              <Badge variant="primary">
+                <Bell size={14} />
+                Inbox
+              </Badge>
 
-          <Badge>Filter: {filter}</Badge>
-        </div>
-
-        <div className="grid gap-4">
-          {notifications.length > 0 ? (
-            notifications.map((notification) => (
-              <NotificationCard
-                key={notification.id}
-                notification={notification}
-                role={currentUser.role}
-                returnTo={returnTo}
-              />
-            ))
-          ) : (
-            <Card className="p-8 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
-                <Bell size={24} />
-              </div>
-
-              <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
-                No notifications found
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Recent notifications
               </h2>
 
-              <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
-                Important updates about bookings, calls and reviews will appear
-                here.
+              <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                Open the related page or mark updates as read when you are done.
               </p>
+            </div>
 
-              {filter !== "all" ? (
-                <div className="mt-5">
-                  <Link href="/notifications" className="btn btn-secondary">
-                    View all notifications
-                  </Link>
-                </div>
-              ) : null}
-            </Card>
-          )}
-        </div>
+            <Badge>{notifications.length} shown</Badge>
+          </div>
+
+          <div className="mt-6 grid gap-4">
+            {notifications.length > 0 ? (
+              notifications.map((notification) => (
+                <NotificationCard
+                  key={notification.id}
+                  notification={{
+                    id: notification.id,
+                    type: notification.type,
+                    subject: notification.subject,
+                    message: notification.message,
+                    metadata: notification.metadata,
+                    isRead: notification.isRead,
+                    createdAt: notification.createdAt,
+                  }}
+                  role={currentUser.role}
+                />
+              ))
+            ) : (
+              <EmptyState />
+            )}
+          </div>
+        </Card>
       </section>
     </main>
   );
@@ -240,7 +186,6 @@ export default async function NotificationsPage({
 function NotificationCard({
   notification,
   role,
-  returnTo,
 }: {
   notification: {
     id: string;
@@ -252,62 +197,61 @@ function NotificationCard({
     createdAt: Date;
   };
   role: string;
-  returnTo: string;
 }) {
+  const actionHref = getNotificationActionHref({
+    type: notification.type,
+    metadata: notification.metadata,
+    role,
+  });
+
   const Icon = getNotificationIcon(notification.type);
-  const smartLinks = getSmartLinks(notification.metadata, notification.type, role);
 
   return (
-    <Card
+    <div
       className={
         notification.isRead
-          ? "p-5 md:p-6"
-          : "border-[var(--primary)]/20 bg-[var(--primary-soft)] p-5 md:p-6"
+          ? "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
+          : "rounded-[26px] border border-[var(--primary)]/25 bg-[var(--primary-soft)] p-4"
       }
     >
-      <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
         <div className="flex gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[var(--primary-dark)]">
-            <Icon size={22} />
+          <div
+            className={
+              notification.isRead
+                ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-muted"
+                : "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-[var(--primary-dark)]"
+            }
+          >
+            <Icon size={21} />
           </div>
 
-          <div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={notification.isRead ? "accent" : "primary"}>
-                {notification.isRead ? "Read" : "Unread"}
-              </Badge>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge isRead={notification.isRead} />
+              <TypeBadge type={notification.type} />
 
-              <Badge>{formatNotificationType(notification.type)}</Badge>
-
-              <Badge>{formatDateTime(notification.createdAt)}</Badge>
+              <p className="text-xs font-bold text-muted">
+                {formatDateTime(notification.createdAt)}
+              </p>
             </div>
 
-            <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+            <h3 className="mt-3 text-xl font-black tracking-[-0.03em]">
               {notification.subject}
-            </h2>
+            </h3>
 
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted">
+            <p className="mt-2 text-sm font-semibold leading-6 text-muted">
               {notification.message}
             </p>
-
-            {smartLinks.length > 0 ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {smartLinks.map((link) => (
-                  <Link
-                    key={`${link.href}-${link.label}`}
-                    href={link.href}
-                    className={link.primary ? "btn btn-primary" : "btn btn-secondary"}
-                  >
-                    {link.label}
-                    {link.primary ? <Eye size={17} /> : null}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-2 md:min-w-[150px]">
+        <div className="flex shrink-0 flex-col gap-2 lg:min-w-[180px]">
+          <Link href={actionHref} className="btn btn-primary">
+            Open
+            <ExternalLink size={17} />
+          </Link>
+
           {!notification.isRead ? (
             <form action={markNotificationReadAction}>
               <input
@@ -315,167 +259,116 @@ function NotificationCard({
                 name="notificationId"
                 value={notification.id}
               />
-              <input type="hidden" name="returnTo" value={returnTo} />
 
               <button type="submit" className="btn btn-secondary w-full">
                 Mark read
               </button>
             </form>
-          ) : (
-            <form action={markNotificationUnreadAction}>
-              <input
-                type="hidden"
-                name="notificationId"
-                value={notification.id}
-              />
-              <input type="hidden" name="returnTo" value={returnTo} />
-
-              <button type="submit" className="btn btn-secondary w-full">
-                Mark unread
-              </button>
-            </form>
-          )}
+          ) : null}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
-function FilterLink({
-  current,
-  value,
+function MetricCard({
   label,
+  value,
+  hint,
 }: {
-  current: string;
-  value: "all" | "unread" | "read";
   label: string;
+  value: string;
+  hint: string;
 }) {
-  const isActive = current === value;
-  const href = value === "all" ? "/notifications" : `/notifications?filter=${value}`;
-
-  return (
-    <Link
-      href={href}
-      className={
-        isActive
-          ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
-          : "rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
-      }
-    >
-      {label}
-    </Link>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <Card soft className="p-4">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+
+      <p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p>
+
+      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
     </Card>
   );
 }
 
-function getSmartLinks(metadata: unknown, type: string, role: string) {
-  if (!metadata || typeof metadata !== "object") {
-    return [];
+function StatusBadge({ isRead }: { isRead: boolean }) {
+  if (isRead) {
+    return <Badge>Read</Badge>;
   }
 
-  const data = metadata as {
-    bookingId?: string;
-    expertId?: string;
-    reviewId?: string;
-  };
-
-  const links: {
-    label: string;
-    href: string;
-    primary?: boolean;
-  }[] = [];
-
-  if (type === "REVIEW_REQUESTED" && data.bookingId) {
-    links.push({
-      label: "Leave review",
-      href: `/buyer/reviews?bookingId=${data.bookingId}`,
-      primary: true,
-    });
-  }
-
-  if (type === "REVIEW_RECEIVED") {
-    if (role === "EXPERT") {
-      links.push({
-        label: "View statistics",
-        href: "/expert/stats",
-        primary: true,
-      });
-    }
-
-    if (data.expertId) {
-      links.push({
-        label: "View public profile",
-        href: `/experts/${data.expertId}`,
-      });
-    }
-  }
-
-  if (type === "PAYMENT_CONFIRMED" && data.bookingId) {
-    links.push({
-      label: "Open booking",
-      href: getBookingsHref(role),
-      primary: true,
-    });
-
-    links.push({
-      label: "Open call",
-      href: `/calls/${data.bookingId}`,
-    });
-  }
-
-  if (
-    (type === "BOOKING_CREATED" ||
-      type === "BOOKING_CANCELLED" ||
-      type === "BOOKING_REFUNDED" ||
-      type === "BOOKING_DISPUTED" ||
-      type === "CALL_COMPLETED") &&
-    data.bookingId
-  ) {
-    links.push({
-      label: "View bookings",
-      href: getBookingsHref(role),
-      primary: true,
-    });
-  }
-
-  if (type === "CALL_COMPLETED" && role === "BUYER" && data.bookingId) {
-    links.push({
-      label: "Leave review",
-      href: `/buyer/reviews?bookingId=${data.bookingId}`,
-    });
-  }
-
-  if (data.expertId && !links.some((link) => link.href === `/experts/${data.expertId}`)) {
-    links.push({
-      label: "View expert",
-      href: `/experts/${data.expertId}`,
-    });
-  }
-
-  return links;
+  return (
+    <Badge variant="accent">
+      <BellRing size={14} />
+      New
+    </Badge>
+  );
 }
 
-function getNotificationIcon(type: string) {
-  if (type === "PAYMENT_CONFIRMED" || type === "BOOKING_REFUNDED") {
-    return CircleDollarSign;
+function TypeBadge({ type }: { type: string }) {
+  if (type === "PAYMENT_CONFIRMED") {
+    return <Badge variant="success">Payment confirmed</Badge>;
   }
 
-  if (type === "BOOKING_CREATED" || type === "BOOKING_CANCELLED") {
-    return CalendarDays;
+  if (type === "BOOKING_CREATED") {
+    return <Badge variant="primary">Booking created</Badge>;
+  }
+
+  if (type === "BOOKING_PENDING_PAYMENT") {
+    return <Badge variant="accent">Waiting payment</Badge>;
+  }
+
+  if (type === "BOOKING_EXPIRED") {
+    return <Badge variant="danger">Expired</Badge>;
+  }
+
+  if (type === "BOOKING_CANCELLED") {
+    return <Badge variant="danger">Cancelled</Badge>;
   }
 
   if (type === "CALL_COMPLETED") {
-    return Video;
+    return <Badge variant="success">Call completed</Badge>;
+  }
+
+  if (type === "REVIEW_REQUESTED") {
+    return <Badge variant="accent">Review requested</Badge>;
+  }
+
+  if (type === "REVIEW_RECEIVED") {
+    return <Badge variant="success">Review received</Badge>;
+  }
+
+  if (type === "BOOKING_REFUNDED") {
+    return <Badge variant="danger">Refunded</Badge>;
+  }
+
+  if (type === "BOOKING_DISPUTED") {
+    return <Badge variant="danger">Disputed</Badge>;
+  }
+
+  return <Badge>{formatNotificationType(type)}</Badge>;
+}
+
+function getNotificationIcon(type: string) {
+  if (type === "PAYMENT_CONFIRMED") {
+    return WalletCards;
+  }
+
+  if (type === "BOOKING_CREATED" || type === "BOOKING_PENDING_PAYMENT") {
+    return CalendarDays;
+  }
+
+  if (type === "BOOKING_EXPIRED") {
+    return Clock3;
+  }
+
+  if (type === "BOOKING_CANCELLED") {
+    return XCircle;
+  }
+
+  if (type === "CALL_COMPLETED") {
+    return CheckCircle2;
   }
 
   if (type === "REVIEW_REQUESTED" || type === "REVIEW_RECEIVED") {
@@ -489,23 +382,82 @@ function getNotificationIcon(type: string) {
   return MessageCircle;
 }
 
-function formatNotificationType(type: string) {
-  return type
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function EmptyState() {
+  return (
+    <div className="rounded-[26px] border border-dashed border-[var(--border-strong)] bg-white/55 p-8 text-center">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Bell size={28} />
+      </div>
+
+      <h3 className="mt-6 text-3xl font-black tracking-[-0.05em]">
+        No notifications yet.
+      </h3>
+
+      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+        Booking updates, payments, reviews and important messages will appear
+        here.
+      </p>
+    </div>
+  );
 }
 
-function normalizeFilter(filter?: string) {
-  if (filter === "unread" || filter === "read") {
-    return filter;
+function getNotificationActionHref({
+  type,
+  metadata,
+  role,
+}: {
+  type: string;
+  metadata: unknown;
+  role: string;
+}) {
+  const bookingId = getMetadataString(metadata, "bookingId");
+  const expertId = getMetadataString(metadata, "expertId");
+
+  if (type === "REVIEW_REQUESTED" && bookingId) {
+    return `/buyer/reviews?bookingId=${bookingId}`;
   }
 
-  return "all";
+  if (type === "REVIEW_RECEIVED") {
+    return "/expert/stats";
+  }
+
+  if (type === "BOOKING_CREATED" && bookingId) {
+    return `/buyer/bookings/${bookingId}/checkout`;
+  }
+
+  if (type === "BOOKING_EXPIRED" && expertId) {
+    return `/experts/${expertId}`;
+  }
+
+  if (
+    type === "PAYMENT_CONFIRMED" ||
+    type === "BOOKING_PENDING_PAYMENT" ||
+    type === "BOOKING_CANCELLED" ||
+    type === "CALL_COMPLETED" ||
+    type === "BOOKING_REFUNDED" ||
+    type === "BOOKING_DISPUTED"
+  ) {
+    return getBookingsHref(role);
+  }
+
+  return getDashboardHref(role);
 }
 
-function getBackHref(role: string) {
+function getMetadataString(metadata: unknown, key: string) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return "";
+  }
+
+  const value = (metadata as Record<string, unknown>)[key];
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return "";
+}
+
+function getDashboardHref(role: string) {
   if (role === "ADMIN") {
     return "/admin";
   }
@@ -527,6 +479,26 @@ function getBookingsHref(role: string) {
   }
 
   return "/buyer/bookings";
+}
+
+function formatRole(role: string) {
+  if (role === "ADMIN") {
+    return "Admin";
+  }
+
+  if (role === "EXPERT") {
+    return "Expert";
+  }
+
+  return "Buyer";
+}
+
+function formatNotificationType(type: string) {
+  return type
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function formatDateTime(date: Date) {

@@ -51,6 +51,8 @@ export default async function BuyerReviewsPage({
   }
 
   const selectedBookingId = resolvedSearchParams.bookingId ?? "";
+  const reviewedBookingId = resolvedSearchParams.reviewed ?? "";
+  const activeBookingId = selectedBookingId || reviewedBookingId;
 
   const completedBookings = await prisma.booking.findMany({
     where: {
@@ -74,11 +76,11 @@ export default async function BuyerReviewsPage({
   const waitingForReview = completedBookings
     .filter((booking) => !booking.review)
     .sort((a, b) => {
-      if (a.id === selectedBookingId) {
+      if (a.id === activeBookingId) {
         return -1;
       }
 
-      if (b.id === selectedBookingId) {
+      if (b.id === activeBookingId) {
         return 1;
       }
 
@@ -88,11 +90,11 @@ export default async function BuyerReviewsPage({
   const reviewedBookings = completedBookings
     .filter((booking) => booking.review)
     .sort((a, b) => {
-      if (a.id === selectedBookingId) {
+      if (a.id === activeBookingId) {
         return -1;
       }
 
-      if (b.id === selectedBookingId) {
+      if (b.id === activeBookingId) {
         return 1;
       }
 
@@ -101,6 +103,10 @@ export default async function BuyerReviewsPage({
 
   const selectedBooking = completedBookings.find(
     (booking) => booking.id === selectedBookingId,
+  );
+
+  const reviewedBooking = completedBookings.find(
+    (booking) => booking.id === reviewedBookingId,
   );
 
   return (
@@ -117,9 +123,13 @@ export default async function BuyerReviewsPage({
             Back to dashboard
           </Link>
 
-          {resolvedSearchParams.reviewed ? (
+          {reviewedBookingId ? (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Thank you. Your review was saved.
+              {reviewedBooking?.review
+                ? `Review saved for “${
+                    reviewedBooking.service?.title ?? "Booked call"
+                  }”.`
+                : "Thank you. Your review was saved."}
             </div>
           ) : null}
 
@@ -147,7 +157,7 @@ export default async function BuyerReviewsPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Your feedback helps good experts grow and helps other clients
+                Your feedback helps good providers grow and helps other clients
                 choose with confidence.
               </p>
             </div>
@@ -155,7 +165,7 @@ export default async function BuyerReviewsPage({
             <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
               <ButtonLink href="/experts">
                 <Search size={18} />
-                Find experts
+                Find providers
               </ButtonLink>
 
               <ButtonLink href="/buyer/bookings" variant="secondary">
@@ -203,7 +213,7 @@ export default async function BuyerReviewsPage({
                   You already reviewed this call.
                 </h2>
 
-                <p className="mt-2 text-sm leading-6 text-muted">
+                <p className="mt-2 text-sm font-bold leading-6 text-muted">
                   You can see your submitted review in the review history.
                 </p>
               </Card>
@@ -219,7 +229,7 @@ export default async function BuyerReviewsPage({
                 Calls to review
               </h2>
 
-              <p className="mt-2 text-sm leading-6 text-muted">
+              <p className="mt-2 text-sm font-bold leading-6 text-muted">
                 Leave detailed feedback after a completed call.
               </p>
 
@@ -254,8 +264,8 @@ export default async function BuyerReviewsPage({
               </h2>
 
               <div className="mt-5 grid gap-3">
-                <Tip text="Reviews help clients choose experts faster." />
-                <Tip text="Experts can become verified after successful calls and good ratings." />
+                <Tip text="Reviews help clients choose providers faster." />
+                <Tip text="Providers can become verified after successful calls and good ratings." />
                 <Tip text="Clear feedback makes the marketplace safer and more useful." />
               </div>
             </Card>
@@ -272,7 +282,7 @@ export default async function BuyerReviewsPage({
                     <ReviewedCard
                       key={booking.id}
                       booking={booking}
-                      highlighted={booking.id === selectedBookingId}
+                      highlighted={booking.id === activeBookingId}
                     />
                   ))
                 ) : (
@@ -297,10 +307,9 @@ function ReviewFormCard({
   booking: {
     id: string;
     startTime: Date;
-    endTime: Date;
     service: {
       title: string;
-    };
+    } | null;
     expert: {
       user: {
         name: string | null;
@@ -310,6 +319,9 @@ function ReviewFormCard({
   };
   highlighted: boolean;
 }) {
+  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const serviceTitle = booking.service?.title ?? "Booked call";
+
   return (
     <div
       className={
@@ -332,13 +344,13 @@ function ReviewFormCard({
           ) : null}
 
           <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-            {booking.service.title}
+            {serviceTitle}
           </h3>
 
           <p className="mt-2 text-sm font-semibold leading-6 text-muted">
             With{" "}
             <span className="font-black text-[var(--foreground)]">
-              {booking.expert.user.name ?? booking.expert.user.email}
+              {providerName}
             </span>
           </p>
 
@@ -410,7 +422,15 @@ function ReviewSelect({
     <div>
       <label className="text-sm font-black">{label}</label>
 
-      <select name={name} required={required} className="input mt-2">
+      <select
+        name={name}
+        required={required}
+        className="input mt-2"
+        defaultValue=""
+      >
+        <option value="" disabled>
+          Choose rating
+        </option>
         <option value="5">5 — Excellent</option>
         <option value="4">4 — Good</option>
         <option value="3">3 — Okay</option>
@@ -432,7 +452,7 @@ function ReviewScoreSelect({
     <div>
       <label className="text-xs font-black">{label}</label>
 
-      <select name={name} className="input mt-2">
+      <select name={name} className="input mt-2" defaultValue="">
         <option value="">—</option>
         <option value="5">5</option>
         <option value="4">4</option>
@@ -453,7 +473,7 @@ function ReviewedCard({
     startTime: Date;
     service: {
       title: string;
-    };
+    } | null;
     expert: {
       user: {
         name: string | null;
@@ -475,6 +495,9 @@ function ReviewedCard({
   if (!booking.review) {
     return null;
   }
+
+  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const serviceTitle = booking.service?.title ?? "Booked call";
 
   return (
     <div
@@ -506,12 +529,10 @@ function ReviewedCard({
         </p>
       </div>
 
-      <h3 className="mt-4 font-black tracking-[-0.02em]">
-        {booking.service.title}
-      </h3>
+      <h3 className="mt-4 font-black tracking-[-0.02em]">{serviceTitle}</h3>
 
       <p className="mt-1 text-sm font-semibold text-muted">
-        Expert: {booking.expert.user.name ?? booking.expert.user.email}
+        Provider: {providerName}
       </p>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-3">

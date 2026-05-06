@@ -13,10 +13,9 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { createStripeConnectAccountAction } from "@/server/actions/stripe-connect.actions";
+import { calculatePricingBreakdown } from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-
-const PLATFORM_FEE_RATE = 0.05;
 
 type ExpertEarningsPageProps = {
   searchParams?: Promise<{
@@ -50,7 +49,7 @@ export default async function ExpertEarningsPage({
   }
 
   if (!currentUser.expertProfile) {
-    redirect("/expert/onboarding");
+    redirect("/become-expert");
   }
 
   const bookings = await prisma.booking.findMany({
@@ -83,13 +82,37 @@ export default async function ExpertEarningsPage({
     0,
   );
 
-  const platformFeeCents = Math.round(grossCompletedCents * PLATFORM_FEE_RATE);
-  const netCompletedCents = grossCompletedCents - platformFeeCents;
+  const platformCommissionCompletedCents = completedBookings.reduce(
+    (sum, booking) =>
+      sum +
+      (booking.platformFeeCents ??
+        calculatePricingBreakdown(booking.priceCents).providerCommissionCents),
+    0,
+  );
+
+  const netCompletedCents = completedBookings.reduce(
+    (sum, booking) =>
+      sum +
+      (booking.providerNetCents ??
+        calculatePricingBreakdown(booking.priceCents).providerNetCents),
+    0,
+  );
 
   const upcomingGrossCents = confirmedBookings.reduce(
     (sum, booking) => sum + booking.priceCents,
     0,
   );
+
+  const upcomingNetCents = confirmedBookings.reduce(
+    (sum, booking) =>
+      sum +
+      (booking.providerNetCents ??
+        calculatePricingBreakdown(booking.priceCents).providerNetCents),
+    0,
+  );
+
+  const stripeAccountId = currentUser.expertProfile.stripeAccountId;
+  const hasStripeAccount = Boolean(stripeAccountId);
 
   return (
     <main>
@@ -127,8 +150,8 @@ export default async function ExpertEarningsPage({
           </h1>
 
           <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-            See completed paid calls, estimated platform fees and your net
-            earnings before payouts are fully automated.
+            See completed paid calls, SkillDrop commission, payout-ready
+            estimates and upcoming confirmed value.
           </p>
 
           <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -136,28 +159,28 @@ export default async function ExpertEarningsPage({
               icon={Euro}
               label="Gross completed"
               value={formatMoney(grossCompletedCents)}
-              hint="Completed calls total"
+              hint="Completed calls only"
             />
 
             <MetricCard
               icon={ShieldCheck}
-              label="Platform fee"
-              value={formatMoney(platformFeeCents)}
-              hint="Estimated 5%"
+              label="SkillDrop commission"
+              value={formatMoney(platformCommissionCompletedCents)}
+              hint="10% provider commission"
             />
 
             <MetricCard
               icon={WalletCards}
-              label="Net earnings"
+              label="Payout-ready estimate"
               value={formatMoney(netCompletedCents)}
-              hint="Before payout"
+              hint="Completed calls minus commission"
             />
 
             <MetricCard
               icon={CalendarDays}
-              label="Upcoming value"
-              value={formatMoney(upcomingGrossCents)}
-              hint="Confirmed future calls"
+              label="Upcoming net"
+              value={formatMoney(upcomingNetCents)}
+              hint={`${formatMoney(upcomingGrossCents)} gross confirmed`}
             />
           </div>
         </div>
@@ -175,9 +198,9 @@ export default async function ExpertEarningsPage({
               Completed and confirmed calls
             </h2>
 
-            <p className="mt-2 text-sm leading-6 text-muted">
-              This is an estimate until Stripe Connect payouts are fully
-              connected.
+            <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+              Completed calls count toward payout-ready earnings. Confirmed calls
+              are upcoming value until the call is completed.
             </p>
 
             <div className="mt-6 grid gap-4">
@@ -188,7 +211,7 @@ export default async function ExpertEarningsPage({
               ) : (
                 <EmptyState
                   title="No earnings yet"
-                  text="Paid confirmed and completed calls will appear here."
+                  text="Confirmed and completed paid calls will appear here."
                 />
               )}
             </div>
@@ -196,13 +219,13 @@ export default async function ExpertEarningsPage({
 
           <div className="grid gap-6">
             <Card className="p-5 md:p-6">
-              <Badge variant="primary">
+              <Badge variant={hasStripeAccount ? "success" : "primary"}>
                 <ShieldCheck size={14} />
                 Payout status
               </Badge>
 
               <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                {currentUser.expertProfile.stripeAccountId
+                {hasStripeAccount
                   ? "Stripe account connected."
                   : "Connect your Stripe account."}
               </h2>
@@ -213,27 +236,23 @@ export default async function ExpertEarningsPage({
               </p>
 
               <div className="mt-5 grid gap-3">
-                <InfoRow label="Platform fee" value="5%" />
+                <InfoRow label="Provider commission" value="10%" />
                 <InfoRow label="Payout provider" value="Stripe Connect" />
                 <InfoRow
                   label="Payout status"
-                  value={
-                    currentUser.expertProfile.stripeAccountId
-                      ? "Connected"
-                      : "Not connected"
-                  }
+                  value={hasStripeAccount ? "Connected" : "Not connected"}
                 />
               </div>
 
-              {currentUser.expertProfile.stripeAccountId ? (
+              {stripeAccountId ? (
                 <p className="mt-5 break-all rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-xs font-bold text-muted">
-                  Stripe account: {currentUser.expertProfile.stripeAccountId}
+                  Stripe account: {maskStripeAccountId(stripeAccountId)}
                 </p>
               ) : null}
 
               <form action={createStripeConnectAccountAction} className="mt-5">
                 <button type="submit" className="btn btn-primary w-full">
-                  {currentUser.expertProfile.stripeAccountId
+                  {hasStripeAccount
                     ? "Continue Stripe setup"
                     : "Connect Stripe account"}
                 </button>
@@ -247,8 +266,13 @@ export default async function ExpertEarningsPage({
               </Badge>
 
               <p className="mt-4 text-sm font-bold leading-6 text-muted">
-                Earnings should only become payout-ready after a call is
-                completed. Cancelled or refunded bookings should not count as
+                Client service fees are paid by clients on top of the service
+                price. They are not deducted from your provider earnings.
+              </p>
+
+              <p className="mt-3 text-sm font-bold leading-6 text-muted">
+                Earnings become payout-ready only after a call is completed.
+                Cancelled, refunded or disputed bookings do not count as
                 payout-ready.
               </p>
             </Card>
@@ -268,6 +292,10 @@ function EarningBookingCard({
     endTime: Date;
     status: string;
     priceCents: number;
+    platformFeeCents: number | null;
+    providerNetCents: number | null;
+    clientServiceFeeCents: number | null;
+    clientTotalCents: number | null;
     buyer: {
       email: string;
       name: string | null;
@@ -275,15 +303,28 @@ function EarningBookingCard({
     service: {
       title: string;
       durationMinutes: number;
-    };
+    } | null;
     review: {
       id: string;
       rating: number;
     } | null;
   };
 }) {
-  const feeCents = Math.round(booking.priceCents * PLATFORM_FEE_RATE);
-  const netCents = booking.priceCents - feeCents;
+  const fallbackPricing = calculatePricingBreakdown(booking.priceCents);
+
+  const platformFeeCents =
+    booking.platformFeeCents ?? fallbackPricing.providerCommissionCents;
+
+  const providerNetCents =
+    booking.providerNetCents ?? fallbackPricing.providerNetCents;
+
+  const clientServiceFeeCents =
+    booking.clientServiceFeeCents ?? fallbackPricing.clientServiceFeeCents;
+
+  const clientTotalCents =
+    booking.clientTotalCents ?? fallbackPricing.clientTotalCents;
+
+  const isCompleted = booking.status === "COMPLETED";
 
   return (
     <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4">
@@ -292,13 +333,19 @@ function EarningBookingCard({
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
 
+            {isCompleted ? (
+              <Badge variant="success">Payout-ready estimate</Badge>
+            ) : (
+              <Badge variant="primary">Upcoming value</Badge>
+            )}
+
             {booking.review ? (
               <Badge variant="success">Reviewed {booking.review.rating}/5</Badge>
             ) : null}
           </div>
 
           <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-            {booking.service.title}
+            {booking.service?.title ?? "Booked call"}
           </h3>
 
           <p className="mt-2 text-sm font-semibold leading-6 text-muted">
@@ -311,10 +358,24 @@ function EarningBookingCard({
           </p>
         </div>
 
-        <div className="grid min-w-[220px] gap-2 rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
-          <InfoRow label="Gross" value={formatMoney(booking.priceCents)} />
-          <InfoRow label="Fee" value={formatMoney(feeCents)} />
-          <InfoRow label="Net" value={formatMoney(netCents)} />
+        <div className="grid min-w-[240px] gap-2 rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+          <InfoRow label="Service price" value={formatMoney(booking.priceCents)} />
+          <InfoRow
+            label="SkillDrop commission"
+            value={formatMoney(platformFeeCents)}
+          />
+          <InfoRow
+            label={isCompleted ? "Net estimate" : "Net if completed"}
+            value={formatMoney(providerNetCents)}
+          />
+
+          <div className="my-1 h-px bg-[var(--border)]" />
+
+          <InfoRow
+            label="Client service fee"
+            value={formatMoney(clientServiceFeeCents)}
+          />
+          <InfoRow label="Client paid" value={formatMoney(clientTotalCents)} />
         </div>
       </div>
     </div>
@@ -380,6 +441,14 @@ function EmptyState({ title, text }: { title: string; text: string }) {
       </p>
     </div>
   );
+}
+
+function maskStripeAccountId(accountId: string) {
+  if (accountId.length <= 8) {
+    return "••••";
+  }
+
+  return `${accountId.slice(0, 7)}••••${accountId.slice(-4)}`;
 }
 
 function formatMoney(cents: number) {

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import {
-  ArrowRight,
   Clock3,
   Euro,
   Pencil,
@@ -15,6 +14,7 @@ import {
   toggleProviderServiceAction,
   updateProviderServiceAction,
 } from "@/server/actions/expert.actions";
+import { PricingPreview } from "@/components/pricing/pricing-preview";
 import { Badge } from "@/components/ui/badge";
 
 const categoryOptions = [
@@ -114,7 +114,7 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
               </h4>
 
               <p className="mt-2 text-sm leading-6 text-muted">
-                This form stays inside the page, so you can scroll normally.
+                Update the offer and check the price breakdown before saving.
               </p>
             </div>
 
@@ -154,6 +154,8 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
                   name="title"
                   type="text"
                   required
+                  minLength={4}
+                  maxLength={120}
                   defaultValue={service.title}
                   className="input mt-2"
                 />
@@ -166,6 +168,8 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
                 name="description"
                 required
                 rows={4}
+                minLength={30}
+                maxLength={800}
                 defaultValue={service.description}
                 className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
               />
@@ -213,6 +217,8 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
                 Save
               </button>
             </div>
+
+            <PricingPreview inputId={`price-${service.id}`} />
           </form>
         </div>
       ) : null}
@@ -234,6 +240,7 @@ function Field({
       <label htmlFor={htmlFor} className="text-sm font-black">
         {label}
       </label>
+
       {children}
     </div>
   );

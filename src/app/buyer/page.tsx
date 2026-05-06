@@ -26,6 +26,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { UnreadNotificationsCard } from "@/components/notifications/unread-notifications-card";
 
 const helpCategories = [
   {
@@ -297,6 +298,7 @@ export default async function BuyerDashboardPage() {
               hint="Non-cancelled calls"
             />
           </div>
+          <UnreadNotificationsCard userId={buyer.id} email={buyer.email} />
         </div>
       </section>
 

@@ -19,6 +19,10 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
+function normalizeComment(comment: string) {
+  return comment.replace(/\s+/g, " ").trim().slice(0, MAX_COMMENT_LENGTH);
+}
+
 function getRequiredRatingValue(formData: FormData, key: string) {
   const rawRating = getStringValue(formData, key);
   const rating = Number(rawRating);
@@ -82,6 +86,22 @@ async function getCurrentUserRecord() {
   return currentUser;
 }
 
+function getReviewsHref(bookingId?: string, error?: string) {
+  const params = new URLSearchParams();
+
+  if (bookingId) {
+    params.set("bookingId", bookingId);
+  }
+
+  if (error) {
+    params.set("error", error);
+  }
+
+  const query = params.toString();
+
+  return query ? `/buyer/reviews?${query}` : "/buyer/reviews";
+}
+
 function revalidateReviewPaths(expertId: string) {
   revalidatePath("/");
   revalidatePath("/experts");
@@ -114,12 +134,10 @@ export async function createReviewAction(formData: FormData) {
   const wouldRecommend = getBooleanValue(formData, "wouldRecommend");
 
   const rawComment = getStringValue(formData, "comment");
-  const comment = rawComment
-    ? rawComment.slice(0, MAX_COMMENT_LENGTH)
-    : null;
+  const comment = rawComment ? normalizeComment(rawComment) : null;
 
   if (!bookingId || rating < 1 || rating > 5) {
-    redirect("/buyer/reviews?error=invalid-review");
+    redirect(getReviewsHref(bookingId, "invalid-review"));
   }
 
   const booking = await prisma.booking.findUnique({
@@ -139,74 +157,97 @@ export async function createReviewAction(formData: FormData) {
   });
 
   if (!booking) {
-    redirect("/buyer/reviews?error=booking-not-found");
+    redirect(getReviewsHref(undefined, "booking-not-found"));
   }
 
   const isOwnerBuyer = booking.buyerId === currentUser.id;
   const isAdmin = currentUser.role === "ADMIN";
 
   if (!isOwnerBuyer && !isAdmin) {
-    redirect("/buyer/reviews?error=not-allowed");
+    redirect(getReviewsHref(booking.id, "not-allowed"));
   }
 
   if (booking.status !== "COMPLETED") {
-    redirect(`/buyer/reviews?bookingId=${booking.id}&error=not-completed`);
+    redirect(getReviewsHref(booking.id, "not-completed"));
   }
 
   if (booking.review) {
-    redirect(`/buyer/reviews?bookingId=${booking.id}&error=already-reviewed`);
+    redirect(getReviewsHref(booking.id, "already-reviewed"));
   }
 
-  const createdReview = await prisma.$transaction(async (tx) => {
-    const review = await tx.review.create({
-      data: {
-        bookingId: booking.id,
-        buyerId: booking.buyerId,
-        expertId: booking.expertId,
-        rating,
-        helpfulness,
-        clarity,
-        professionalism,
-        wouldRecommend,
-        comment,
-      },
+  let createdReview: {
+    id: string;
+    rating: number;
+  };
+
+  try {
+    createdReview = await prisma.$transaction(async (tx) => {
+      const review = await tx.review.create({
+        data: {
+          bookingId: booking.id,
+          buyerId: booking.buyerId,
+          expertId: booking.expertId,
+          rating,
+          helpfulness,
+          clarity,
+          professionalism,
+          wouldRecommend,
+          comment,
+        },
+        select: {
+          id: true,
+          rating: true,
+        },
+      });
+
+      const reviewStats = await tx.review.aggregate({
+         where: {
+           expertId: booking.expertId,
+         },
+        _avg: {
+           rating: true,
+         },
+        _count: {
+           rating: true,
+         },
+       });
+
+       const completedSessions = await tx.booking.count({
+         where: {
+           expertId: booking.expertId,
+           status: "COMPLETED",
+          },
+        });
+
+
+      const totalReviews = reviewStats._count.rating;
+      const averageRating = reviewStats._avg.rating ?? 0;
+
+      const shouldEarnVerification =
+        completedSessions >= 3 && averageRating >= 3.8 && !booking.expert.isVerified;
+
+      await tx.expertProfile.update({
+        where: {
+          id: booking.expertId,
+        },
+        data: {
+          rating: Number(averageRating.toFixed(2)),
+          totalReviews,
+          totalSessions: completedSessions,
+          ...(shouldEarnVerification
+            ? {
+                isVerified: true,
+                verifiedAt: new Date(),
+              }
+            : {}),
+        },
+      });
+
+      return review;
     });
-
-    const reviewStats = await tx.review.aggregate({
-      where: {
-        expertId: booking.expertId,
-      },
-      _avg: {
-        rating: true,
-      },
-      _count: {
-        rating: true,
-      },
-    });
-
-    const totalReviews = reviewStats._count.rating;
-    const averageRating = reviewStats._avg.rating ?? 0;
-
-    const shouldVerify =
-      booking.expert.totalSessions >= 3 && averageRating >= 3.8;
-
-    await tx.expertProfile.update({
-      where: {
-        id: booking.expertId,
-      },
-      data: {
-        rating: Number(averageRating.toFixed(2)),
-        totalReviews,
-        isVerified: shouldVerify ? true : booking.expert.isVerified,
-        verifiedAt:
-          shouldVerify && !booking.expert.isVerified
-            ? new Date()
-            : booking.expert.verifiedAt,
-      },
-    });
-
-    return review;
-  });
+  } catch {
+    redirect(getReviewsHref(booking.id, "already-reviewed"));
+  }
 
   await sendNotification({
     to: booking.expert.user.email,
@@ -225,5 +266,5 @@ export async function createReviewAction(formData: FormData) {
 
   revalidateReviewPaths(booking.expertId);
 
-  redirect("/buyer/reviews?reviewed=1");
+  redirect(`/buyer/reviews?reviewed=${booking.id}`);
 }

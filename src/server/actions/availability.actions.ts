@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 
+const ALLOWED_DURATIONS = [15, 30, 45, 60];
+
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -16,8 +18,8 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-function redirectWithError(path: string, message: string): never {
-  redirect(`${path}?error=${encodeURIComponent(message)}`);
+function redirectWithError(path: string, code: string): never {
+  redirect(`${path}?error=${encodeURIComponent(code)}`);
 }
 
 async function getCurrentExpertProfile() {
@@ -25,7 +27,7 @@ async function getCurrentExpertProfile() {
   const email = user.email?.toLowerCase();
 
   if (!email) {
-    redirect("/sign-in");
+    redirectWithError("/expert/availability", "not-signed-in");
   }
 
   const expert = await prisma.expertProfile.findFirst({
@@ -59,13 +61,21 @@ function addMinutes(date: Date, minutes: number) {
 
 function parseDuration(value: string) {
   const duration = Number(value);
-  const allowedDurations = [15, 30, 45, 60];
 
-  if (!allowedDurations.includes(duration)) {
+  if (!ALLOWED_DURATIONS.includes(duration)) {
     return null;
   }
 
   return duration;
+}
+
+function revalidateAvailabilityPaths(expertId: string) {
+  revalidatePath("/");
+  revalidatePath("/expert");
+  revalidatePath("/expert/availability");
+  revalidatePath("/expert/bookings");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
 }
 
 export async function createAvailabilityAction(formData: FormData) {
@@ -79,15 +89,17 @@ export async function createAvailabilityAction(formData: FormData) {
   const startTime = parseDateTime(startTimeValue);
 
   if (!startTime) {
-    redirectWithError("/expert/availability", "Please choose a valid start time.");
+    redirectWithError("/expert/availability", "invalid-start-time");
   }
 
   if (!durationMinutes) {
-    redirectWithError("/expert/availability", "Please choose a valid duration.");
+    redirectWithError("/expert/availability", "invalid-duration");
   }
 
-  if (startTime <= new Date()) {
-    redirectWithError("/expert/availability", "Please choose a future time.");
+  const now = new Date();
+
+  if (startTime <= now) {
+    redirectWithError("/expert/availability", "past-time");
   }
 
   const endTime = addMinutes(startTime, durationMinutes);
@@ -105,10 +117,7 @@ export async function createAvailabilityAction(formData: FormData) {
   });
 
   if (overlappingSlot) {
-    redirectWithError(
-      "/expert/availability",
-      "This time overlaps with an existing slot.",
-    );
+    redirectWithError("/expert/availability", "overlap");
   }
 
   await prisma.availability.create({
@@ -120,12 +129,9 @@ export async function createAvailabilityAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/expert");
-  revalidatePath("/expert/availability");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expert.id}`);
+  revalidateAvailabilityPaths(expert.id);
 
-  redirect("/expert/availability");
+  redirect("/expert/availability?saved=1");
 }
 
 export async function deleteAvailabilityAction(formData: FormData) {
@@ -134,7 +140,7 @@ export async function deleteAvailabilityAction(formData: FormData) {
   const slotId = getStringValue(formData, "slotId");
 
   if (!slotId) {
-    redirectWithError("/expert/availability", "Slot not found.");
+    redirectWithError("/expert/availability", "slot-not-found");
   }
 
   const slot = await prisma.availability.findFirst({
@@ -145,14 +151,15 @@ export async function deleteAvailabilityAction(formData: FormData) {
   });
 
   if (!slot) {
-    redirectWithError("/expert/availability", "Slot not found.");
+    redirectWithError("/expert/availability", "slot-not-found");
   }
 
   if (slot.isBooked) {
-    redirectWithError(
-      "/expert/availability",
-      "You cannot delete a slot that is already booked.",
-    );
+    redirectWithError("/expert/availability", "cannot-delete-booked-slot");
+  }
+
+  if (slot.startTime < new Date()) {
+    redirectWithError("/expert/availability", "cannot-delete-past-slot");
   }
 
   await prisma.availability.delete({
@@ -161,10 +168,7 @@ export async function deleteAvailabilityAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/expert");
-  revalidatePath("/expert/availability");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expert.id}`);
+  revalidateAvailabilityPaths(expert.id);
 
-  redirect("/expert/availability");
+  redirect("/expert/availability?deleted=1");
 }

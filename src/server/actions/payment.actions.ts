@@ -1,15 +1,100 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth/get-current-user";
+import { calculatePricingBreakdown } from "@/config/pricing";
 
-const PLATFORM_FEE_RATE = 0.05;
+function getCheckoutHref(bookingId: string, error?: string) {
+  if (!error) {
+    return `/buyer/bookings/${bookingId}/checkout`;
+  }
+
+  return `/buyer/bookings/${bookingId}/checkout?error=${encodeURIComponent(
+    error,
+  )}`;
+}
+
+function revalidatePaymentPaths(expertId: string, bookingId: string) {
+  revalidatePath("/");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
+
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/bookings");
+  revalidatePath(`/buyer/bookings/${bookingId}/checkout`);
+
+  revalidatePath("/expert");
+  revalidatePath("/expert/bookings");
+  revalidatePath("/expert/availability");
+  revalidatePath("/expert/earnings");
+  revalidatePath("/expert/stats");
+
+  revalidatePath("/notifications");
+}
+
+async function cancelExpiredPendingBooking({
+  bookingId,
+  expertId,
+  availabilityId,
+  hasCallRoom,
+}: {
+  bookingId: string;
+  expertId: string;
+  availabilityId: string | null;
+  hasCallRoom: boolean;
+}) {
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const updatedBooking = await tx.booking.updateMany({
+      where: {
+        id: bookingId,
+        status: "PENDING",
+      },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: now,
+        expiresAt: null,
+      },
+    });
+
+    if (updatedBooking.count === 0) {
+      return;
+    }
+
+    if (availabilityId) {
+      await tx.availability.updateMany({
+        where: {
+          id: availabilityId,
+        },
+        data: {
+          isBooked: false,
+        },
+      });
+    }
+
+    if (hasCallRoom) {
+      await tx.callRoom.updateMany({
+        where: {
+          bookingId,
+        },
+        data: {
+          status: "ENDED",
+          endsAt: now,
+        },
+      });
+    }
+  });
+
+  revalidatePaymentPaths(expertId, bookingId);
+}
 
 export async function createCheckoutSessionAction(bookingId: string) {
-  const { user } = await requireRole(["buyer"]);
+  const { user } = await requireRole(["buyer", "admin"]);
 
   const email = user.email?.toLowerCase();
 
@@ -46,44 +131,49 @@ export async function createCheckoutSessionAction(bookingId: string) {
         },
       },
       service: true,
+      callRoom: true,
     },
   });
 
   if (!booking) {
-    redirect("/buyer/bookings");
+    redirect("/buyer/bookings?error=booking-not-found");
   }
 
-  if (booking.expiresAt && booking.expiresAt < new Date()) {
-    await prisma.$transaction(async (tx) => {
-      await tx.booking.update({
-        where: {
-          id: booking.id,
-        },
-        data: {
-          status: "CANCELLED",
-        },
-      });
+  const now = new Date();
 
-      if (booking.availabilityId) {
-        await tx.availability.update({
-          where: {
-            id: booking.availabilityId,
-          },
-          data: {
-            isBooked: false,
-          },
-        });
-      }
+  if (booking.expiresAt && booking.expiresAt < now) {
+    await cancelExpiredPendingBooking({
+      bookingId: booking.id,
+      expertId: booking.expertId,
+      availabilityId: booking.availabilityId,
+      hasCallRoom: Boolean(booking.callRoom),
     });
 
-    redirect("/buyer/bookings?payment=expired");
+    redirect("/buyer/bookings?error=booking-expired");
   }
 
-  if (!booking.expert.stripeAccountId) {
-    redirect(`/buyer/bookings/${booking.id}/checkout?error=expert-payout-not-ready`);
+  const stripeAccountId = booking.expert.stripeAccountId;
+
+  if (!stripeAccountId) {
+    redirect(getCheckoutHref(booking.id, "provider-payout-not-ready"));
   }
 
-  const platformFeeCents = Math.round(booking.priceCents * PLATFORM_FEE_RATE);
+  let connectedAccount;
+
+  try {
+    connectedAccount = await stripe.accounts.retrieve(stripeAccountId);
+  } catch {
+    redirect(getCheckoutHref(booking.id, "provider-payout-not-ready"));
+  }
+
+  if (!connectedAccount.charges_enabled || !connectedAccount.payouts_enabled) {
+    redirect(getCheckoutHref(booking.id, "provider-payout-not-ready"));
+  }
+
+  const pricing = calculatePricingBreakdown(booking.priceCents);
+
+  const providerName = booking.expert.user.name ?? "Provider";
+  const serviceTitle = booking.service?.title ?? "SkillDrop call";
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -97,38 +187,53 @@ export async function createCheckoutSessionAction(bookingId: string) {
         price_data: {
           currency: booking.currency.toLowerCase(),
           product_data: {
-            name: booking.service?.title ?? "SkillDrop consultation",
-            description: `Call with ${booking.expert.user.name ?? "Expert"}`,
+            name: serviceTitle,
+            description: `Call with ${providerName}`,
           },
-          unit_amount: booking.priceCents,
+          unit_amount: pricing.clientTotalCents,
         },
         quantity: 1,
       },
     ],
 
     payment_intent_data: {
-      application_fee_amount: platformFeeCents,
+      application_fee_amount: pricing.platformGrossFeeCents,
       transfer_data: {
-        destination: booking.expert.stripeAccountId,
+        destination: stripeAccountId,
       },
       metadata: {
         bookingId: booking.id,
         buyerId: buyer.id,
         expertId: booking.expertId,
-        platformFeeCents: String(platformFeeCents),
+        servicePriceCents: String(pricing.servicePriceCents),
+        providerCommissionCents: String(pricing.providerCommissionCents),
+        platformFeeCents: String(pricing.platformFeeCents),
+        clientServiceFeeCents: String(pricing.clientServiceFeeCents),
+        providerNetCents: String(pricing.providerNetCents),
+        clientTotalCents: String(pricing.clientTotalCents),
+        platformGrossFeeCents: String(pricing.platformGrossFeeCents),
       },
     },
 
-    success_url: `${appUrl}/buyer/bookings?payment=success`,
-    cancel_url: `${appUrl}/buyer/bookings/${booking.id}/checkout`,
+    success_url: `${appUrl}/buyer/bookings?payment=success&booking=${booking.id}`,
+    cancel_url: `${appUrl}${getCheckoutHref(booking.id)}`,
 
     metadata: {
       bookingId: booking.id,
       buyerId: buyer.id,
       expertId: booking.expertId,
-      platformFeeCents: String(platformFeeCents),
+      servicePriceCents: String(pricing.servicePriceCents),
+      platformFeeCents: String(pricing.platformFeeCents),
+      clientServiceFeeCents: String(pricing.clientServiceFeeCents),
+      providerNetCents: String(pricing.providerNetCents),
+      clientTotalCents: String(pricing.clientTotalCents),
+      platformGrossFeeCents: String(pricing.platformGrossFeeCents),
     },
   });
+
+  if (!session.url) {
+    redirect(getCheckoutHref(booking.id, "checkout-session-failed"));
+  }
 
   await prisma.booking.update({
     where: {
@@ -136,8 +241,14 @@ export async function createCheckoutSessionAction(bookingId: string) {
     },
     data: {
       stripeCheckoutSessionId: session.id,
+      platformFeeCents: pricing.providerCommissionCents,
+      providerNetCents: pricing.providerNetCents,
+      clientServiceFeeCents: pricing.clientServiceFeeCents,
+      clientTotalCents: pricing.clientTotalCents,
     },
   });
 
-  redirect(session.url!);
+  revalidatePaymentPaths(booking.expertId, booking.id);
+
+  redirect(session.url);
 }

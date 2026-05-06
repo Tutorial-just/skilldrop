@@ -12,6 +12,7 @@ import {
   Globe2,
   Languages,
   MessageCircle,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Star,
@@ -27,6 +28,10 @@ import {
   saveExpertAction,
   unsaveExpertAction,
 } from "@/server/actions/saved-expert.actions";
+import {
+  calculatePricingBreakdown,
+  formatMoneyFromCents,
+} from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -108,6 +113,7 @@ export default async function ExpertPublicPage({
   const currentUser = session.user;
   const isBuyer = session.role === "buyer" || session.role === "admin";
   const isOwnProfile = currentUser?.id === expert.userId;
+  const canAcceptPayments = Boolean(expert.stripeAccountId);
 
   const savedExpert =
     currentUser && isBuyer && !isOwnProfile
@@ -128,6 +134,10 @@ export default async function ExpertPublicPage({
     expert.services[0] ??
     null;
 
+  const selectedPricing = selectedService
+    ? calculatePricingBreakdown(selectedService.priceCents)
+    : null;
+
   const groupedSlots = groupSlotsByDate(expert.availability);
 
   const startingPrice =
@@ -135,7 +145,11 @@ export default async function ExpertPublicPage({
       ? Math.min(...expert.services.map((service) => service.priceCents))
       : null;
 
-  const qualityScore = calculateQualityScore({
+  const startingPricing = startingPrice
+    ? calculatePricingBreakdown(startingPrice)
+    : null;
+
+  const matchScore = calculateMatchScore({
     rating: expert.rating,
     totalReviews: expert.totalReviews,
     totalSessions: expert.totalSessions,
@@ -170,6 +184,16 @@ export default async function ExpertPublicPage({
         )
       : null;
 
+  const displayName = expert.user.name || "Provider";
+  const avatarLetter = (
+    expert.user.name?.charAt(0) ||
+    expert.user.email.charAt(0) ||
+    "P"
+  ).toUpperCase();
+
+  const bioText =
+    expert.bio || "This provider has not added a detailed bio yet.";
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
@@ -181,12 +205,12 @@ export default async function ExpertPublicPage({
             className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
           >
             <ArrowLeft size={16} />
-            Back to experts
+            Back to providers
           </Link>
 
           {resolvedSearchParams.saved ? (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
-              Expert saved. You can find this profile in your saved experts.
+              Provider saved. You can find this profile in your saved list.
             </div>
           ) : null}
 
@@ -208,10 +232,22 @@ export default async function ExpertPublicPage({
                   ) : (
                     <>
                       <ShieldCheck size={14} />
-                      New helper
+                      New provider
                     </>
                   )}
                 </Badge>
+
+                {canAcceptPayments ? (
+                  <Badge variant="success">
+                    <WalletCards size={14} />
+                    Payments ready
+                  </Badge>
+                ) : (
+                  <Badge variant="danger">
+                    <ShieldAlert size={14} />
+                    Payments not ready
+                  </Badge>
+                )}
 
                 {expert.country ? (
                   <Badge>
@@ -220,32 +256,34 @@ export default async function ExpertPublicPage({
                   </Badge>
                 ) : null}
 
-                {startingPrice ? (
+                {startingPricing ? (
                   <Badge variant="primary">
                     <Euro size={14} />
-                    From {formatMoney(startingPrice)}
+                    From {formatMoneyFromCents(startingPricing.clientTotalCents)}
                   </Badge>
                 ) : null}
 
-                <Badge variant={qualityScore >= 80 ? "success" : "primary"}>
+                <Badge variant={matchScore >= 80 ? "success" : "primary"}>
                   <Sparkles size={14} />
-                  Quality {qualityScore}/100
+                  Match {matchScore}/100
                 </Badge>
               </div>
 
               <div className="mt-8 flex flex-col gap-6 md:flex-row md:items-start">
-                <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[32px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-4xl font-black text-white shadow-[var(--shadow-sm)]">
-                  {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
-                </div>
+                <AvatarPreview
+                  avatarUrl={expert.user.avatarUrl}
+                  name={displayName}
+                  fallbackLetter={avatarLetter}
+                />
 
                 <div className="min-w-0">
                   <h1 className="heading-lg max-w-4xl text-balance">
-                    {expert.user.name ?? "Provider"}
+                    {displayName}
                   </h1>
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     {expert.isVerified ? (
-                      <Badge variant="success">✔ Verified expert</Badge>
+                      <Badge variant="success">✔ Verified provider</Badge>
                     ) : null}
 
                     <Badge>
@@ -253,20 +291,33 @@ export default async function ExpertPublicPage({
                     </Badge>
 
                     <Badge>{expert.totalSessions} sessions</Badge>
+
+                    {expert.languages.slice(0, 3).map((language) => (
+                      <Badge key={language}>
+                        <Languages size={14} />
+                        {language}
+                      </Badge>
+                    ))}
                   </div>
 
                   <p className="mt-4 max-w-3xl text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
-                    {expert.headline}
+                    {expert.headline || "Practical help through short calls"}
                   </p>
 
                   <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
-                    {expert.bio}
+                    {bioText}
                   </p>
 
                   <div className="mt-6 flex flex-wrap gap-2">
-                    {expert.skills.slice(0, 10).map((skill) => (
-                      <HashTag key={skill} text={skill} />
+                    {[...expert.skills, ...expert.tags].slice(0, 16).map((tag) => (
+                      <HashTag key={tag} text={tag} />
                     ))}
+
+                    {expert.skills.length === 0 && expert.tags.length === 0 ? (
+                      <span className="text-sm font-semibold text-muted">
+                        No tags added yet.
+                      </span>
+                    ) : null}
                   </div>
 
                   {expert.availability.length > 0 ? (
@@ -303,8 +354,8 @@ export default async function ExpertPublicPage({
 
               <div className="mt-5 grid gap-3">
                 <SummaryRow
-                  label="Offer"
-                  value={selectedService?.title ?? "Choose offer"}
+                  label="Service"
+                  value={selectedService?.title ?? "Choose service"}
                 />
 
                 <SummaryRow
@@ -317,10 +368,31 @@ export default async function ExpertPublicPage({
                 />
 
                 <SummaryRow
-                  label="Price"
+                  label="Service price"
                   value={
-                    selectedService ? formatMoney(selectedService.priceCents) : "—"
+                    selectedPricing
+                      ? formatMoneyFromCents(selectedPricing.servicePriceCents)
+                      : "—"
                   }
+                />
+
+                <SummaryRow
+                  label="SkillDrop fee"
+                  value={
+                    selectedPricing
+                      ? formatMoneyFromCents(selectedPricing.clientServiceFeeCents)
+                      : "—"
+                  }
+                />
+
+                <SummaryRow
+                  label="You pay"
+                  value={
+                    selectedPricing
+                      ? formatMoneyFromCents(selectedPricing.clientTotalCents)
+                      : "—"
+                  }
+                  strong
                 />
 
                 <SummaryRow
@@ -329,9 +401,17 @@ export default async function ExpertPublicPage({
                 />
               </div>
 
-              <div className="mt-6 rounded-2xl bg-[var(--primary-soft)] p-4 text-sm font-bold leading-6 text-[var(--primary-dark)]">
-                Choose an offer, then pick a time below.
-              </div>
+              {!canAcceptPayments ? (
+                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
+                  This provider is finishing payout setup. You can save this
+                  profile, but booking is temporarily unavailable.
+                </div>
+              ) : (
+                <div className="mt-6 rounded-2xl bg-[var(--primary-soft)] p-4 text-sm font-bold leading-6 text-[var(--primary-dark)]">
+                  Choose a service, then pick an available time below. Your slot
+                  will be held while you complete payment.
+                </div>
+              )}
 
               <div className="mt-4 grid gap-2">
                 {!currentUser ? (
@@ -340,7 +420,7 @@ export default async function ExpertPublicPage({
                   </Link>
                 ) : isOwnProfile ? (
                   <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-sm font-bold text-muted">
-                    This is your own expert profile.
+                    This is your own provider profile.
                   </div>
                 ) : savedExpert ? (
                   <form action={unsaveExpertAction}>
@@ -362,7 +442,7 @@ export default async function ExpertPublicPage({
 
                     <button type="submit" className="btn btn-secondary w-full">
                       <Bookmark size={17} />
-                      Save expert
+                      Save provider
                     </button>
                   </form>
                 )}
@@ -370,7 +450,7 @@ export default async function ExpertPublicPage({
                 {savedExpert ? (
                   <Link href="/buyer/saved" className="btn btn-secondary">
                     <BookmarkCheck size={17} />
-                    View saved experts
+                    View saved providers
                   </Link>
                 ) : null}
               </div>
@@ -392,10 +472,16 @@ export default async function ExpertPublicPage({
                 Choose a service
               </h2>
 
+              <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                The total includes the provider price plus a small SkillDrop
+                service fee.
+              </p>
+
               <div className="mt-6 grid gap-4">
                 {expert.services.length > 0 ? (
                   expert.services.map((service) => {
                     const isSelected = selectedService?.id === service.id;
+                    const pricing = calculatePricingBreakdown(service.priceCents);
 
                     return (
                       <Link
@@ -425,16 +511,32 @@ export default async function ExpertPublicPage({
                             </h3>
 
                             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted">
-                              {service.description}
+                              {service.description ||
+                                "Short practical help through a 1:1 call."}
                             </p>
                           </div>
 
-                          <div className="shrink-0 rounded-2xl border border-[var(--border)] bg-white/64 p-4 md:text-right">
-                            <p className="text-2xl font-black tracking-[-0.04em]">
-                              {formatMoney(service.priceCents)}
-                            </p>
-
-                            <p className="mt-1 text-sm font-bold text-muted">
+                          <div className="grid shrink-0 gap-2 rounded-2xl border border-[var(--border)] bg-white/64 p-4 md:min-w-[220px]">
+                            <SummaryRow
+                              label="Service"
+                              value={formatMoneyFromCents(
+                                pricing.servicePriceCents,
+                              )}
+                            />
+                            <SummaryRow
+                              label="Fee"
+                              value={formatMoneyFromCents(
+                                pricing.clientServiceFeeCents,
+                              )}
+                            />
+                            <SummaryRow
+                              label="Total"
+                              value={formatMoneyFromCents(
+                                pricing.clientTotalCents,
+                              )}
+                              strong
+                            />
+                            <p className="text-right text-sm font-bold text-muted">
                               {service.durationMinutes} min
                             </p>
                           </div>
@@ -445,7 +547,7 @@ export default async function ExpertPublicPage({
                 ) : (
                   <EmptyState
                     title="No services yet"
-                    text="This expert has not added active services."
+                    text="This provider has not added active services."
                   />
                 )}
               </div>
@@ -464,15 +566,22 @@ export default async function ExpertPublicPage({
                   </h2>
 
                   <p className="mt-2 max-w-2xl leading-7 text-muted">
-                    Pick one available slot for your call.
+                    Pick one available slot for your 1:1 call.
                   </p>
                 </div>
 
                 <Badge>{expert.availability.length} open</Badge>
               </div>
 
+              {!canAcceptPayments ? (
+                <div className="mt-6 rounded-[24px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-5 text-sm font-black leading-6 text-[var(--danger)]">
+                  Booking is disabled until this provider completes Stripe payout
+                  setup.
+                </div>
+              ) : null}
+
               <div className="mt-6 grid gap-4">
-                {groupedSlots.length > 0 && selectedService ? (
+                {groupedSlots.length > 0 && selectedService && canAcceptPayments ? (
                   groupedSlots.map((group) => (
                     <div
                       key={group.label}
@@ -531,7 +640,7 @@ export default async function ExpertPublicPage({
                 {groupedSlots.length === 0 ? (
                   <EmptyState
                     title="No open times"
-                    text="This expert has no available time slots right now."
+                    text="This provider has no available time slots right now."
                   />
                 ) : null}
 
@@ -643,7 +752,7 @@ export default async function ExpertPublicPage({
                 ) : (
                   <EmptyState
                     title="No reviews yet"
-                    text="This expert is still collecting first reviews."
+                    text="This provider is still collecting first reviews."
                   />
                 )}
               </div>
@@ -652,13 +761,13 @@ export default async function ExpertPublicPage({
 
           <div className="grid content-start gap-5 xl:sticky xl:top-[96px]">
             <Card className="p-5">
-              <Badge variant={qualityScore >= 80 ? "success" : "primary"}>
+              <Badge variant={matchScore >= 80 ? "success" : "primary"}>
                 <Sparkles size={14} />
-                Quality score
+                Match score
               </Badge>
 
               <h2 className="mt-4 text-4xl font-black tracking-[-0.06em]">
-                {qualityScore}/100
+                {matchScore}/100
               </h2>
 
               <p className="mt-3 text-sm font-semibold leading-6 text-muted">
@@ -669,12 +778,16 @@ export default async function ExpertPublicPage({
               <div className="mt-5 grid gap-3">
                 <SideFact
                   label="Rating"
-                  value={expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"}
+                  value={
+                    expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"
+                  }
                 />
 
                 <SideFact
                   label="Helpfulness"
-                  value={helpfulnessAvg ? `${helpfulnessAvg.toFixed(1)} / 5` : "—"}
+                  value={
+                    helpfulnessAvg ? `${helpfulnessAvg.toFixed(1)} / 5` : "—"
+                  }
                 />
 
                 <SideFact
@@ -725,7 +838,9 @@ export default async function ExpertPublicPage({
 
                 <SideFact
                   label="Rating"
-                  value={expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"}
+                  value={
+                    expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"
+                  }
                 />
               </div>
             </Card>
@@ -743,7 +858,11 @@ export default async function ExpertPublicPage({
                   text="Pick the help you need."
                 />
                 <Step number="2" title="Pick time" text="Select an open slot." />
-                <Step number="3" title="Join call" text="Meet through video." />
+                <Step
+                  number="3"
+                  title="Confirm booking"
+                  text="Pay safely and join the call."
+                />
               </div>
             </Card>
 
@@ -765,6 +884,27 @@ export default async function ExpertPublicPage({
   );
 }
 
+function AvatarPreview({
+  avatarUrl,
+  name,
+  fallbackLetter,
+}: {
+  avatarUrl: string | null;
+  name: string;
+  fallbackLetter: string;
+}) {
+  return (
+    <div className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[32px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-4xl font-black text-white shadow-[var(--shadow-sm)]">
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+      ) : (
+        fallbackLetter
+      )}
+    </div>
+  );
+}
+
 function HashTag({ text }: { text: string }) {
   return (
     <span className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-sm font-black text-[var(--muted-foreground)]">
@@ -773,11 +913,27 @@ function HashTag({ text }: { text: string }) {
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
       <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
+      <p
+        className={
+          strong
+            ? "text-right text-sm font-black text-[var(--primary-dark)]"
+            : "text-right text-sm font-black"
+        }
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -908,7 +1064,7 @@ function groupSlotsByDate(
   return Array.from(groups.values());
 }
 
-function calculateQualityScore({
+function calculateMatchScore({
   rating,
   totalReviews,
   totalSessions,
@@ -1002,10 +1158,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
-}
-
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("en", {
     weekday: "short",
@@ -1036,7 +1188,7 @@ function formatError(error: string) {
   }
 
   if (error === "cannot-save-yourself") {
-    return "You cannot save your own expert profile.";
+    return "You cannot save your own provider profile.";
   }
 
   if (error === "slot-not-available") {
@@ -1044,11 +1196,15 @@ function formatError(error: string) {
   }
 
   if (error === "service-not-found") {
-    return "This offer is not available anymore.";
+    return "This service is not available anymore.";
   }
 
   if (error === "missing-booking-data") {
-    return "Please choose an offer and a time slot.";
+    return "Please choose a service and a time slot.";
+  }
+
+  if (error === "expert-payout-not-ready") {
+    return "This provider is finishing payout setup. Booking is temporarily unavailable.";
   }
 
   return "Something went wrong. Please try again.";

@@ -30,7 +30,7 @@ export async function createStripeConnectAccountAction() {
   }
 
   if (!currentUser.expertProfile) {
-    redirect("/expert/onboarding");
+    redirect("/become-expert");
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -40,6 +40,14 @@ export async function createStripeConnectAccountAction() {
   }
 
   let stripeAccountId = currentUser.expertProfile.stripeAccountId;
+
+  if (stripeAccountId) {
+    try {
+      await stripe.accounts.retrieve(stripeAccountId);
+    } catch {
+      stripeAccountId = null;
+    }
+  }
 
   if (!stripeAccountId) {
     const account = await stripe.accounts.create({
@@ -55,8 +63,9 @@ export async function createStripeConnectAccountAction() {
         },
       },
       business_profile: {
-        name: currentUser.name ?? "SkillDrop expert",
-        product_description: "Paid 1:1 expert calls through SkillDrop.",
+        name: currentUser.name ?? "SkillDrop provider",
+        product_description:
+          "Paid short 1:1 calls for practical help, career, language, documents and guidance through SkillDrop.",
       },
       metadata: {
         userId: currentUser.id,
@@ -83,8 +92,14 @@ export async function createStripeConnectAccountAction() {
     type: "account_onboarding",
   });
 
+  if (!accountLink.url) {
+    redirect("/expert/earnings?stripe=refresh");
+  }
+
   revalidatePath("/expert");
   revalidatePath("/expert/earnings");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${currentUser.expertProfile.id}`);
 
   redirect(accountLink.url);
 }

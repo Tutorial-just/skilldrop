@@ -26,6 +26,8 @@ import { Card } from "@/components/ui/card";
 type ExpertAvailabilityPageProps = {
   searchParams?: Promise<{
     error?: string;
+    saved?: string;
+    deleted?: string;
     view?: string;
   }>;
 };
@@ -60,6 +62,8 @@ export default async function ExpertAvailabilityPage({
     redirect("/sign-in");
   }
 
+  const now = new Date();
+
   const expert = await prisma.expertProfile.findFirst({
     where: {
       user: {
@@ -75,7 +79,10 @@ export default async function ExpertAvailabilityPage({
       bookings: {
         where: {
           startTime: {
-            gte: new Date(),
+            gte: now,
+          },
+          status: {
+            in: ["PENDING", "PAID", "CONFIRMED"],
           },
         },
         include: {
@@ -94,8 +101,6 @@ export default async function ExpertAvailabilityPage({
     redirect("/become-expert");
   }
 
-  const now = new Date();
-
   const upcomingSlots = expert.availability.filter((slot) => slot.startTime >= now);
   const openSlots = upcomingSlots.filter((slot) => !slot.isBooked);
   const bookedSlots = upcomingSlots.filter((slot) => slot.isBooked);
@@ -110,6 +115,8 @@ export default async function ExpertAvailabilityPage({
   const visibleSlots = filteredSlots.slice(0, MAX_VISIBLE_SLOTS);
   const hiddenSlotsCount = Math.max(filteredSlots.length - visibleSlots.length, 0);
   const groupedSlots = groupSlotsByDate(visibleSlots);
+
+  const minDateTime = toDateTimeLocalValue(now);
 
   return (
     <main>
@@ -126,6 +133,24 @@ export default async function ExpertAvailabilityPage({
                 <ArrowLeft size={16} />
                 Back to dashboard
               </Link>
+
+              {resolvedSearchParams.saved ? (
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                  Availability added. Clients can now book this open time.
+                </div>
+              ) : null}
+
+              {resolvedSearchParams.deleted ? (
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                  Availability slot removed.
+                </div>
+              ) : null}
+
+              {resolvedSearchParams.error ? (
+                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
+                  {formatAvailabilityError(resolvedSearchParams.error)}
+                </div>
+              ) : null}
 
               <div className="mt-6">
                 <Badge variant="primary">
@@ -166,12 +191,6 @@ export default async function ExpertAvailabilityPage({
       </section>
 
       <section className="p-6 md:p-8 lg:p-10">
-        {resolvedSearchParams.error ? (
-          <div className="mb-5 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
-            {resolvedSearchParams.error}
-          </div>
-        ) : null}
-
         <div className="grid gap-5">
           <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr] lg:items-start">
             <details className="self-start rounded-[26px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur">
@@ -211,6 +230,7 @@ export default async function ExpertAvailabilityPage({
                       id="startTime"
                       name="startTime"
                       type="datetime-local"
+                      min={minDateTime}
                       required
                       className="input mt-2"
                     />
@@ -386,7 +406,7 @@ export default async function ExpertAvailabilityPage({
                           </p>
                         </div>
 
-                        <Badge>{booking.status}</Badge>
+                        <Badge>{formatStatus(booking.status)}</Badge>
                       </div>
 
                       <p className="mt-3 text-sm font-bold text-[var(--primary-dark)]">
@@ -435,12 +455,16 @@ function SlotChip({
     isBooked: boolean;
   };
 }) {
+  const isPast = slot.startTime < new Date();
+
   return (
     <div
       className={
         slot.isBooked
           ? "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--success)]/20 bg-[var(--success-soft)] px-3 py-2 text-sm font-black text-[var(--success)]"
-          : "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]"
+          : isPast
+            ? "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-white/45 px-3 py-2 text-sm font-black text-muted"
+            : "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]"
       }
       title={`${formatTime(slot.startTime)} — ${formatTime(slot.endTime)}`}
     >
@@ -453,6 +477,10 @@ function SlotChip({
       {slot.isBooked ? (
         <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
           Booked
+        </span>
+      ) : isPast ? (
+        <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+          Past
         </span>
       ) : (
         <form action={deleteAvailabilityAction}>
@@ -638,6 +666,77 @@ function groupSlotsByDate(
   });
 
   return Array.from(groups.values());
+}
+
+function toDateTimeLocalValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  const localDate = new Date(date.getTime() - offsetMs);
+
+  return localDate.toISOString().slice(0, 16);
+}
+
+function formatStatus(status: string) {
+  if (status === "PENDING") {
+    return "Pending payment";
+  }
+
+  if (status === "PAID") {
+    return "Paid";
+  }
+
+  if (status === "CONFIRMED") {
+    return "Confirmed";
+  }
+
+  if (status === "COMPLETED") {
+    return "Completed";
+  }
+
+  if (status === "CANCELLED") {
+    return "Cancelled";
+  }
+
+  if (status === "REFUNDED") {
+    return "Refunded";
+  }
+
+  if (status === "DISPUTED") {
+    return "Disputed";
+  }
+
+  return status.toLowerCase();
+}
+
+function formatAvailabilityError(error: string) {
+  if (error === "invalid-start-time") {
+    return "Please choose a valid start time.";
+  }
+
+  if (error === "past-time") {
+    return "You cannot add availability in the past.";
+  }
+
+  if (error === "invalid-duration") {
+    return "Please choose a valid duration.";
+  }
+
+  if (error === "overlap") {
+    return "This slot overlaps with another availability slot.";
+  }
+
+  if (error === "slot-not-found") {
+    return "Availability slot was not found.";
+  }
+
+  if (error === "cannot-delete-booked-slot") {
+    return "You cannot delete a slot that already has a booking.";
+  }
+
+  if (error === "not-signed-in") {
+    return "Please sign in again.";
+  }
+
+  return "Something went wrong. Please try again.";
 }
 
 function formatDateTime(date: Date) {

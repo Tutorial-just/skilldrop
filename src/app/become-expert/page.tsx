@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -16,6 +17,9 @@ import {
 import { createProviderProfileAction } from "@/server/actions/expert.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import { FormDraft } from "@/components/forms/form-draft";
+import { TextareaWithCounter } from "@/components/forms/textarea-with-counter";
+import { TagInput } from "@/components/expert/tag-input";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,6 +49,76 @@ const profileTips = [
   "Write what clients will get after the call.",
   "Add real skills, languages and topics.",
   "Start with one simple service.",
+];
+
+const fallbackLanguageSuggestions = [
+  "English",
+  "French",
+  "Spanish",
+  "German",
+  "Italian",
+  "Russian",
+  "Ukrainian",
+  "Arabic",
+  "Portuguese",
+  "Turkish",
+  "Polish",
+  "Romanian",
+  "Dutch",
+];
+
+const fallbackSkillSuggestions = [
+  "Translation",
+  "Document help",
+  "Career advice",
+  "CV review",
+  "Interview preparation",
+  "Moving abroad",
+  "Visa documents",
+  "Admin help",
+  "Emotional support",
+  "Life advice",
+  "Relationship advice",
+  "Family advice",
+  "Business advice",
+  "Freelance advice",
+  "Language practice",
+  "French paperwork",
+  "Job search",
+  "Study abroad",
+  "Housing advice",
+  "Personal finance basics",
+  "Small business",
+  "Client communication",
+  "Conflict resolution",
+  "Mental support",
+];
+
+const fallbackTagSuggestions = [
+  "support",
+  "advice",
+  "translation",
+  "documents",
+  "career",
+  "jobs",
+  "relocation",
+  "family",
+  "relationships",
+  "business",
+  "freelance",
+  "language",
+  "interview",
+  "cv",
+  "visa",
+  "housing",
+  "confidence",
+  "communication",
+  "beginner-friendly",
+  "fast-help",
+  "practical",
+  "friendly",
+  "experienced",
+  "remote",
 ];
 
 export default async function BecomeExpertPage({
@@ -112,6 +186,35 @@ export default async function BecomeExpertPage({
     );
   }
 
+  const suggestionProfiles = await prisma.expertProfile.findMany({
+    select: {
+      languages: true,
+      skills: true,
+      tags: true,
+    },
+    take: 300,
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const languageSuggestions = mergeSuggestions(
+    getPopularItems(
+      suggestionProfiles.flatMap((profile) => profile.languages),
+    ),
+    fallbackLanguageSuggestions,
+  );
+
+  const skillSuggestions = mergeSuggestions(
+    getPopularItems(suggestionProfiles.flatMap((profile) => profile.skills)),
+    fallbackSkillSuggestions,
+  );
+
+  const tagSuggestions = mergeSuggestions(
+    getPopularItems(suggestionProfiles.flatMap((profile) => profile.tags)),
+    fallbackTagSuggestions,
+  );
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
@@ -131,8 +234,8 @@ export default async function BecomeExpertPage({
             </h1>
 
             <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
-              Create a profile, add your first service and become visible in the
-              marketplace after setup.
+              Create a clear profile, add your first service and become visible
+              in the marketplace after setup.
             </p>
           </div>
 
@@ -207,7 +310,7 @@ export default async function BecomeExpertPage({
 
                 <p className="mt-3 leading-7 text-muted">
                   This information will be used for your public marketplace
-                  profile and your first service.
+                  profile and your first bookable service.
                 </p>
               </div>
 
@@ -217,7 +320,13 @@ export default async function BecomeExpertPage({
                 </div>
               ) : null}
 
-              <form action={createProviderProfileAction} className="mt-8 grid gap-8">
+              <form
+                id="become-expert-form"
+                action={createProviderProfileAction}
+                className="mt-8 grid gap-8"
+              >
+                <FormDraft formId="become-expert-form" />
+
                 <div className="grid gap-5">
                   <SectionTitle
                     icon={UserRound}
@@ -255,28 +364,31 @@ export default async function BecomeExpertPage({
                       name="headline"
                       type="text"
                       required
+                      minLength={8}
+                      maxLength={120}
                       className="input mt-2"
                       placeholder="I help people prepare for difficult conversations"
                     />
                   </Field>
 
-                  <Field label="Autobiography / about you" htmlFor="bio">
-                    <textarea
-                      id="bio"
-                      name="bio"
-                      required
-                      rows={6}
-                      className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
-                      placeholder="Tell clients who you are, what kind of experience you have, who you can help, and what they can expect after a call."
-                    />
-                  </Field>
+                  <TextareaWithCounter
+                    id="bio"
+                    name="bio"
+                    label="Autobiography / about you"
+                    required
+                    rows={6}
+                    minLength={80}
+                    maxLength={1200}
+                    placeholder="Tell clients who you are, what kind of experience you have, who you can help, and what they can expect after a call."
+                    helperText="Be specific. Clients trust profiles that clearly explain who you help and what they get."
+                  />
                 </div>
 
                 <div className="grid gap-5">
                   <SectionTitle
                     icon={Globe2}
                     title="Category, skills and languages"
-                    text="Help people find you in search."
+                    text="Use hashtags to make your profile easier to find."
                   />
 
                   <Field label="Main category" htmlFor="category">
@@ -300,16 +412,15 @@ export default async function BecomeExpertPage({
                   </Field>
 
                   <div className="grid gap-5 md:grid-cols-2">
-                    <Field label="Languages" htmlFor="languages">
-                      <input
-                        id="languages"
-                        name="languages"
-                        type="text"
-                        required
-                        className="input mt-2"
-                        placeholder="English, French, Russian"
-                      />
-                    </Field>
+                    <TagInput
+                      name="languages"
+                      label="Languages"
+                      required
+                      suggestions={languageSuggestions}
+                      placeholder="English, French, Russian"
+                      helperText="Type a language and press Enter, or choose from suggestions."
+                      maxItems={8}
+                    />
 
                     <Field label="Timezone" htmlFor="timezone">
                       <input
@@ -324,26 +435,24 @@ export default async function BecomeExpertPage({
                     </Field>
                   </div>
 
-                  <Field label="Skills / topics" htmlFor="skills">
-                    <input
-                      id="skills"
-                      name="skills"
-                      type="text"
-                      required
-                      className="input mt-2"
-                      placeholder="translation, moving abroad, emotional support, documents"
-                    />
-                  </Field>
+                  <TagInput
+                    name="skills"
+                    label="Skills / topics"
+                    required
+                    suggestions={skillSuggestions}
+                    placeholder="Translation, moving abroad, emotional support"
+                    helperText="Add topics clients might search for. Popular topics appear as suggestions."
+                    maxItems={18}
+                  />
 
-                  <Field label="Tags" htmlFor="tags">
-                    <input
-                      id="tags"
-                      name="tags"
-                      type="text"
-                      className="input mt-2"
-                      placeholder="support, advice, french, family, relocation"
-                    />
-                  </Field>
+                  <TagInput
+                    name="tags"
+                    label="Tags"
+                    suggestions={tagSuggestions}
+                    placeholder="support, advice, french, family, relocation"
+                    helperText="Optional hashtags for extra discovery."
+                    maxItems={18}
+                  />
                 </div>
 
                 <div className="grid gap-5">
@@ -359,21 +468,24 @@ export default async function BecomeExpertPage({
                       name="serviceTitle"
                       type="text"
                       required
+                      minLength={4}
+                      maxLength={120}
                       className="input mt-2"
                       placeholder="15-minute life advice call"
                     />
                   </Field>
 
-                  <Field label="Service description" htmlFor="serviceDescription">
-                    <textarea
-                      id="serviceDescription"
-                      name="serviceDescription"
-                      required
-                      rows={4}
-                      className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
-                      placeholder="Explain what happens during the call and what the client will get from it."
-                    />
-                  </Field>
+                  <TextareaWithCounter
+                    id="serviceDescription"
+                    name="serviceDescription"
+                    label="Service description"
+                    required
+                    rows={4}
+                    minLength={30}
+                    maxLength={800}
+                    placeholder="Explain what happens during the call and what the client will get from it."
+                    helperText="Clear service descriptions help clients book faster."
+                  />
 
                   <div className="grid gap-5 md:grid-cols-2">
                     <Field label="Call duration" htmlFor="durationMinutes">
@@ -513,7 +625,7 @@ function Field({
 }: {
   label: string;
   htmlFor: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div>
@@ -524,6 +636,70 @@ function Field({
       {children}
     </div>
   );
+}
+
+function getPopularItems(items: string[]) {
+  const counts = new Map<
+    string,
+    {
+      label: string;
+      count: number;
+    }
+  >();
+
+  items.forEach((item) => {
+    const label = item.trim();
+
+    if (!label) {
+      return;
+    }
+
+    const key = label.toLowerCase();
+    const current = counts.get(key);
+
+    if (current) {
+      counts.set(key, {
+        label: current.label,
+        count: current.count + 1,
+      });
+
+      return;
+    }
+
+    counts.set(key, {
+      label,
+      count: 1,
+    });
+  });
+
+  return Array.from(counts.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 40)
+    .map((item) => item.label);
+}
+
+function mergeSuggestions(primary: string[], fallback: string[]) {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+
+  [...primary, ...fallback].forEach((item) => {
+    const value = item.trim();
+
+    if (!value) {
+      return;
+    }
+
+    const key = value.toLowerCase();
+
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    merged.push(value);
+  });
+
+  return merged.slice(0, 60);
 }
 
 function formatExpertSetupError(error: string) {

@@ -17,6 +17,7 @@ import { createProviderServiceAction } from "@/server/actions/expert.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { ServiceOfferCard } from "@/components/expert/service-offer-card";
+import { PricingPreview } from "@/components/pricing/pricing-preview";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -100,6 +101,12 @@ export default async function ExpertServicesPage({
                 Back to dashboard
               </Link>
 
+              {resolvedSearchParams.error ? (
+                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
+                  {formatServiceError(resolvedSearchParams.error)}
+                </div>
+              ) : null}
+
               <div className="mt-6">
                 <Badge variant="primary">
                   <WalletCards size={14} />
@@ -113,6 +120,8 @@ export default async function ExpertServicesPage({
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
                 Create focused services with clear pricing, duration and result.
+                You will see what the client pays and what you receive before
+                saving.
               </p>
             </div>
 
@@ -131,25 +140,21 @@ export default async function ExpertServicesPage({
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <MiniStat label="Active offers" value={String(activeServices.length)} />
+
             <MiniStat
               label="Inactive offers"
               value={String(inactiveServices.length)}
             />
+
             <MiniStat
               label="Starting price"
-              value={lowestPrice ? `€${lowestPrice / 100}` : "—"}
+              value={lowestPrice ? formatMoney(lowestPrice) : "—"}
             />
           </div>
         </div>
       </section>
 
       <section className="p-6 md:p-8 lg:p-10">
-        {resolvedSearchParams.error ? (
-          <div className="mb-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
-            {resolvedSearchParams.error}
-          </div>
-        ) : null}
-
         <div className="grid gap-6">
           <details className="group rounded-[28px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[22px] p-2">
@@ -186,6 +191,7 @@ export default async function ExpertServicesPage({
                       <option value="" disabled>
                         Choose a category
                       </option>
+
                       {categoryOptions.map((category) => (
                         <option key={category} value={category}>
                           {category}
@@ -200,6 +206,8 @@ export default async function ExpertServicesPage({
                       name="title"
                       type="text"
                       required
+                      minLength={4}
+                      maxLength={120}
                       className="input mt-2"
                       placeholder="15-minute advice call"
                     />
@@ -212,6 +220,8 @@ export default async function ExpertServicesPage({
                     name="description"
                     required
                     rows={3}
+                    minLength={30}
+                    maxLength={800}
                     className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
                     placeholder="Explain what happens during the call and what the client will get from it."
                   />
@@ -249,7 +259,7 @@ export default async function ExpertServicesPage({
                         step="1"
                         required
                         className="input pl-12"
-                        placeholder="25"
+                        placeholder="30"
                       />
                     </div>
                   </Field>
@@ -259,6 +269,8 @@ export default async function ExpertServicesPage({
                     <ArrowRight size={18} />
                   </button>
                 </div>
+
+                <PricingPreview inputId="price-new" />
               </form>
             </div>
           </details>
@@ -277,7 +289,7 @@ export default async function ExpertServicesPage({
 
                 <p className="mt-3 max-w-2xl leading-7 text-muted">
                   Active offers appear on your public profile. Edit opens inside
-                  the page and moves naturally with scroll.
+                  the page and shows a price breakdown before saving.
                 </p>
               </div>
             </div>
@@ -321,6 +333,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
+
       <p className="mt-2 text-3xl font-black tracking-[-0.04em]">{value}</p>
     </Card>
   );
@@ -340,6 +353,7 @@ function Field({
       <label htmlFor={htmlFor} className="text-sm font-black">
         {label}
       </label>
+
       {children}
     </div>
   );
@@ -372,4 +386,36 @@ function EmptyState() {
       </p>
     </div>
   );
+}
+
+function formatMoney(cents: number) {
+  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatServiceError(error: string) {
+  if (error === "missing-required-fields") {
+    return "Please fill in all required fields.";
+  }
+
+  if (error === "service-not-found") {
+    return "Service was not found.";
+  }
+
+  if (error === "title-too-short") {
+    return "Please enter a clearer service title.";
+  }
+
+  if (error === "description-too-short") {
+    return "Please describe your service in at least 30 characters.";
+  }
+
+  if (error === "invalid-duration") {
+    return "Please choose a valid duration.";
+  }
+
+  if (error === "invalid-price") {
+    return "Please enter a valid price.";
+  }
+
+  return "Something went wrong. Please try again.";
 }

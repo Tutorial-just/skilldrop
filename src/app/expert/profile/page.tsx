@@ -13,10 +13,13 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { AvatarUpload } from "@/components/expert/avatar-upload";
+import { TagInput } from "@/components/expert/tag-input";
+import { FormDraft } from "@/components/forms/form-draft";
+import { TextareaWithCounter } from "@/components/forms/textarea-with-counter";
 import { updateProviderProfileAction } from "@/server/actions/expert.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
-import { TagInput } from "@/components/expert/tag-input";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,8 +27,75 @@ import { Card } from "@/components/ui/card";
 type ExpertProfilePageProps = {
   searchParams?: Promise<{
     error?: string;
+    saved?: string;
   }>;
 };
+
+const fallbackLanguageSuggestions = [
+  "English",
+  "French",
+  "Spanish",
+  "German",
+  "Italian",
+  "Russian",
+  "Ukrainian",
+  "Arabic",
+  "Portuguese",
+  "Turkish",
+  "Polish",
+  "Romanian",
+  "Dutch",
+];
+
+const fallbackSkillSuggestions = [
+  "Translation",
+  "Document help",
+  "Career advice",
+  "CV review",
+  "Interview preparation",
+  "Moving abroad",
+  "Visa documents",
+  "Admin help",
+  "Emotional support",
+  "Life advice",
+  "Relationship advice",
+  "Family advice",
+  "Business advice",
+  "Freelance advice",
+  "Language practice",
+  "French paperwork",
+  "Job search",
+  "Study abroad",
+  "Housing advice",
+  "Small business",
+  "Client communication",
+  "Conflict resolution",
+];
+
+const fallbackTagSuggestions = [
+  "support",
+  "advice",
+  "translation",
+  "documents",
+  "career",
+  "jobs",
+  "relocation",
+  "family",
+  "relationships",
+  "business",
+  "freelance",
+  "language",
+  "interview",
+  "cv",
+  "visa",
+  "housing",
+  "confidence",
+  "communication",
+  "beginner-friendly",
+  "fast-help",
+  "practical",
+  "friendly",
+];
 
 export default async function ExpertProfilePage({
   searchParams,
@@ -63,13 +133,48 @@ export default async function ExpertProfilePage({
     redirect("/become-expert");
   }
 
+  const suggestionProfiles = await prisma.expertProfile.findMany({
+    select: {
+      languages: true,
+      skills: true,
+      tags: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 300,
+  });
+
+  const languageSuggestions = mergeSuggestions(
+    getPopularItems(suggestionProfiles.flatMap((profile) => profile.languages)),
+    fallbackLanguageSuggestions,
+  );
+
+  const skillSuggestions = mergeSuggestions(
+    getPopularItems(suggestionProfiles.flatMap((profile) => profile.skills)),
+    fallbackSkillSuggestions,
+  );
+
+  const tagSuggestions = mergeSuggestions(
+    getPopularItems(suggestionProfiles.flatMap((profile) => profile.tags)),
+    fallbackTagSuggestions,
+  );
+
   const profileStrength = calculateProfileStrength({
     headline: expert.headline,
     bio: expert.bio,
     languages: expert.languages,
     skills: expert.skills,
     servicesCount: expert.services.length,
+    hasAvatar: Boolean(expert.user.avatarUrl),
   });
+
+  const providerName = expert.user.name ?? "Provider";
+  const avatarLetter = (
+    expert.user.name?.charAt(0) ||
+    expert.user.email.charAt(0) ||
+    "P"
+  ).toUpperCase();
 
   return (
     <main>
@@ -86,6 +191,18 @@ export default async function ExpertProfilePage({
                 <ArrowLeft size={16} />
                 Back to dashboard
               </Link>
+
+              {resolvedSearchParams.saved ? (
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                  Profile saved. Your public profile has been updated.
+                </div>
+              ) : null}
+
+              {resolvedSearchParams.error ? (
+                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
+                  {formatProfileError(resolvedSearchParams.error)}
+                </div>
+              ) : null}
 
               <div className="mt-6">
                 <Badge variant="primary">
@@ -137,17 +254,20 @@ export default async function ExpertProfilePage({
               </Badge>
 
               <div className="mt-6 flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
-                  {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
-                </div>
+                <AvatarPreview
+                  avatarUrl={expert.user.avatarUrl}
+                  name={providerName}
+                  fallbackLetter={avatarLetter}
+                  size="md"
+                />
 
                 <div>
                   <h2 className="text-2xl font-black tracking-[-0.04em]">
-                    {expert.user.name ?? "Provider"}
+                    {providerName}
                   </h2>
 
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    {expert.headline}
+                    {expert.headline || "Practical help through short calls"}
                   </p>
                 </div>
               </div>
@@ -189,6 +309,7 @@ export default async function ExpertProfilePage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
+                <Tip text="Add a friendly photo so clients trust you faster." />
                 <Tip text="Use a simple headline that says who you help." />
                 <Tip text="Write your biography like you are speaking to a real person." />
                 <Tip text="Add searchable skills people might type into search." />
@@ -198,6 +319,22 @@ export default async function ExpertProfilePage({
 
             <Card className="p-6">
               <Badge variant="accent">Public preview</Badge>
+
+              <div className="mt-5 flex items-start gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                <AvatarPreview
+                  avatarUrl={expert.user.avatarUrl}
+                  name={providerName}
+                  fallbackLetter={avatarLetter}
+                  size="sm"
+                />
+
+                <div className="min-w-0">
+                  <p className="font-black tracking-[-0.02em]">{providerName}</p>
+                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">
+                    {expert.headline || "Practical help through short calls"}
+                  </p>
+                </div>
+              </div>
 
               <div className="mt-5 grid gap-4">
                 <PreviewRow
@@ -232,18 +369,23 @@ export default async function ExpertProfilePage({
               </p>
             </div>
 
-            {resolvedSearchParams.error ? (
-              <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
-                {resolvedSearchParams.error}
-              </div>
-            ) : null}
+            <form
+              id="expert-profile-form"
+              action={updateProviderProfileAction}
+              className="mt-8 grid gap-8"
+            >
+              <FormDraft formId="expert-profile-form" />
 
-            <form action={updateProviderProfileAction} className="mt-8 grid gap-8">
               <div className="grid gap-5">
                 <SectionTitle
                   icon={UserRound}
                   title="Basic information"
                   text="This is shown at the top of your public profile."
+                />
+
+                <AvatarUpload
+                  currentAvatarUrl={expert.user.avatarUrl}
+                  fallbackLetter={avatarLetter}
                 />
 
                 <div className="grid gap-5 md:grid-cols-2">
@@ -253,6 +395,7 @@ export default async function ExpertProfilePage({
                       name="displayName"
                       type="text"
                       required
+                      maxLength={80}
                       defaultValue={expert.user.name ?? ""}
                       className="input mt-2"
                       placeholder="Anna Keller"
@@ -264,6 +407,7 @@ export default async function ExpertProfilePage({
                       id="country"
                       name="country"
                       type="text"
+                      maxLength={80}
                       defaultValue={expert.country ?? ""}
                       className="input mt-2"
                       placeholder="France"
@@ -277,30 +421,33 @@ export default async function ExpertProfilePage({
                     name="headline"
                     type="text"
                     required
+                    minLength={8}
+                    maxLength={120}
                     defaultValue={expert.headline}
                     className="input mt-2"
-                    placeholder="I help people solve practical life problems"
+                    placeholder="I help people prepare for job interviews"
                   />
                 </Field>
 
-                <Field label="Autobiography / about you" htmlFor="bio">
-                  <textarea
-                    id="bio"
-                    name="bio"
-                    required
-                    rows={7}
-                    defaultValue={expert.bio}
-                    className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
-                    placeholder="Tell people who you are, what experience you have, who you can help and what they can expect after a call."
-                  />
-                </Field>
+                <TextareaWithCounter
+                  id="bio"
+                  name="bio"
+                  label="About you"
+                  required
+                  rows={7}
+                  minLength={80}
+                  maxLength={1600}
+                  defaultValue={expert.bio}
+                  placeholder="Tell people who you are, what experience you have, who you can help and what they can expect after a call."
+                  helperText="Write like you are speaking to a real person. Clear profiles get more bookings."
+                />
               </div>
 
               <div className="grid gap-5">
                 <SectionTitle
                   icon={Languages}
                   title="Search and discovery"
-                  text="Use hashtags to make your profile easier to find."
+                  text="Use clear tags to make your profile easier to find."
                 />
 
                 <div className="grid gap-5 md:grid-cols-2">
@@ -308,9 +455,11 @@ export default async function ExpertProfilePage({
                     name="languages"
                     label="Languages"
                     defaultValue={expert.languages}
+                    suggestions={languageSuggestions}
                     required
                     placeholder="English, French, Russian"
-                    helperText="Press Enter after each language."
+                    helperText="Press Enter after each language, or choose from suggestions."
+                    maxItems={8}
                   />
 
                   <Field label="Timezone" htmlFor="timezone">
@@ -319,6 +468,7 @@ export default async function ExpertProfilePage({
                       name="timezone"
                       type="text"
                       required
+                      maxLength={80}
                       defaultValue={expert.timezone}
                       className="input mt-2"
                       placeholder="Europe/Paris"
@@ -330,17 +480,21 @@ export default async function ExpertProfilePage({
                   name="skills"
                   label="Skills / topics"
                   defaultValue={expert.skills}
+                  suggestions={skillSuggestions}
                   required
-                  placeholder="Translation, career advice, emotional support"
+                  placeholder="CV review, translation, documents, relocation"
                   helperText="Add topics clients might search for."
+                  maxItems={18}
                 />
 
                 <TagInput
                   name="tags"
                   label="Tags"
                   defaultValue={expert.tags}
-                  placeholder="support, advice, french, family, relocation"
-                  helperText="Optional hashtags for extra discovery."
+                  suggestions={tagSuggestions}
+                  placeholder="career, french, documents, moving abroad"
+                  helperText="Optional tags for extra discovery."
+                  maxItems={18}
                 />
               </div>
 
@@ -357,8 +511,9 @@ export default async function ExpertProfilePage({
                     </p>
 
                     <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
-                      People can discover your profile after setup. Keep your
-                      text honest, clear and helpful.
+                      People can discover your profile after setup.
+                      Verification is earned after 3 successful calls and a
+                      3.8+ rating.
                     </p>
                   </div>
                 </div>
@@ -379,6 +534,36 @@ export default async function ExpertProfilePage({
         </div>
       </section>
     </main>
+  );
+}
+
+function AvatarPreview({
+  avatarUrl,
+  name,
+  fallbackLetter,
+  size,
+}: {
+  avatarUrl: string | null;
+  name: string;
+  fallbackLetter: string;
+  size: "sm" | "md";
+}) {
+  const sizeClass =
+    size === "md"
+      ? "h-16 w-16 rounded-[24px] text-2xl"
+      : "h-12 w-12 rounded-[18px] text-lg";
+
+  return (
+    <div
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] font-black text-white shadow-sm ${sizeClass}`}
+    >
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+      ) : (
+        fallbackLetter
+      )}
+    </div>
   );
 }
 
@@ -452,14 +637,17 @@ function calculateProfileStrength({
   languages,
   skills,
   servicesCount,
+  hasAvatar,
 }: {
   headline: string;
   bio: string;
   languages: string[];
   skills: string[];
   servicesCount: number;
+  hasAvatar: boolean;
 }) {
   const checks = [
+    hasAvatar,
     headline.length >= 8,
     bio.length >= 120,
     languages.length > 0,
@@ -470,4 +658,104 @@ function calculateProfileStrength({
   const completed = checks.filter(Boolean).length;
 
   return Math.round((completed / checks.length) * 100);
+}
+
+function getPopularItems(items: string[]) {
+  const counts = new Map<
+    string,
+    {
+      label: string;
+      count: number;
+    }
+  >();
+
+  items.forEach((item) => {
+    const label = item.trim();
+
+    if (!label) {
+      return;
+    }
+
+    const key = label.toLowerCase();
+    const current = counts.get(key);
+
+    if (current) {
+      counts.set(key, {
+        label: current.label,
+        count: current.count + 1,
+      });
+
+      return;
+    }
+
+    counts.set(key, {
+      label,
+      count: 1,
+    });
+  });
+
+  return Array.from(counts.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 40)
+    .map((item) => item.label);
+}
+
+function mergeSuggestions(primary: string[], fallback: string[]) {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+
+  [...primary, ...fallback].forEach((item) => {
+    const value = item.trim();
+
+    if (!value) {
+      return;
+    }
+
+    const key = value.toLowerCase();
+
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    merged.push(value);
+  });
+
+  return merged.slice(0, 60);
+}
+
+function formatProfileError(error: string) {
+  if (error === "missing-required-fields") {
+    return "Please fill in all required fields.";
+  }
+
+  if (error === "headline-too-short") {
+    return "Please write a clearer headline.";
+  }
+
+  if (error === "bio-too-short") {
+    return "Please write at least 80 characters about yourself.";
+  }
+
+  if (error === "missing-languages") {
+    return "Please add at least one language.";
+  }
+
+  if (error === "missing-skills") {
+    return "Please add at least two skills or topics.";
+  }
+
+  if (error === "invalid-avatar") {
+    return "Please upload a valid image: JPG, PNG or WEBP.";
+  }
+
+  if (error === "avatar-too-large") {
+    return "Profile photo is too large. Please upload an image under 1MB.";
+  }
+
+  if (error === "not-signed-in") {
+    return "Please sign in again.";
+  }
+
+  return "Something went wrong. Please try again.";
 }

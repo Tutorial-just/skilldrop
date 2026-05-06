@@ -28,52 +28,34 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 const popularSearches = [
-  "Psychologist",
+  "CV review",
   "Translator",
-  "Life advice",
-  "Career help",
-  "Family advice",
   "Documents",
   "Moving abroad",
-  "And much more",
-];
+  "Career help",
+  "Life guidance",
+  "Business advice",
+  "Language practice",
+ ];
 
-const categories = [
-  {
-    title: "Psychology & Support",
-    description: "Talk to someone who can listen, support and guide.",
-    icon: MessageCircleHeart,
-    tag: "Support",
-  },
-  {
-    title: "Translation & Languages",
-    description: "Get help with translation, language practice or documents.",
-    icon: Languages,
-    tag: "Languages",
-  },
-  {
-    title: "Life Advice",
-    description: "Speak with people who can share real experience and perspective.",
-    icon: HeartHandshake,
-    tag: "Life",
-  },
+ const categories = [
   {
     title: "Career & Jobs",
-    description: "Prepare for interviews, CV reviews and career decisions.",
+    description: "Get help with CV reviews, LinkedIn profiles, interviews and job search decisions.",
     icon: BriefcaseBusiness,
     tag: "Career",
   },
   {
-    title: "Family & Relationships",
-    description: "Get calm advice for personal, family or relationship questions.",
-    icon: UsersRound,
-    tag: "Family",
+    title: "Translation & Languages",
+    description: "Get help with translation, language practice, messages or documents.",
+    icon: Languages,
+    tag: "Languages",
   },
   {
     title: "Documents & Admin Help",
-    description: "Understand forms, letters, applications and practical tasks.",
+    description: "Understand forms, letters, applications and everyday admin tasks.",
     icon: FileText,
-    tag: "Admin",
+    tag: "Documents",
   },
   {
     title: "Moving Abroad",
@@ -82,60 +64,77 @@ const categories = [
     tag: "Relocation",
   },
   {
+    title: "Life Guidance",
+    description: "Talk to someone with relevant experience and get practical perspective.",
+    icon: HeartHandshake,
+    tag: "Guidance",
+  },
+  {
     title: "Business & Freelance",
     description: "Get advice about clients, pricing, freelancing and small business.",
     icon: WalletCards,
     tag: "Business",
   },
   {
-    title: "Anything you want",
-    description: "Create or find almost any useful short-call service.",
+    title: "Study & Applications",
+    description: "Get help with applications, motivation letters, study plans and choices.",
+    icon: FileText,
+    tag: "Study",
+  },
+  {
+    title: "Local Help",
+    description: "Find people who can explain local rules, services, culture or practical steps.",
+    icon: Globe2,
+    tag: "Local",
+  },
+  {
+    title: "Other Practical Help",
+    description: "Create or find useful short-call services based on real experience.",
     icon: Sparkles,
     tag: "More",
   },
-];
-
-const steps = [
+ ];
+ const steps = [
   {
     icon: Search,
-    title: "Describe your need",
-    text: "Search by problem, language, topic or category.",
+    title: "Search your problem",
+    text: "Find help by topic, language, category or keyword.",
   },
   {
     icon: BadgeCheck,
-    title: "Choose a person",
-    text: "Compare profiles, ratings, services and prices.",
+    title: "Choose a provider",
+    text: "Compare profiles, ratings, services, prices and availability.",
   },
   {
     icon: Video,
     title: "Book a short call",
-    text: "Talk 1:1 and leave with practical next steps.",
+    text: "Talk 1:1 and leave with clear practical next steps.",
   },
-];
+ ];
 
-const helpers = [
+ const helpers = [
   {
     name: "Anna Keller",
-    role: "Career & CV Advisor",
+    role: "CV & Interview Advisor",
     tag: "Career",
     price: "€25",
     rating: "4.9",
   },
   {
     name: "Mira Ivanova",
-    role: "Translator · French/Russian",
+    role: "French/Russian Translator",
     tag: "Translation",
     price: "€20",
     rating: "4.8",
   },
   {
     name: "Daniel Moreau",
-    role: "Life Advice & Support",
-    tag: "Life advice",
+    role: "Relocation & Documents Helper",
+    tag: "Relocation",
     price: "€18",
     rating: "4.7",
   },
-];
+ ];
 
 const trustItems = [
   "Clear prices before booking",
@@ -156,16 +155,16 @@ export default function HomePage() {
           <div>
             <Badge variant="primary">
               <Sparkles size={14} />
-              Real people. Useful advice. Short calls.
+               Real people. Practical help. Short calls.
             </Badge>
 
             <h1 className="heading-display mt-7 max-w-5xl text-balance">
-              Find the right person to help you move forward.
+              Get practical help from the right person in a short 1:1 call.
             </h1>
 
             <p className="mt-7 max-w-2xl text-xl leading-8 text-muted">
-              Book short 1:1 calls with people who can advise, translate,
-              support, explain or help you solve practical life problems.
+              Find people who can help with career, documents, translation,
+              relocation, business, language and everyday practical questions.
             </p>
 
             <form action="/experts" className="mt-9 max-w-2xl">
@@ -180,7 +179,7 @@ export default function HomePage() {
                     <input
                       name="q"
                       type="search"
-                      placeholder="What do you need help with?"
+                      placeholder="Try “CV review”, “documents”, “moving abroad”..."
                       className="input min-h-[56px] border-transparent bg-white pl-12 shadow-none"
                     />
                   </div>
@@ -245,12 +244,12 @@ export default function HomePage() {
               <Badge variant="accent">Categories</Badge>
 
               <h2 className="heading-xl mt-5 max-w-3xl text-balance">
-                Help for work, life, language, family and more.
+                Help for career, documents, language, relocation and everyday questions.
               </h2>
 
               <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
-                SkillDrop is open to many useful services. If someone can help
-                through a short call, they can create a profile.
+                SkillDrop is built for useful short-call services. If someone has
+                relevant knowledge or real experience, they can offer help.
               </p>
             </div>
 
@@ -275,12 +274,12 @@ export default function HomePage() {
               <Badge variant="primary">How it works</Badge>
 
               <h2 className="heading-xl mt-5 text-balance">
-                A simple call can save days of confusion.
+                 One short call can make the next step clear.
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                Search for what you need, choose a person, book a time and talk
-                directly.
+                Search for your problem, choose a person with relevant experience,
+                book a time and talk directly.
               </p>
             </div>
 
@@ -317,8 +316,8 @@ export default function HomePage() {
             <AudiencePanel
               icon={UserRound}
               badge="For people who need help"
-              title="Find someone who understands your problem."
-              text="Use SkillDrop when you need advice, support, translation, preparation or practical guidance."
+              title="Find someone who can help with your next step."
+              text="Use SkillDrop when you need practical advice, translation, preparation, document help or real-life guidance."
               href="/sign-up?role=buyer"
               action="I need help"
               points={[
@@ -331,8 +330,8 @@ export default function HomePage() {
             <AudiencePanel
               icon={BriefcaseBusiness}
               badge="For people who offer help"
-              title="Create any useful profile you want."
-              text="Offer short paid calls as a specialist, translator, mentor, helper or someone with real life experience."
+              title="Turn your knowledge into short paid calls."
+              text="Offer help as a specialist, translator, mentor, relocation helper or someone with useful real-life experience."
               href="/sign-up?role=expert"
               action="I want to offer help"
               points={[
@@ -401,9 +400,9 @@ export default function HomePage() {
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                Providers set their own prices. During launch, SkillDrop keeps only a
-                5% platform commission to support payments, safety, product and marketplace
-                growth.
+                Providers set their own prices. During launch, SkillDrop keeps a
+                5% platform commission to support payments, safety, product development
+                and marketplace growth.
               </p>
             </div>
 
@@ -537,16 +536,16 @@ function HeroMarketplacePreview() {
           </div>
 
           <div className="mt-8">
-            <p className="text-sm font-bold text-white/50">Popular need</p>
+            <p className="text-sm font-bold text-white/50">Example request</p>
             <h2 className="mt-2 text-4xl font-black leading-none tracking-[-0.055em]">
-              I need advice before moving abroad
+               I need help with documents before moving abroad
             </h2>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <MiniPanel label="Format" value="1:1 call" />
             <MiniPanel label="Time" value="15 min" />
-            <MiniPanel label="Result" value="Clarity" />
+            <MiniPanel label="Result" value="Next steps" />
           </div>
         </div>
 

@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
-  CalendarDays,
   Clock3,
   Compass,
   Globe2,
@@ -32,13 +31,18 @@ type ExpertsPageProps = {
 
 const quickSearches = [
   {
-    label: "Life advice",
-    href: "/experts?q=life advice",
-    icon: HeartHandshake,
+    label: "CV review",
+    href: "/experts?q=CV review",
+    icon: WalletCards,
+  },
+  {
+    label: "Documents",
+    href: "/experts?q=documents admin help",
+    icon: Compass,
   },
   {
     label: "Moving abroad",
-    href: "/experts?q=moving abroad",
+    href: "/experts?q=moving abroad relocation",
     icon: Compass,
   },
   {
@@ -47,14 +51,9 @@ const quickSearches = [
     icon: Languages,
   },
   {
-    label: "Career",
-    href: "/experts?q=career work",
-    icon: WalletCards,
-  },
-  {
-    label: "Everything else",
-    href: "/experts?q=help advice support",
-    icon: Sparkles,
+    label: "Practical advice",
+    href: "/experts?q=practical advice guidance",
+    icon: HeartHandshake,
   },
 ];
 
@@ -63,18 +62,31 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
   const query = resolvedSearchParams.q?.trim() ?? "";
   const verifiedOnly = resolvedSearchParams.verified === "true";
-  const maxPrice = resolvedSearchParams.maxPrice
-    ? Number(resolvedSearchParams.maxPrice) * 100
+
+  const parsedMaxPrice = resolvedSearchParams.maxPrice
+    ? Number(resolvedSearchParams.maxPrice)
     : null;
+
+  const maxPrice =
+    parsedMaxPrice && Number.isFinite(parsedMaxPrice) && parsedMaxPrice > 0
+      ? parsedMaxPrice * 100
+      : null;
+
   const language = resolvedSearchParams.language?.trim() ?? "";
   const sort = resolvedSearchParams.sort ?? "best";
 
   const now = new Date();
 
   const searchTerms = query
+    .toLowerCase()
     .split(/[,\s]+/)
     .map((term) => term.trim())
-    .filter(Boolean);
+    .filter((term) => term.length >= 2);
+
+  const normalizedQuery = query.toLowerCase();
+  const arraySearchTerms = Array.from(
+    new Set([...searchTerms, normalizedQuery].filter(Boolean)),
+  );
 
   const rawExperts = await prisma.expertProfile.findMany({
     where: {
@@ -135,17 +147,17 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               },
               {
                 skills: {
-                  hasSome: searchTerms,
+                  hasSome: arraySearchTerms,
                 },
               },
               {
                 languages: {
-                  hasSome: searchTerms,
+                  hasSome: arraySearchTerms,
                 },
               },
               {
                 tags: {
-                  hasSome: searchTerms,
+                  hasSome: arraySearchTerms,
                 },
               },
               {
@@ -286,6 +298,13 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     0,
   );
 
+  const hasActiveFilters =
+    Boolean(query) ||
+    verifiedOnly ||
+    Boolean(resolvedSearchParams.maxPrice) ||
+    Boolean(language) ||
+    sort !== "best";
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
@@ -294,18 +313,18 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
         <div className="relative container-page py-8 md:py-10 lg:py-14">
           <Badge variant="primary">
             <Search size={14} />
-            Find experts
+            Find providers
           </Badge>
 
           <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_380px] xl:items-end">
             <div>
               <h1 className="heading-lg max-w-5xl text-balance">
-                Find the right person for a short helpful call.
+                Find the right person for a short practical call.
               </h1>
 
               <p className="mt-5 max-w-3xl text-lg leading-8 text-muted">
-                Search by topic, language, life situation or practical problem.
-                Choose a service, pick a time and book a video call.
+                Search by topic, language, skill or practical problem. Choose a
+                service, pick a time and book a 1:1 video call.
               </p>
             </div>
 
@@ -316,9 +335,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <StatRow label="Available experts" value={String(experts.length)} />
+                <StatRow
+                  label="Available providers"
+                  value={String(experts.length)}
+                />
                 <StatRow label="Open time slots" value={String(totalOpenSlots)} />
-                <StatRow label="Search" value={query || "All experts"} />
+                <StatRow label="Search" value={query || "All providers"} />
               </div>
             </Card>
           </div>
@@ -333,21 +355,21 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                     name="q"
                     type="search"
                     defaultValue={query}
-                    placeholder="Search: translation, career, moving abroad, emotional support..."
+                    placeholder="Search: CV review, documents, translation, moving abroad..."
                     className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-muted"
                   />
                 </div>
 
-                <button type="submit" className="btn btn-primary">
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  aria-label="Search providers"
+                >
                   Search
                   <ArrowRight size={18} />
                 </button>
 
-                {query ||
-                verifiedOnly ||
-                resolvedSearchParams.maxPrice ||
-                language ||
-                sort !== "best" ? (
+                {hasActiveFilters ? (
                   <Link href="/experts" className="btn btn-secondary">
                     Clear
                   </Link>
@@ -426,8 +448,16 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <Step number="1" title="Choose expert" text="Open a profile." />
-                <Step number="2" title="Pick service" text="Select an offer." />
+                <Step
+                  number="1"
+                  title="Choose provider"
+                  text="Open a profile."
+                />
+                <Step
+                  number="2"
+                  title="Pick service"
+                  text="Select an offer."
+                />
                 <Step number="3" title="Book time" text="Reserve a slot." />
               </div>
             </Card>
@@ -439,8 +469,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <p className="mt-4 text-sm font-bold leading-6 text-muted">
-                Try simple words like “French”, “career”, “documents”, “moving”
-                or “support”.
+                Try simple words like “French”, “CV”, “documents”, “moving” or
+                “translation”.
               </p>
             </Card>
           </aside>
@@ -449,12 +479,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
                 <h2 className="text-3xl font-black tracking-[-0.05em]">
-                  {query ? `Results for “${query}”` : "Available experts"}
+                  {query ? `Results for “${query}”` : "Available providers"}
                 </h2>
 
                 <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                  Showing experts with active offers, future availability and
-                  quality-based ranking.
+                  Showing providers with active services, future availability
+                  and quality-based ranking.
                 </p>
               </div>
 
@@ -469,8 +499,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </div>
             ) : (
               <EmptyState
-                title="No experts found"
-                text="Try another keyword, or check back later when more experts add availability."
+                title="No providers found"
+                text="Try another keyword, remove filters, or check back later when more providers add availability."
               />
             )}
           </div>
@@ -519,6 +549,12 @@ function ExpertSearchCard({
 }) {
   const startingPrice = expert.services[0]?.priceCents ?? null;
   const nextSlot = expert.availability[0] ?? null;
+  const displayName = expert.user.name || expert.user.email;
+  const avatarLetter = (
+    expert.user.name?.charAt(0) ||
+    expert.user.email.charAt(0) ||
+    "P"
+  ).toUpperCase();
 
   return (
     <Link href={`/experts/${expert.id}`} className="group">
@@ -526,7 +562,7 @@ function ExpertSearchCard({
         <div className="grid gap-5 lg:grid-cols-[1fr_220px] lg:items-start">
           <div className="flex gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
-              {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
+              {avatarLetter}
             </div>
 
             <div className="min-w-0">
@@ -540,9 +576,11 @@ function ExpertSearchCard({
                   <Badge variant="accent">New</Badge>
                 )}
 
-                <Badge variant={expert.qualityScore >= 80 ? "success" : "primary"}>
+                <Badge
+                  variant={expert.qualityScore >= 80 ? "success" : "primary"}
+                >
                   <Sparkles size={14} />
-                  Quality {expert.qualityScore}
+                  Match {expert.qualityScore}
                 </Badge>
 
                 {expert.country ? (
@@ -559,7 +597,7 @@ function ExpertSearchCard({
               </div>
 
               <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                {expert.user.name ?? expert.user.email}
+                {displayName}
               </h3>
 
               <p className="mt-2 text-lg font-black tracking-[-0.03em]">
@@ -567,7 +605,7 @@ function ExpertSearchCard({
               </p>
 
               <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-muted">
-                {expert.bio}
+                {expert.bio || "This provider has not added a bio yet."}
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -577,7 +615,7 @@ function ExpertSearchCard({
 
                 {expert.skills.length === 0 ? (
                   <span className="text-sm font-semibold text-muted">
-                    No skills listed.
+                    No tags added yet.
                   </span>
                 ) : null}
               </div>
@@ -596,7 +634,7 @@ function ExpertSearchCard({
                 value={nextSlot ? formatShortDateTime(nextSlot.startTime) : "—"}
               />
 
-              <SideRow label="Quality" value={`${expert.qualityScore}/100`} />
+              <SideRow label="Match" value={`${expert.qualityScore}/100`} />
 
               <SideRow label="Sessions" value={String(expert.totalSessions)} />
             </div>
@@ -732,7 +770,9 @@ function calculateQualityScore({
   const ratingScore =
     totalReviews > 0 ? clamp((rating / 5) * 30, 0, 30) : 8;
 
-  const helpfulnessAvg = averageNullable(reviews.map((review) => review.helpfulness));
+  const helpfulnessAvg = averageNullable(
+    reviews.map((review) => review.helpfulness),
+  );
   const clarityAvg = averageNullable(reviews.map((review) => review.clarity));
   const professionalismAvg = averageNullable(
     reviews.map((review) => review.professionalism),
@@ -741,11 +781,11 @@ function calculateQualityScore({
   const detailedReviewScore =
     helpfulnessAvg || clarityAvg || professionalismAvg
       ? clamp(
-          ((helpfulnessAvg ?? rating) +
+          (((helpfulnessAvg ?? rating) +
             (clarityAvg ?? rating) +
             (professionalismAvg ?? rating)) /
             3 /
-            5 *
+            5) *
             25,
           0,
           25,
@@ -790,9 +830,7 @@ function averageNullable(values: (number | null)[]) {
     return null;
   }
 
-  return (
-    cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length
-  );
+  return cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length;
 }
 
 function clamp(value: number, min: number, max: number) {
