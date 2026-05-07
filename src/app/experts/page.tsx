@@ -2,8 +2,11 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
+  CalendarDays,
+  CheckCircle2,
   Clock3,
   Compass,
+  Euro,
   Globe2,
   HeartHandshake,
   Languages,
@@ -16,6 +19,10 @@ import {
 } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
+import {
+  calculatePricingBreakdown,
+  formatMoneyFromCents,
+} from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -57,6 +64,12 @@ const quickSearches = [
   },
 ];
 
+const sortLabels: Record<string, string> = {
+  best: "Best match",
+  cheapest: "Cheapest",
+  soonest: "Soonest",
+};
+
 export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
@@ -84,6 +97,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     .filter((term) => term.length >= 2);
 
   const normalizedQuery = query.toLowerCase();
+
   const arraySearchTerms = Array.from(
     new Set([...searchTerms, normalizedQuery].filter(Boolean)),
   );
@@ -91,6 +105,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
   const rawExperts = await prisma.expertProfile.findMany({
     where: {
       status: "APPROVED",
+      stripeAccountId: {
+        not: null,
+      },
 
       ...(verifiedOnly ? { isVerified: true } : {}),
 
@@ -298,6 +315,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     0,
   );
 
+  const verifiedCount = experts.filter((expert) => expert.isVerified).length;
+
   const hasActiveFilters =
     Boolean(query) ||
     verifiedOnly ||
@@ -326,6 +345,23 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 Search by topic, language, skill or practical problem. Choose a
                 service, pick a time and book a 1:1 video call.
               </p>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                <Badge variant="success">
+                  <CheckCircle2 size={14} />
+                  Bookable providers only
+                </Badge>
+
+                <Badge variant="primary">
+                  <WalletCards size={14} />
+                  Payouts ready
+                </Badge>
+
+                <Badge variant="accent">
+                  <CalendarDays size={14} />
+                  Future availability
+                </Badge>
+              </div>
             </div>
 
             <Card className="p-5">
@@ -339,8 +375,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   label="Available providers"
                   value={String(experts.length)}
                 />
+                <StatRow label="Verified" value={String(verifiedCount)} />
                 <StatRow label="Open time slots" value={String(totalOpenSlots)} />
-                <StatRow label="Search" value={query || "All providers"} />
+                <StatRow label="Sort" value={sortLabels[sort] ?? "Best match"} />
               </div>
             </Card>
           </div>
@@ -393,9 +430,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
                 >
                   <option value="">Any price</option>
-                  <option value="20">Up to €20</option>
-                  <option value="50">Up to €50</option>
-                  <option value="100">Up to €100</option>
+                  <option value="20">Service up to €20</option>
+                  <option value="50">Service up to €50</option>
+                  <option value="100">Service up to €100</option>
                 </select>
 
                 <input
@@ -448,17 +485,14 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <Step
-                  number="1"
-                  title="Choose provider"
-                  text="Open a profile."
-                />
-                <Step
-                  number="2"
-                  title="Pick service"
-                  text="Select an offer."
-                />
+                <Step number="1" title="Choose provider" text="Open a profile." />
+                <Step number="2" title="Pick service" text="Select an offer." />
                 <Step number="3" title="Book time" text="Reserve a slot." />
+                <Step
+                  number="4"
+                  title="Pay safely"
+                  text="Confirm booking through checkout."
+                />
               </div>
             </Card>
 
@@ -473,6 +507,19 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 “translation”.
               </p>
             </Card>
+
+            <Card className="p-5">
+              <Badge variant="success">
+                <CheckCircle2 size={14} />
+                Safe choice
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <TrustPoint text="Only experts with active services are shown." />
+                <TrustPoint text="Only experts with open time slots are shown." />
+                <TrustPoint text="Only experts ready for payouts are shown." />
+              </div>
+            </Card>
           </aside>
 
           <div className="grid gap-5">
@@ -483,8 +530,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 </h2>
 
                 <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                  Showing providers with active services, future availability
-                  and quality-based ranking.
+                  Showing providers with active services, future availability,
+                  payout setup and quality-based ranking.
                 </p>
               </div>
 
@@ -528,6 +575,7 @@ function ExpertSearchCard({
     user: {
       name: string | null;
       email: string;
+      avatarUrl: string | null;
     };
     services: {
       id: string;
@@ -556,14 +604,20 @@ function ExpertSearchCard({
     "P"
   ).toUpperCase();
 
+  const startingTotal = startingPrice
+    ? calculatePricingBreakdown(startingPrice).clientTotalCents
+    : null;
+
   return (
     <Link href={`/experts/${expert.id}`} className="group">
       <Card className="p-5 transition group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)]">
-        <div className="grid gap-5 lg:grid-cols-[1fr_220px] lg:items-start">
+        <div className="grid gap-5 lg:grid-cols-[1fr_240px] lg:items-start">
           <div className="flex gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
-              {avatarLetter}
-            </div>
+            <AvatarPreview
+              avatarUrl={expert.user.avatarUrl}
+              name={displayName}
+              fallbackLetter={avatarLetter}
+            />
 
             <div className="min-w-0">
               <div className="flex flex-wrap gap-2">
@@ -575,6 +629,11 @@ function ExpertSearchCard({
                 ) : (
                   <Badge variant="accent">New</Badge>
                 )}
+
+                <Badge variant="success">
+                  <WalletCards size={14} />
+                  Payments ready
+                </Badge>
 
                 <Badge
                   variant={expert.qualityScore >= 80 ? "success" : "primary"}
@@ -601,7 +660,7 @@ function ExpertSearchCard({
               </h3>
 
               <p className="mt-2 text-lg font-black tracking-[-0.03em]">
-                {expert.headline}
+                {expert.headline || "Practical help through short calls"}
               </p>
 
               <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-muted">
@@ -609,6 +668,13 @@ function ExpertSearchCard({
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
+                {expert.languages.slice(0, 3).map((language) => (
+                  <Badge key={language}>
+                    <Languages size={14} />
+                    {language}
+                  </Badge>
+                ))}
+
                 {expert.skills.slice(0, 6).map((skill) => (
                   <HashTag key={skill} text={skill} />
                 ))}
@@ -626,7 +692,7 @@ function ExpertSearchCard({
             <div className="grid gap-3">
               <SideRow
                 label="From"
-                value={startingPrice ? formatMoney(startingPrice) : "—"}
+                value={startingTotal ? formatMoney(startingTotal) : "—"}
               />
 
               <SideRow
@@ -648,35 +714,71 @@ function ExpertSearchCard({
 
         {expert.services.length > 0 ? (
           <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {expert.services.map((service) => (
-              <div
-                key={service.id}
-                className="rounded-[22px] border border-[var(--border)] bg-white/55 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-black tracking-[-0.02em]">
-                      {service.title}
-                    </p>
+            {expert.services.map((service) => {
+              const pricing = calculatePricingBreakdown(service.priceCents);
 
-                    <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted">
-                      {service.description}
-                    </p>
+              return (
+                <div
+                  key={service.id}
+                  className="rounded-[22px] border border-[var(--border)] bg-white/55 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge>{service.category?.name ?? "Service"}</Badge>
+
+                        <Badge>
+                          <Clock3 size={14} />
+                          {service.durationMinutes} min
+                        </Badge>
+                      </div>
+
+                      <p className="mt-3 font-black tracking-[-0.02em]">
+                        {service.title}
+                      </p>
+
+                      <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted">
+                        {service.description}
+                      </p>
+                    </div>
+
+                    <Badge variant="primary">
+                      {formatMoney(pricing.clientTotalCents)}
+                    </Badge>
                   </div>
 
-                  <Badge variant="primary">{formatMoney(service.priceCents)}</Badge>
+                  <p className="mt-3 text-xs font-bold text-muted">
+                    Includes SkillDrop fee. Service price:{" "}
+                    {formatMoney(pricing.servicePriceCents)}
+                  </p>
                 </div>
-
-                <p className="mt-3 inline-flex items-center gap-2 text-xs font-black text-muted">
-                  <Clock3 size={13} />
-                  {service.durationMinutes} minutes
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </Card>
     </Link>
+  );
+}
+
+function AvatarPreview({
+  avatarUrl,
+  name,
+  fallbackLetter,
+}: {
+  avatarUrl: string | null;
+  name: string;
+  fallbackLetter: string;
+}) {
+  return (
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+      ) : (
+        fallbackLetter
+      )}
+    </div>
   );
 }
 
@@ -712,6 +814,18 @@ function Step({
   );
 }
 
+function TrustPoint({ text }: { text: string }) {
+  return (
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <CheckCircle2
+        size={17}
+        className="mt-0.5 shrink-0 text-[var(--success)]"
+      />
+      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+    </div>
+  );
+}
+
 function HashTag({ text }: { text: string }) {
   return (
     <span className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]">
@@ -741,6 +855,12 @@ function EmptyState({ title, text }: { title: string; text: string }) {
       <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
         {text}
       </p>
+
+      <div className="mt-5">
+        <Link href="/experts" className="btn btn-secondary">
+          Clear filters
+        </Link>
+      </div>
     </Card>
   );
 }
@@ -773,7 +893,9 @@ function calculateQualityScore({
   const helpfulnessAvg = averageNullable(
     reviews.map((review) => review.helpfulness),
   );
+
   const clarityAvg = averageNullable(reviews.map((review) => review.clarity));
+
   const professionalismAvg = averageNullable(
     reviews.map((review) => review.professionalism),
   );
@@ -838,7 +960,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+  return formatMoneyFromCents(cents);
 }
 
 function formatShortDateTime(date: Date) {

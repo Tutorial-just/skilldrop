@@ -17,7 +17,6 @@ import {
   Sparkles,
   Star,
   UserRound,
-  UsersRound,
   Video,
   WalletCards,
   Zap,
@@ -36,24 +35,27 @@ const popularSearches = [
   "Life guidance",
   "Business advice",
   "Language practice",
- ];
+];
 
- const categories = [
+const categories = [
   {
     title: "Career & Jobs",
-    description: "Get help with CV reviews, LinkedIn profiles, interviews and job search decisions.",
+    description:
+      "Get help with CV reviews, LinkedIn profiles, interviews and job search decisions.",
     icon: BriefcaseBusiness,
     tag: "Career",
   },
   {
     title: "Translation & Languages",
-    description: "Get help with translation, language practice, messages or documents.",
+    description:
+      "Get help with translation, language practice, messages or documents.",
     icon: Languages,
     tag: "Languages",
   },
   {
     title: "Documents & Admin Help",
-    description: "Understand forms, letters, applications and everyday admin tasks.",
+    description:
+      "Understand forms, letters, applications and everyday admin tasks.",
     icon: FileText,
     tag: "Documents",
   },
@@ -65,36 +67,42 @@ const popularSearches = [
   },
   {
     title: "Life Guidance",
-    description: "Talk to someone with relevant experience and get practical perspective.",
+    description:
+      "Talk to someone with relevant experience and get practical perspective.",
     icon: HeartHandshake,
     tag: "Guidance",
   },
   {
     title: "Business & Freelance",
-    description: "Get advice about clients, pricing, freelancing and small business.",
+    description:
+      "Get advice about clients, pricing, freelancing and small business.",
     icon: WalletCards,
     tag: "Business",
   },
   {
     title: "Study & Applications",
-    description: "Get help with applications, motivation letters, study plans and choices.",
+    description:
+      "Get help with applications, motivation letters, study plans and choices.",
     icon: FileText,
     tag: "Study",
   },
   {
     title: "Local Help",
-    description: "Find people who can explain local rules, services, culture or practical steps.",
+    description:
+      "Find people who can explain local rules, services, culture or practical steps.",
     icon: Globe2,
     tag: "Local",
   },
   {
     title: "Other Practical Help",
-    description: "Create or find useful short-call services based on real experience.",
+    description:
+      "Create or find useful short-call services based on real experience.",
     icon: Sparkles,
     tag: "More",
   },
- ];
- const steps = [
+];
+
+const steps = [
   {
     icon: Search,
     title: "Search your problem",
@@ -103,43 +111,44 @@ const popularSearches = [
   {
     icon: BadgeCheck,
     title: "Choose a provider",
-    text: "Compare profiles, ratings, services, prices and availability.",
+    text: "Compare profiles, services, prices, reviews and availability.",
   },
   {
     icon: Video,
     title: "Book a short call",
-    text: "Talk 1:1 and leave with clear practical next steps.",
+    text: "Pay safely, join the call and leave with clear next steps.",
   },
- ];
+];
 
- const helpers = [
+const helpers = [
   {
     name: "Anna Keller",
     role: "CV & Interview Advisor",
     tag: "Career",
-    price: "€25",
+    price: "€26.25",
     rating: "4.9",
   },
   {
     name: "Mira Ivanova",
     role: "French/Russian Translator",
     tag: "Translation",
-    price: "€20",
+    price: "€21",
     rating: "4.8",
   },
   {
     name: "Daniel Moreau",
     role: "Relocation & Documents Helper",
     tag: "Relocation",
-    price: "€18",
+    price: "€18.90",
     rating: "4.7",
   },
- ];
+];
 
 const trustItems = [
-  "Clear prices before booking",
+  "Clear total price before checkout",
+  "Provider payout status checked before booking",
   "Reviews after completed calls",
-  "Verified after 3 successful calls and 3.8+ rating",
+  "Verification earned through successful calls",
 ];
 
 export default function HomePage() {
@@ -147,27 +156,40 @@ export default function HomePage() {
     <main>
       <section className="relative overflow-hidden">
         <div className="surface-grid absolute inset-0 opacity-70" />
-        <div className="absolute left-[-140px] top-[-160px] h-[430px] w-[430px] rounded-full bg-[var(--primary)]/15 blur-3xl" />
-        <div className="absolute right-[-160px] top-[120px] h-[460px] w-[460px] rounded-full bg-[var(--accent)]/14 blur-3xl" />
-        <div className="absolute bottom-[-220px] left-[28%] h-[420px] w-[420px] rounded-full bg-[var(--rose)]/10 blur-3xl" />
+        <div className="absolute left-[-160px] top-[-180px] h-[460px] w-[460px] rounded-full bg-[var(--primary)]/15 blur-3xl" />
+        <div className="absolute right-[-180px] top-[110px] h-[500px] w-[500px] rounded-full bg-[var(--accent)]/14 blur-3xl" />
+        <div className="absolute bottom-[-240px] left-[28%] h-[440px] w-[440px] rounded-full bg-[var(--rose)]/10 blur-3xl" />
 
         <div className="container-page relative grid min-h-[calc(100vh-76px)] items-center gap-12 py-16 lg:grid-cols-[1fr_0.92fr] lg:py-20">
           <div>
             <Badge variant="primary">
               <Sparkles size={14} />
-               Real people. Practical help. Short calls.
+              Real people. Practical help. Short paid calls.
             </Badge>
 
             <h1 className="heading-display mt-7 max-w-5xl text-balance">
-              Get practical help from the right person in a short 1:1 call.
+              Get unstuck with a short 1:1 call from someone who can help.
             </h1>
 
             <p className="mt-7 max-w-2xl text-xl leading-8 text-muted">
-              Find people who can help with career, documents, translation,
-              relocation, business, language and everyday practical questions.
+              SkillDrop helps you find people for practical questions: CVs,
+              documents, translation, relocation, career choices, business,
+              language practice and everyday problems.
             </p>
 
-            <form action="/experts" className="mt-9 max-w-2xl">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <ButtonLink href="/experts">
+                Find an expert
+                <Search size={18} />
+              </ButtonLink>
+
+              <ButtonLink href="/sign-up?role=expert" variant="secondary">
+                Offer help
+                <ArrowRight size={18} />
+              </ButtonLink>
+            </div>
+
+            <form action="/experts" className="mt-8 max-w-2xl">
               <div className="rounded-[30px] border border-[var(--border)] bg-white/80 p-3 shadow-[var(--shadow-md)] backdrop-blur">
                 <div className="flex flex-col gap-3 md:flex-row">
                   <div className="relative flex-1">
@@ -185,7 +207,7 @@ export default function HomePage() {
                   </div>
 
                   <button type="submit" className="btn btn-primary min-h-[56px]">
-                    Search experts
+                    Search
                     <ArrowRight size={18} />
                   </button>
                 </div>
@@ -205,9 +227,9 @@ export default function HomePage() {
             </div>
 
             <div className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
-              <HeroStat value="15 min" label="short focused calls" />
-              <HeroStat value="3.8+" label="rating for verification" />
-              <HeroStat value="Global" label="people who can help" />
+              <HeroStat value="15–60 min" label="focused calls" />
+              <HeroStat value="Transparent" label="price before checkout" />
+              <HeroStat value="Global" label="practical human help" />
             </div>
           </div>
 
@@ -221,17 +243,17 @@ export default function HomePage() {
             <ValueCard
               icon={Zap}
               title="Fast to start"
-              text="Find help without long forms, courses or complicated steps."
+              text="No long courses, no complicated process. Search, choose, book and talk."
             />
             <ValueCard
               icon={MessageSquareText}
-              title="Human advice"
-              text="Talk to people with knowledge, experience or a useful perspective."
+              title="Human and practical"
+              text="Ask someone who has experience, context or useful knowledge for your situation."
             />
             <ValueCard
               icon={ShieldCheck}
-              title="Built for trust"
-              text="Clear profiles, prices, reviews and earned verification."
+              title="Clear and safer"
+              text="Profiles, prices, payout readiness, booking status and reviews are shown clearly."
             />
           </div>
         </div>
@@ -239,17 +261,63 @@ export default function HomePage() {
 
       <section className="section-page bg-white/35">
         <div className="container-page">
+          <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+            <div>
+              <Badge variant="primary">
+                <Sparkles size={14} />
+                Why SkillDrop
+              </Badge>
+
+              <h2 className="heading-xl mt-5 text-balance">
+                Built for small questions that still matter.
+              </h2>
+
+              <p className="mt-5 text-lg leading-8 text-muted">
+                Sometimes you do not need a full course, a big freelance project
+                or a long coaching program. You just need a useful conversation
+                with the right person.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <ReasonCard
+                title="Not a course"
+                text="You ask about your real situation and get direct practical help."
+              />
+
+              <ReasonCard
+                title="Not a freelance project"
+                text="You book a short call instead of negotiating a large task."
+              />
+
+              <ReasonCard
+                title="Not anonymous advice"
+                text="Profiles, reviews, availability and prices help you choose carefully."
+              />
+
+              <ReasonCard
+                title="Not complicated"
+                text="One service, one time slot, one checkout, one call."
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section-page">
+        <div className="container-page">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
               <Badge variant="accent">Categories</Badge>
 
               <h2 className="heading-xl mt-5 max-w-3xl text-balance">
-                Help for career, documents, language, relocation and everyday questions.
+                Help for career, documents, language, relocation and everyday
+                questions.
               </h2>
 
               <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
-                SkillDrop is built for useful short-call services. If someone has
-                relevant knowledge or real experience, they can offer help.
+                SkillDrop is built for useful short-call services. If someone
+                has relevant knowledge or real experience, they can offer help.
               </p>
             </div>
 
@@ -267,20 +335,27 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="how-it-works" className="section-page">
+      <section id="how-it-works" className="section-page bg-white/35">
         <div className="container-page">
           <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
             <div>
               <Badge variant="primary">How it works</Badge>
 
               <h2 className="heading-xl mt-5 text-balance">
-                 One short call can make the next step clear.
+                One short call can make the next step clear.
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                Search for your problem, choose a person with relevant experience,
-                book a time and talk directly.
+                Search for your problem, choose a person with relevant
+                experience, book a time and talk directly.
               </p>
+
+              <div className="mt-7">
+                <ButtonLink href="/experts">
+                  Browse experts
+                  <ArrowRight size={18} />
+                </ButtonLink>
+              </div>
             </div>
 
             <div className="grid gap-5 md:grid-cols-3">
@@ -310,7 +385,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section-page bg-white/35">
+      <section className="section-page">
         <div className="container-page">
           <div className="grid gap-6 lg:grid-cols-2">
             <AudiencePanel
@@ -337,29 +412,29 @@ export default function HomePage() {
               points={[
                 "Create services in your own category",
                 "Set your own price and availability",
-                "Get verified after 3 successful calls and 3.8+ rating",
+                "Connect payouts securely",
               ]}
             />
           </div>
         </div>
       </section>
 
-      <section className="section-page">
+      <section className="section-page bg-white/35">
         <div className="container-page">
           <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div>
               <Badge variant="primary">
                 <BadgeCheck size={14} />
-                Earned verification
+                Trust layer
               </Badge>
 
               <h2 className="heading-xl mt-5 text-balance">
-                Verification is earned through real calls.
+                Trust is built into the booking flow.
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                A provider becomes verified after completing 3 successful calls
-                and maintaining a rating of at least 3.8.
+                SkillDrop shows clear prices, booking status, reviews and payout
+                readiness before people pay.
               </p>
             </div>
 
@@ -386,23 +461,23 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section-page bg-white/35">
+      <section className="section-page">
         <div className="container-page">
           <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div>
               <Badge variant="primary">
                 <WalletCards size={14} />
-                Provider commission
+                Transparent pricing
               </Badge>
 
               <h2 className="heading-xl mt-5 text-balance">
-                Transparent commission for each paid booking.
+                Everyone sees the price before checkout.
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                Providers set their own prices. During launch, SkillDrop keeps a
-                5% platform commission to support payments, safety, product development
-                and marketplace growth.
+                Providers set their service price. Buyers see the service price,
+                SkillDrop fee and total before payment. Providers also see an
+                estimate of their net earnings.
               </p>
             </div>
 
@@ -410,7 +485,7 @@ export default function HomePage() {
               <div className="grid gap-5 md:grid-cols-[0.8fr_1.2fr] md:items-center">
                 <div className="rounded-[28px] bg-gradient-to-br from-[#31265f] via-[#2b275f] to-[#1f2937] p-6 text-white">
                   <p className="text-sm font-bold text-white/55">
-                    Example call
+                    Example service
                   </p>
 
                   <p className="mt-4 text-5xl font-black tracking-[-0.06em]">
@@ -418,34 +493,39 @@ export default function HomePage() {
                   </p>
 
                   <p className="mt-2 text-sm text-white/60">
-                    Client booking price
+                    Provider service price
                   </p>
                 </div>
 
                 <div className="grid gap-3">
                   <CommissionRow
                     icon={CreditCard}
-                    title="Client pays"
+                    title="Buyer service price"
                     value="€30"
                   />
                   <CommissionRow
                     icon={ShieldCheck}
-                    title="Platform commission"
-                    value="5%"
+                    title="Buyer service fee"
+                    value="€1.50"
                   />
                   <CommissionRow
                     icon={WalletCards}
-                    title="Provider receives"
-                    value="€28.50"
+                    title="Total before payment"
+                    value="€31.50"
                   />
                 </div>
               </div>
+
+              <p className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4 text-sm font-bold leading-6 text-muted">
+                Example based on a 5% buyer service fee. Provider commission is
+                handled separately in the expert earnings flow.
+              </p>
             </Card>
           </div>
         </div>
       </section>
 
-      <section className="section-page">
+      <section className="section-page bg-white/35">
         <div className="container-page">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
@@ -478,7 +558,7 @@ export default function HomePage() {
 
             <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
-                <Badge variant="accent">Start with a short call</Badge>
+                <Badge variant="accent">Start with one short call</Badge>
 
                 <h2 className="heading-lg mt-5 max-w-3xl text-balance">
                   Need help or want to offer help?
@@ -517,7 +597,7 @@ function HeroMarketplacePreview() {
           </div>
 
           <div>
-            <p className="text-sm font-black">Next call</p>
+            <p className="text-sm font-black">Next available</p>
             <p className="text-xs text-muted">Today · 18:30</p>
           </div>
         </div>
@@ -538,7 +618,7 @@ function HeroMarketplacePreview() {
           <div className="mt-8">
             <p className="text-sm font-bold text-white/50">Example request</p>
             <h2 className="mt-2 text-4xl font-black leading-none tracking-[-0.055em]">
-               I need help with documents before moving abroad
+              I need help with documents before moving abroad
             </h2>
           </div>
 
@@ -559,12 +639,12 @@ function HeroMarketplacePreview() {
       <div className="absolute -bottom-7 right-6 hidden rounded-3xl border border-[var(--border)] bg-white p-4 shadow-[var(--shadow-md)] sm:block">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
-            <BadgeCheck size={20} />
+            <ShieldCheck size={20} />
           </div>
 
           <div>
-            <p className="text-sm font-black">Earned verification</p>
-            <p className="text-xs text-muted">3 calls · 3.8+ rating</p>
+            <p className="text-sm font-black">Clear checkout</p>
+            <p className="text-xs text-muted">Price shown before payment</p>
           </div>
         </div>
       </div>
@@ -598,6 +678,20 @@ function ValueCard({
 
       <h3 className="mt-5 text-xl font-black tracking-tight">{title}</h3>
       <p className="mt-3 leading-7 text-muted">{text}</p>
+    </Card>
+  );
+}
+
+function ReasonCard({ title, text }: { title: string; text: string }) {
+  return (
+    <Card className="p-5">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <CheckCircle2 size={18} />
+      </div>
+
+      <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
+
+      <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
     </Card>
   );
 }
