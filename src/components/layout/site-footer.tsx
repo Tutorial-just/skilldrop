@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   BadgeCheck,
-  Github,
   Globe2,
   HeartHandshake,
   ShieldCheck,
