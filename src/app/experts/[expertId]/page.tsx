@@ -474,6 +474,17 @@ export default async function ExpertPublicPage({
                   text="After payment, your call room will be prepared."
                 />
               </div>
+              <p className="mt-4 text-center text-xs font-bold leading-5 text-muted">
+                Booking is protected by SkillDrop{" "}
+                <Link href="/legal/safety" className="text-[var(--primary-dark)]">
+                  Safety
+                </Link>{" "}
+                and{" "}
+                <Link href="/legal/refunds" className="text-[var(--primary-dark)]">
+                  Refund Policy
+                </Link>
+                .
+              </p>
 
               <div className="mt-5 grid gap-2">
                 {!currentUser ? (

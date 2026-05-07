@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import "./globals.css";
-
+import { SiteFooter } from "@/components/layout/site-footer";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -166,6 +166,7 @@ export default async function RootLayout({
           </header>
 
           {children}
+          <SiteFooter />
 
           <footer className="border-t border-[var(--border)] bg-white/35 py-10 theme-dark:bg-white/[0.03]">
             <div className="container-page">

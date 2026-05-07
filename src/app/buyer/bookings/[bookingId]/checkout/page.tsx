@@ -319,6 +319,18 @@ export default async function BookingCheckoutPage({
             </ButtonLink>
           </div>
 
+          <p className="mt-4 text-center text-xs font-bold leading-5 text-muted">
+            By paying, you agree to SkillDrop{" "}
+            <Link href="/legal/terms" className="text-[var(--primary-dark)]">
+                Terms
+            </Link>{" "}
+            and{" "}
+            <Link href="/legal/refunds" className="text-[var(--primary-dark)]">
+                Refund Policy
+            </Link>
+            .
+          </p>
+
           <div className="mt-6 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
             <div className="flex gap-3">
               <Clock3 size={18} className="mt-0.5 text-[var(--primary-dark)]" />
