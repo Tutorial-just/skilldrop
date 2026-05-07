@@ -18,11 +18,14 @@ import {
   Star,
   Video,
   WalletCards,
-  XCircle,
 } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  calculatePricingBreakdown,
+  formatMoneyFromCents,
+} from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -64,6 +67,8 @@ export default async function BuyerDashboardPage() {
     redirect("/sign-in");
   }
 
+  const now = new Date();
+
   const buyer = await prisma.user.findUnique({
     where: {
       email,
@@ -86,7 +91,7 @@ export default async function BuyerDashboardPage() {
               availability: {
                 where: {
                   startTime: {
-                    gte: new Date(),
+                    gte: now,
                   },
                   isBooked: false,
                 },
@@ -109,8 +114,6 @@ export default async function BuyerDashboardPage() {
   if (!buyer) {
     redirect("/sign-in");
   }
-
-  const now = new Date();
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -137,23 +140,40 @@ export default async function BuyerDashboardPage() {
       booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
       booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED",
+      booking.status !== "COMPLETED" &&
+      booking.status !== "DISPUTED",
+  );
+
+  const pendingPaymentBookings = bookings.filter(
+    (booking) => booking.status === "PENDING" && booking.startTime >= now,
+  );
+
+  const paidWaitingConfirmationBookings = bookings.filter(
+    (booking) => booking.status === "PAID",
+  );
+
+  const confirmedUpcomingBookings = upcomingBookings.filter(
+    (booking) => booking.status === "CONFIRMED",
   );
 
   const completedBookings = bookings.filter(
     (booking) => booking.status === "COMPLETED",
   );
 
-  const cancelledBookings = bookings.filter(
-    (booking) => booking.status === "CANCELLED" || booking.status === "REFUNDED",
-  );
-
   const waitingReviewBookings = bookings.filter(
     (booking) => booking.status === "COMPLETED" && !booking.review,
   );
 
-  const nextBooking = upcomingBookings[0] ?? null;
+  const nextActionBooking =
+    pendingPaymentBookings[0] ??
+    upcomingBookings.find((booking) => canJoinBooking(booking)) ??
+    confirmedUpcomingBookings[0] ??
+    paidWaitingConfirmationBookings[0] ??
+    upcomingBookings[0] ??
+    null;
+
   const nextThreeBookings = upcomingBookings.slice(0, 3);
+
   const recentBookings = [...bookings]
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
     .slice(0, 4);
@@ -161,13 +181,18 @@ export default async function BuyerDashboardPage() {
   const totalBookedCents = bookings
     .filter(
       (booking) =>
-        booking.status !== "CANCELLED" && booking.status !== "REFUNDED",
+        booking.status === "PAID" ||
+        booking.status === "CONFIRMED" ||
+        booking.status === "COMPLETED",
     )
-    .reduce((sum, booking) => sum + booking.priceCents, 0);
+    .reduce((sum, booking) => sum + getBookingPricing(booking).clientTotalCents, 0);
 
   const recommendedExperts = await prisma.expertProfile.findMany({
     where: {
       status: "APPROVED",
+      stripeAccountId: {
+        not: null,
+      },
       services: {
         some: {
           isActive: true,
@@ -246,8 +271,8 @@ export default async function BuyerDashboardPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Manage your calls, saved experts, reviews and next helpful
-                session from one place.
+                Manage your calls, saved experts, payments, reviews and next
+                helpful session from one place.
               </p>
             </div>
 
@@ -269,19 +294,26 @@ export default async function BuyerDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               icon={Video}
               label="Upcoming"
               value={String(upcomingBookings.length)}
-              hint="Scheduled calls"
+              hint="Reserved or scheduled calls"
             />
 
             <MetricCard
-              icon={Bookmark}
-              label="Saved"
-              value={String(buyer.savedExperts.length)}
-              hint="Experts saved"
+              icon={Clock3}
+              label="To pay"
+              value={String(pendingPaymentBookings.length)}
+              hint="Waiting for checkout"
+            />
+
+            <MetricCard
+              icon={CheckCircle2}
+              label="Confirmed"
+              value={String(confirmedUpcomingBookings.length)}
+              hint="Ready for call window"
             />
 
             <MetricCard
@@ -293,12 +325,15 @@ export default async function BuyerDashboardPage() {
 
             <MetricCard
               icon={Euro}
-              label="Total booked"
+              label="Total paid"
               value={formatMoney(totalBookedCents)}
-              hint="Non-cancelled calls"
+              hint="Confirmed spend"
             />
           </div>
-          <UnreadNotificationsCard userId={buyer.id} email={buyer.email} />
+
+          <div className="mt-5">
+            <UnreadNotificationsCard userId={buyer.id} email={buyer.email} />
+          </div>
         </div>
       </section>
 
@@ -306,136 +341,10 @@ export default async function BuyerDashboardPage() {
         <div className="grid gap-6">
           <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
             <Card className="p-5 md:p-6">
-              {nextBooking ? (
-                <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-center">
-                  <div>
-                    <Badge variant="success">
-                      <Video size={14} />
-                      Next call
-                    </Badge>
-
-                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                      Your next session is ready.
-                    </h2>
-
-                    <p className="mt-3 leading-7 text-muted">
-                      Join on time, prepare one clear question and get the most
-                      out of your call.
-                    </p>
-
-                    <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                      {nextBooking.callRoom?.roomUrl ? (
-                        <Link
-                          href={nextBooking.callRoom.roomUrl}
-                          className="btn btn-primary"
-                        >
-                          Join call
-                          <Video size={18} />
-                        </Link>
-                      ) : null}
-
-                      <ButtonLink href="/buyer/bookings" variant="secondary">
-                        View bookings
-                      </ButtonLink>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
-                    <Badge variant="accent">
-                      <Clock3 size={14} />
-                      Upcoming
-                    </Badge>
-
-                    <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                      {nextBooking.service?.title ?? "Booked call"}
-                    </h3>
-
-                    <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                      With{" "}
-                      <span className="font-black text-[var(--foreground)]">
-                        {nextBooking.expert.user.name ??
-                          nextBooking.expert.user.email}
-                      </span>
-                    </p>
-
-                    <div className="mt-5 grid gap-3">
-                      <InfoRow
-                        label="Date"
-                        value={formatDateTime(nextBooking.startTime)}
-                      />
-
-                      <InfoRow
-                        label="Duration"
-                        value={`${getDurationMinutes(
-                          nextBooking.startTime,
-                          nextBooking.endTime,
-                        )} minutes`}
-                      />
-
-                      <InfoRow
-                        label="Price"
-                        value={formatMoney(nextBooking.priceCents)}
-                      />
-                    </div>
-                  </div>
-                </div>
+              {nextActionBooking ? (
+                <MainActionPanel booking={nextActionBooking} />
               ) : (
-                <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr] lg:items-center">
-                  <div>
-                    <Badge variant="accent">
-                      <CalendarDays size={14} />
-                      Start here
-                    </Badge>
-
-                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                      Find someone who can help.
-                    </h2>
-
-                    <p className="mt-3 max-w-xl leading-7 text-muted">
-                      Browse experts, save useful profiles and book a short call
-                      when you find the right person.
-                    </p>
-
-                    <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                      <ButtonLink href="/experts">
-                        Find help
-                        <Search size={18} />
-                      </ButtonLink>
-
-                      <ButtonLink href="/buyer/saved" variant="secondary">
-                        Saved experts
-                        <Bookmark size={18} />
-                      </ButtonLink>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[26px] border border-[var(--border)] bg-white/55 p-5">
-                    <Badge variant="primary">
-                      <Sparkles size={14} />
-                      How to begin
-                    </Badge>
-
-                    <div className="mt-5 grid gap-3">
-                      <OnboardingStep
-                        number="1"
-                        title="Find an expert"
-                        text="Search by topic, language or problem."
-                      />
-
-                      <OnboardingStep
-                        number="2"
-                        title="Save or book"
-                        text="Save useful profiles or choose a time."
-                      />
-
-                      <OnboardingStep
-                        number="3"
-                        title="Join the call"
-                        text="Ask one clear question and get help."
-                      />
-                    </div>
-                  </div>
-                </div>
+                <StartPanel />
               )}
             </Card>
 
@@ -494,6 +403,30 @@ export default async function BuyerDashboardPage() {
 
           <div className="grid gap-6 xl:grid-cols-[0.88fr_1.12fr]">
             <div className="grid gap-6">
+              {pendingPaymentBookings.length > 0 ? (
+                <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
+                  <Badge variant="accent">
+                    <Clock3 size={14} />
+                    Payment waiting
+                  </Badge>
+
+                  <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                    Confirm your reserved slots.
+                  </h2>
+
+                  <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                    These calls are not confirmed yet. Complete payment before
+                    the reservation expires.
+                  </p>
+
+                  <div className="mt-6 grid gap-4">
+                    {pendingPaymentBookings.slice(0, 3).map((booking) => (
+                      <SmallBookingCard key={booking.id} booking={booking} />
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+
               <Card className="p-5 md:p-6">
                 <Badge variant="primary">
                   <CalendarDays size={14} />
@@ -507,7 +440,7 @@ export default async function BuyerDashboardPage() {
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-muted">
-                      Your next calls appear here.
+                      Your next calls and reservations appear here.
                     </p>
                   </div>
 
@@ -574,6 +507,7 @@ export default async function BuyerDashboardPage() {
 
                 <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
                   {getSmartTipTitle({
+                    hasPendingPayment: pendingPaymentBookings.length > 0,
                     hasUpcoming: upcomingBookings.length > 0,
                     hasSaved: buyer.savedExperts.length > 0,
                     hasCompleted: completedBookings.length > 0,
@@ -583,6 +517,7 @@ export default async function BuyerDashboardPage() {
 
                 <p className="mt-3 text-sm font-bold leading-6 text-muted">
                   {getSmartTipText({
+                    hasPendingPayment: pendingPaymentBookings.length > 0,
                     hasUpcoming: upcomingBookings.length > 0,
                     hasSaved: buyer.savedExperts.length > 0,
                     hasCompleted: completedBookings.length > 0,
@@ -606,7 +541,8 @@ export default async function BuyerDashboardPage() {
                     </h2>
 
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                      Experts with active services and open time slots.
+                      Experts with active services, open time slots and payout
+                      setup ready.
                     </p>
                   </div>
                 </div>
@@ -619,7 +555,7 @@ export default async function BuyerDashboardPage() {
                   ) : (
                     <EmptyState
                       title="No experts available yet"
-                      text="New experts will appear here after they add services and availability."
+                      text="New experts will appear here after they add services, availability and payouts."
                     />
                   )}
                 </div>
@@ -682,7 +618,7 @@ export default async function BuyerDashboardPage() {
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-3">
+          <div className="grid gap-6 xl:grid-cols-4">
             <QuickAction
               icon={Search}
               title="Find help"
@@ -717,36 +653,239 @@ export default async function BuyerDashboardPage() {
   );
 }
 
-function SmallBookingCard({
-  booking,
-}: {
-  booking: {
-    id: string;
-    expertId: string;
-    startTime: Date;
-    endTime: Date;
-    priceCents: number;
-    status: string;
-    expert: {
-      user: {
-        name: string | null;
-        email: string;
-      };
+type DashboardBooking = {
+  id: string;
+  expertId: string;
+  startTime: Date;
+  endTime: Date;
+  priceCents: number;
+  status: string;
+  clientTotalCents?: number | null;
+  platformFeeCents?: number | null;
+  providerNetCents?: number | null;
+  updatedAt: Date;
+  expert: {
+    user: {
+      name: string | null;
+      email: string;
     };
-    service: {
-      title: string;
-      durationMinutes: number;
-    } | null;
-    callRoom: {
-      roomUrl: string;
-    } | null;
   };
-}) {
+  service: {
+    title: string;
+    durationMinutes: number;
+  } | null;
+  callRoom: {
+    roomUrl: string;
+  } | null;
+  review: {
+    id: string;
+    rating: number;
+  } | null;
+};
+
+function MainActionPanel({ booking }: { booking: DashboardBooking }) {
+  const canJoin = canJoinBooking(booking);
+  const pricing = getBookingPricing(booking);
+  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+
+  const title =
+    booking.status === "PENDING"
+      ? "Complete payment to confirm your call."
+      : canJoin
+        ? "Your call room is open."
+        : booking.status === "CONFIRMED"
+          ? "Your next session is confirmed."
+          : booking.status === "PAID"
+            ? "Payment received. Confirmation is pending."
+            : "Your next session is ready.";
+
+  const description =
+    booking.status === "PENDING"
+      ? "This reservation is not confirmed yet. Finish checkout to keep the selected time."
+      : canJoin
+        ? "Join now and make sure your microphone and camera are ready."
+        : booking.status === "CONFIRMED"
+          ? "Prepare one clear question before the call starts."
+          : booking.status === "PAID"
+            ? "The system is finishing confirmation. Check again shortly."
+            : "Open your bookings page to manage this call.";
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+      <div>
+        <Badge
+          variant={
+            booking.status === "PENDING"
+              ? "accent"
+              : canJoin
+                ? "success"
+                : "primary"
+          }
+        >
+          {booking.status === "PENDING" ? (
+            <>
+              <Clock3 size={14} />
+              Payment waiting
+            </>
+          ) : canJoin ? (
+            <>
+              <Video size={14} />
+              Join now
+            </>
+          ) : (
+            <>
+              <Video size={14} />
+              Next call
+            </>
+          )}
+        </Badge>
+
+        <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+          {title}
+        </h2>
+
+        <p className="mt-3 leading-7 text-muted">{description}</p>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          {booking.status === "PENDING" ? (
+            <Link
+              href={`/buyer/bookings/${booking.id}/checkout`}
+              className="btn btn-primary"
+            >
+              Complete payment
+            </Link>
+          ) : null}
+
+          {canJoin ? (
+            <Link href={`/calls/${booking.id}`} className="btn btn-primary">
+              Join call
+              <Video size={18} />
+            </Link>
+          ) : null}
+
+          <ButtonLink href="/buyer/bookings" variant="secondary">
+            View bookings
+          </ButtonLink>
+        </div>
+      </div>
+
+      <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+        <Badge variant="accent">
+          <Clock3 size={14} />
+          {formatStatus(booking.status)}
+        </Badge>
+
+        <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+          {booking.service?.title ?? "Booked call"}
+        </h3>
+
+        <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+          With{" "}
+          <span className="font-black text-[var(--foreground)]">
+            {providerName}
+          </span>
+        </p>
+
+        <div className="mt-5 grid gap-3">
+          <InfoRow label="Date" value={formatDateTime(booking.startTime)} />
+
+          <InfoRow
+            label="Duration"
+            value={`${getDurationMinutes(
+              booking.startTime,
+              booking.endTime,
+            )} minutes`}
+          />
+
+          <InfoRow
+            label="Total"
+            value={formatMoney(pricing.clientTotalCents)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StartPanel() {
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr] lg:items-center">
+      <div>
+        <Badge variant="accent">
+          <CalendarDays size={14} />
+          Start here
+        </Badge>
+
+        <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+          Find someone who can help.
+        </h2>
+
+        <p className="mt-3 max-w-xl leading-7 text-muted">
+          Browse experts, save useful profiles and book a short call when you
+          find the right person.
+        </p>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <ButtonLink href="/experts">
+            Find help
+            <Search size={18} />
+          </ButtonLink>
+
+          <ButtonLink href="/buyer/saved" variant="secondary">
+            Saved experts
+            <Bookmark size={18} />
+          </ButtonLink>
+        </div>
+      </div>
+
+      <div className="rounded-[26px] border border-[var(--border)] bg-white/55 p-5">
+        <Badge variant="primary">
+          <Sparkles size={14} />
+          How to begin
+        </Badge>
+
+        <div className="mt-5 grid gap-3">
+          <OnboardingStep
+            number="1"
+            title="Find an expert"
+            text="Search by topic, language or problem."
+          />
+
+          <OnboardingStep
+            number="2"
+            title="Save or book"
+            text="Save useful profiles or choose a time."
+          />
+
+          <OnboardingStep
+            number="3"
+            title="Join the call"
+            text="Ask one clear question and get help."
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
+  const pricing = getBookingPricing(booking);
+  const canJoin = canJoinBooking(booking);
+
   return (
     <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div>
-          <Badge variant="primary">{booking.status}</Badge>
+        <div className="min-w-0">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge status={booking.status} />
+
+            {canJoin ? (
+              <Badge variant="success">
+                <Video size={14} />
+                Join now
+              </Badge>
+            ) : null}
+          </div>
 
           <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
             {booking.service?.title ?? "Booked call"}
@@ -770,13 +909,22 @@ function SmallBookingCard({
               )} min`}
             />
 
-            <SmallPill icon={Euro} text={formatMoney(booking.priceCents)} />
+            <SmallPill icon={Euro} text={formatMoney(pricing.clientTotalCents)} />
           </div>
         </div>
 
         <div className="flex shrink-0 flex-col gap-2 md:min-w-[150px]">
-          {booking.callRoom?.roomUrl ? (
-            <Link href={booking.callRoom.roomUrl} className="btn btn-primary">
+          {booking.status === "PENDING" ? (
+            <Link
+              href={`/buyer/bookings/${booking.id}/checkout`}
+              className="btn btn-primary"
+            >
+              Pay
+            </Link>
+          ) : null}
+
+          {canJoin ? (
+            <Link href={`/calls/${booking.id}`} className="btn btn-primary">
               Join
               <Video size={17} />
             </Link>
@@ -820,6 +968,9 @@ function SavedExpertPreview({
   const expert = saved.expert;
   const startingPrice = expert.services[0]?.priceCents ?? null;
   const nextSlot = expert.availability[0] ?? null;
+  const startingTotal = startingPrice
+    ? calculatePricingBreakdown(startingPrice).clientTotalCents
+    : null;
 
   return (
     <Link href={`/experts/${expert.id}`} className="group">
@@ -840,8 +991,10 @@ function SavedExpertPreview({
                 <Badge variant="accent">New</Badge>
               )}
 
-              {startingPrice ? (
-                <Badge variant="primary">From {formatMoney(startingPrice)}</Badge>
+              {startingTotal ? (
+                <Badge variant="primary">
+                  From {formatMoney(startingTotal)}
+                </Badge>
               ) : null}
             </div>
 
@@ -891,6 +1044,9 @@ function ExpertCard({
 }) {
   const startingPrice = expert.services[0]?.priceCents ?? null;
   const nextSlot = expert.availability[0] ?? null;
+  const startingTotal = startingPrice
+    ? calculatePricingBreakdown(startingPrice).clientTotalCents
+    : null;
 
   return (
     <Link href={`/experts/${expert.id}`} className="group">
@@ -911,8 +1067,10 @@ function ExpertCard({
                 <Badge variant="accent">New</Badge>
               )}
 
-              {startingPrice ? (
-                <Badge variant="primary">From {formatMoney(startingPrice)}</Badge>
+              {startingTotal ? (
+                <Badge variant="primary">
+                  From {formatMoney(startingTotal)}
+                </Badge>
               ) : null}
             </div>
 
@@ -950,29 +1108,13 @@ function ExpertCard({
 function ActivityRow({
   booking,
 }: {
-  booking: {
-    id: string;
-    expertId: string;
-    startTime: Date;
-    status: string;
-    service: {
-      title: string;
-    } | null;
-    expert: {
-      user: {
-        name: string | null;
-        email: string;
-      };
-    };
-  };
+  booking: DashboardBooking;
 }) {
   return (
     <Link href="/buyer/bookings" className="group">
       <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between gap-3">
-          <Badge variant={booking.status === "COMPLETED" ? "success" : "primary"}>
-            {booking.status.toLowerCase()}
-          </Badge>
+          <StatusBadge status={booking.status} />
 
           <p className="text-xs font-bold text-muted">
             {formatDateTime(booking.startTime)}
@@ -1048,6 +1190,38 @@ function QuickAction({
       </Card>
     </Link>
   );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "PENDING") {
+    return <Badge variant="accent">Pending payment</Badge>;
+  }
+
+  if (status === "PAID") {
+    return <Badge variant="primary">Paid</Badge>;
+  }
+
+  if (status === "CONFIRMED") {
+    return <Badge variant="success">Confirmed</Badge>;
+  }
+
+  if (status === "COMPLETED") {
+    return <Badge variant="success">Completed</Badge>;
+  }
+
+  if (status === "CANCELLED") {
+    return <Badge variant="danger">Cancelled</Badge>;
+  }
+
+  if (status === "REFUNDED") {
+    return <Badge variant="danger">Refunded</Badge>;
+  }
+
+  if (status === "DISPUTED") {
+    return <Badge variant="danger">Disputed</Badge>;
+  }
+
+  return <Badge variant="accent">{status.toLowerCase()}</Badge>;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -1154,16 +1328,22 @@ function calculateBuyerReadiness({
 }
 
 function getSmartTipTitle({
+  hasPendingPayment,
   hasUpcoming,
   hasSaved,
   hasCompleted,
   hasWaitingReview,
 }: {
+  hasPendingPayment: boolean;
   hasUpcoming: boolean;
   hasSaved: boolean;
   hasCompleted: boolean;
   hasWaitingReview: boolean;
 }) {
+  if (hasPendingPayment) {
+    return "Complete your payment.";
+  }
+
   if (hasWaitingReview) {
     return "Leave a review.";
   }
@@ -1184,16 +1364,22 @@ function getSmartTipTitle({
 }
 
 function getSmartTipText({
+  hasPendingPayment,
   hasUpcoming,
   hasSaved,
   hasCompleted,
   hasWaitingReview,
 }: {
+  hasPendingPayment: boolean;
   hasUpcoming: boolean;
   hasSaved: boolean;
   hasCompleted: boolean;
   hasWaitingReview: boolean;
 }) {
+  if (hasPendingPayment) {
+    return "You have a reserved slot waiting for payment. Complete checkout before the reservation expires.";
+  }
+
   if (hasWaitingReview) {
     return "You have completed calls waiting for feedback. Reviews help strong experts grow and help other clients choose safely.";
   }
@@ -1213,6 +1399,46 @@ function getSmartTipText({
   return "Choose a simple problem, pick an expert and book a short call. You do not need a perfect plan to start.";
 }
 
+function canJoinBooking(booking: {
+  startTime: Date;
+  endTime: Date;
+  status: string;
+  callRoom: {
+    roomUrl: string;
+  } | null;
+}) {
+  const now = new Date();
+  const joinWindowStart = new Date(booking.startTime.getTime() - 10 * 60 * 1000);
+  const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
+
+  return (
+    booking.status === "CONFIRMED" &&
+    Boolean(booking.callRoom?.roomUrl) &&
+    now >= joinWindowStart &&
+    now <= joinWindowEnd
+  );
+}
+
+function getBookingPricing(booking: {
+  priceCents: number;
+  clientTotalCents?: number | null;
+  platformFeeCents?: number | null;
+}) {
+  const fallback = calculatePricingBreakdown(booking.priceCents);
+
+  return {
+    servicePriceCents: booking.priceCents,
+    clientServiceFeeCents:
+      typeof booking.platformFeeCents === "number"
+        ? Math.max(booking.platformFeeCents - fallback.providerCommissionCents, 0)
+        : fallback.clientServiceFeeCents,
+    clientTotalCents:
+      typeof booking.clientTotalCents === "number"
+        ? booking.clientTotalCents
+        : fallback.clientTotalCents,
+  };
+}
+
 function getDurationMinutes(startTime: Date, endTime: Date) {
   return Math.max(
     Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
@@ -1221,7 +1447,7 @@ function getDurationMinutes(startTime: Date, endTime: Date) {
 }
 
 function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+  return formatMoneyFromCents(cents);
 }
 
 function formatDateTime(date: Date) {
@@ -1232,4 +1458,36 @@ function formatDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatStatus(status: string) {
+  if (status === "PENDING") {
+    return "Pending payment";
+  }
+
+  if (status === "PAID") {
+    return "Paid";
+  }
+
+  if (status === "CONFIRMED") {
+    return "Confirmed";
+  }
+
+  if (status === "COMPLETED") {
+    return "Completed";
+  }
+
+  if (status === "CANCELLED") {
+    return "Cancelled";
+  }
+
+  if (status === "REFUNDED") {
+    return "Refunded";
+  }
+
+  if (status === "DISPUTED") {
+    return "Disputed";
+  }
+
+  return status.toLowerCase();
 }

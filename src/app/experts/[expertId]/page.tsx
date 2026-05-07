@@ -115,18 +115,6 @@ export default async function ExpertPublicPage({
   const isOwnProfile = currentUser?.id === expert.userId;
   const canAcceptPayments = Boolean(expert.stripeAccountId);
 
-  const savedExpert =
-    currentUser && isBuyer && !isOwnProfile
-      ? await prisma.savedExpert.findUnique({
-          where: {
-            buyerId_expertId: {
-              buyerId: currentUser.id,
-              expertId: expert.id,
-            },
-          },
-        })
-      : null;
-
   const selectedService =
     expert.services.find(
       (service) => service.id === resolvedSearchParams.service,
@@ -139,6 +127,46 @@ export default async function ExpertPublicPage({
     : null;
 
   const groupedSlots = groupSlotsByDate(expert.availability);
+
+  const hasServices = expert.services.length > 0;
+  const hasOpenSlots = expert.availability.length > 0;
+
+  const canBook =
+    Boolean(currentUser) &&
+    isBuyer &&
+    !isOwnProfile &&
+    canAcceptPayments &&
+    Boolean(selectedService) &&
+    hasOpenSlots;
+
+  const bookingBlockedReason = getBookingBlockedReason({
+    hasUser: Boolean(currentUser),
+    isBuyer,
+    isOwnProfile,
+    canAcceptPayments,
+    hasServices,
+    hasOpenSlots,
+  });
+
+  const currentProfileUrl = `/experts/${expert.id}${
+    selectedService ? `?service=${selectedService.id}` : ""
+  }`;
+
+  const signInHref = `/sign-in?callbackUrl=${encodeURIComponent(
+    currentProfileUrl,
+  )}`;
+
+  const savedExpert =
+    currentUser && isBuyer && !isOwnProfile
+      ? await prisma.savedExpert.findUnique({
+          where: {
+            buyerId_expertId: {
+              buyerId: currentUser.id,
+              expertId: expert.id,
+            },
+          },
+        })
+      : null;
 
   const startingPrice =
     expert.services.length > 0
@@ -249,6 +277,18 @@ export default async function ExpertPublicPage({
                   </Badge>
                 )}
 
+                {hasOpenSlots ? (
+                  <Badge variant="primary">
+                    <CalendarDays size={14} />
+                    Available now
+                  </Badge>
+                ) : (
+                  <Badge variant="accent">
+                    <Clock3 size={14} />
+                    No open times
+                  </Badge>
+                )}
+
                 {expert.country ? (
                   <Badge>
                     <Globe2 size={14} />
@@ -349,8 +389,13 @@ export default async function ExpertPublicPage({
               </Badge>
 
               <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                Ready to book?
+                Book a 1:1 call
               </h2>
+
+              <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                Choose a service and an available time. Your slot is reserved
+                while you complete checkout.
+              </p>
 
               <div className="mt-5 grid gap-3">
                 <SummaryRow
@@ -386,7 +431,7 @@ export default async function ExpertPublicPage({
                 />
 
                 <SummaryRow
-                  label="You pay"
+                  label="You pay today"
                   value={
                     selectedPricing
                       ? formatMoneyFromCents(selectedPricing.clientTotalCents)
@@ -401,22 +446,39 @@ export default async function ExpertPublicPage({
                 />
               </div>
 
-              {!canAcceptPayments ? (
-                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
-                  This provider is finishing payout setup. You can save this
-                  profile, but booking is temporarily unavailable.
+              {bookingBlockedReason ? (
+                <div className="mt-6 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-sm font-black leading-6 text-[var(--warning)]">
+                  {bookingBlockedReason}
                 </div>
               ) : (
                 <div className="mt-6 rounded-2xl bg-[var(--primary-soft)] p-4 text-sm font-bold leading-6 text-[var(--primary-dark)]">
-                  Choose a service, then pick an available time below. Your slot
-                  will be held while you complete payment.
+                  Pick a time below to create your booking. Payment happens on
+                  the next step.
                 </div>
               )}
 
-              <div className="mt-4 grid gap-2">
+              <div className="mt-5 grid gap-3">
+                <Step
+                  number="1"
+                  title="Choose service"
+                  text="Pick the result you want from the call."
+                />
+                <Step
+                  number="2"
+                  title="Pick time"
+                  text="Select one of the provider’s open slots."
+                />
+                <Step
+                  number="3"
+                  title="Pay safely"
+                  text="After payment, your call room will be prepared."
+                />
+              </div>
+
+              <div className="mt-5 grid gap-2">
                 {!currentUser ? (
-                  <Link href="/sign-in" className="btn btn-secondary">
-                    Sign in to save
+                  <Link href={signInHref} className="btn btn-primary">
+                    Sign in to book
                   </Link>
                 ) : isOwnProfile ? (
                   <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-sm font-bold text-muted">
@@ -474,7 +536,7 @@ export default async function ExpertPublicPage({
 
               <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
                 The total includes the provider price plus a small SkillDrop
-                service fee.
+                service fee. You will confirm and pay after choosing a time.
               </p>
 
               <div className="mt-6 grid gap-4">
@@ -504,6 +566,11 @@ export default async function ExpertPublicPage({
                               ) : null}
 
                               <Badge>{service.category?.name ?? "Service"}</Badge>
+
+                              <Badge>
+                                <Clock3 size={14} />
+                                {service.durationMinutes} min
+                              </Badge>
                             </div>
 
                             <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
@@ -536,9 +603,6 @@ export default async function ExpertPublicPage({
                               )}
                               strong
                             />
-                            <p className="text-right text-sm font-bold text-muted">
-                              {service.durationMinutes} min
-                            </p>
                           </div>
                         </div>
                       </Link>
@@ -573,15 +637,14 @@ export default async function ExpertPublicPage({
                 <Badge>{expert.availability.length} open</Badge>
               </div>
 
-              {!canAcceptPayments ? (
-                <div className="mt-6 rounded-[24px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-5 text-sm font-black leading-6 text-[var(--danger)]">
-                  Booking is disabled until this provider completes Stripe payout
-                  setup.
+              {bookingBlockedReason ? (
+                <div className="mt-6 rounded-[24px] border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 text-sm font-black leading-6 text-[var(--warning)]">
+                  {bookingBlockedReason}
                 </div>
               ) : null}
 
               <div className="mt-6 grid gap-4">
-                {groupedSlots.length > 0 && selectedService && canAcceptPayments ? (
+                {groupedSlots.length > 0 && selectedService && canBook ? (
                   groupedSlots.map((group) => (
                     <div
                       key={group.label}
@@ -637,6 +700,27 @@ export default async function ExpertPublicPage({
                   ))
                 ) : null}
 
+                {groupedSlots.length > 0 && selectedService && !canBook ? (
+                  <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center">
+                    <h3 className="text-2xl font-black tracking-[-0.04em]">
+                      Booking is not available yet
+                    </h3>
+
+                    <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+                      {bookingBlockedReason ??
+                        "This provider cannot be booked right now."}
+                    </p>
+
+                    {!currentUser ? (
+                      <div className="mt-5">
+                        <Link href={signInHref} className="btn btn-primary">
+                          Sign in to book
+                        </Link>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {groupedSlots.length === 0 ? (
                   <EmptyState
                     title="No open times"
@@ -650,6 +734,31 @@ export default async function ExpertPublicPage({
                     text="Select a service before choosing a time."
                   />
                 ) : null}
+              </div>
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="success">
+                <ShieldCheck size={14} />
+                What happens after payment
+              </Badge>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <Step
+                  number="1"
+                  title="Booking confirmed"
+                  text="Your selected time is reserved and the provider sees the booking."
+                />
+                <Step
+                  number="2"
+                  title="Call room prepared"
+                  text="You will get access to the call page when the session window opens."
+                />
+                <Step
+                  number="3"
+                  title="Leave a review"
+                  text="After the call, you can rate the provider and share feedback."
+                />
               </div>
             </Card>
 
@@ -842,6 +951,11 @@ export default async function ExpertPublicPage({
                     expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"
                   }
                 />
+
+                <SideFact
+                  label="Payments"
+                  value={canAcceptPayments ? "Ready" : "Not ready"}
+                />
               </div>
             </Card>
 
@@ -854,14 +968,18 @@ export default async function ExpertPublicPage({
               <div className="mt-5 grid gap-3">
                 <Step
                   number="1"
-                  title="Choose service"
-                  text="Pick the help you need."
+                  title="Transparent price"
+                  text="You see the service price, SkillDrop fee and total before paying."
                 />
-                <Step number="2" title="Pick time" text="Select an open slot." />
+                <Step
+                  number="2"
+                  title="Protected workflow"
+                  text="The booking is created first, then confirmed after payment."
+                />
                 <Step
                   number="3"
-                  title="Confirm booking"
-                  text="Pay safely and join the call."
+                  title="Review after call"
+                  text="Feedback helps keep the marketplace trustworthy."
                 />
               </div>
             </Card>
@@ -869,12 +987,12 @@ export default async function ExpertPublicPage({
             <Card soft className="p-5">
               <Badge variant="accent">
                 <Sparkles size={14} />
-                Good to know
+                Best before booking
               </Badge>
 
               <p className="mt-4 text-sm font-bold leading-6 text-muted">
-                Short calls work best when you prepare one clear question before
-                booking.
+                Prepare one clear question, share enough context, and choose the
+                service that matches the result you want from the call.
               </p>
             </Card>
           </div>
@@ -1062,6 +1180,48 @@ function groupSlotsByDate(
   });
 
   return Array.from(groups.values());
+}
+
+function getBookingBlockedReason({
+  hasUser,
+  isBuyer,
+  isOwnProfile,
+  canAcceptPayments,
+  hasServices,
+  hasOpenSlots,
+}: {
+  hasUser: boolean;
+  isBuyer: boolean;
+  isOwnProfile: boolean;
+  canAcceptPayments: boolean;
+  hasServices: boolean;
+  hasOpenSlots: boolean;
+}) {
+  if (!hasUser) {
+    return "Sign in to book this provider.";
+  }
+
+  if (!isBuyer) {
+    return "Only buyer accounts can book provider calls.";
+  }
+
+  if (isOwnProfile) {
+    return "You cannot book your own provider profile.";
+  }
+
+  if (!canAcceptPayments) {
+    return "This provider is finishing payout setup. Booking is temporarily unavailable.";
+  }
+
+  if (!hasServices) {
+    return "This provider has not added active services yet.";
+  }
+
+  if (!hasOpenSlots) {
+    return "This provider has no available time slots right now.";
+  }
+
+  return null;
 }
 
 function calculateMatchScore({

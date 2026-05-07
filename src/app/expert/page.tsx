@@ -129,9 +129,15 @@ export default async function ExpertDashboardPage({
         take: 24,
       },
       bookings: {
+        where: {
+          startTime: {
+            gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+          },
+        },
         orderBy: {
           startTime: "asc",
         },
+        take: 100,
         include: {
           buyer: true,
           service: true,
@@ -154,6 +160,26 @@ export default async function ExpertDashboardPage({
   const activeServices = expert.services.filter((service) => service.isActive);
   const openSlots = expert.availability.filter((slot) => !slot.isBooked);
   const nextOpenSlots = openSlots.slice(0, 8);
+
+  const hasStripePayouts = Boolean(expert.stripeAccountId);
+
+  const isBookable =
+    activeServices.length > 0 && openSlots.length > 0 && hasStripePayouts;
+
+  const missingBookableSteps = [
+    activeServices.length === 0 ? "create at least one active offer" : null,
+    openSlots.length === 0 ? "add open availability" : null,
+    !hasStripePayouts ? "connect Stripe payouts" : null,
+  ].filter(Boolean);
+
+  const nextSetupHref =
+    activeServices.length === 0
+      ? "/expert/services"
+      : openSlots.length === 0
+        ? "/expert/availability"
+        : !hasStripePayouts
+          ? "/expert/earnings"
+          : `/experts/${expert.id}`;
 
   const upcomingBookings = expert.bookings
     .filter(
@@ -216,6 +242,7 @@ export default async function ExpertDashboardPage({
     hasLanguages: expert.languages.length > 0,
     hasServices: activeServices.length > 0,
     hasAvailability: openSlots.length > 0,
+    hasStripePayouts,
     isVerified: expert.isVerified,
   });
 
@@ -247,6 +274,12 @@ export default async function ExpertDashboardPage({
       text: "Open slots make your profile bookable.",
       done: openSlots.length > 0,
       href: "/expert/availability",
+    },
+    {
+      title: "Connect Stripe payouts",
+      text: "Required before clients can safely book and pay you.",
+      done: hasStripePayouts,
+      href: "/expert/earnings",
     },
     {
       title: "Complete first 3 calls",
@@ -286,27 +319,43 @@ export default async function ExpertDashboardPage({
 
           <div className="grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
-              <Badge variant={expert.isVerified ? "success" : "accent"}>
-                {expert.isVerified ? (
-                  <>
-                    <BadgeCheck size={14} />
-                    Verified provider
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck size={14} />
-                    Verification in progress
-                  </>
-                )}
-              </Badge>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={expert.isVerified ? "success" : "accent"}>
+                  {expert.isVerified ? (
+                    <>
+                      <BadgeCheck size={14} />
+                      Verified provider
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={14} />
+                      Verification in progress
+                    </>
+                  )}
+                </Badge>
+
+                <Badge variant={isBookable ? "success" : "accent"}>
+                  {isBookable ? (
+                    <>
+                      <CheckCircle2 size={14} />
+                      Ready to accept bookings
+                    </>
+                  ) : (
+                    <>
+                      <ListChecks size={14} />
+                      Setup required
+                    </>
+                  )}
+                </Badge>
+              </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
                 Welcome back, {providerName}.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Your workspace for calls, offers, availability, profile growth
-                and client trust.
+                Your workspace for calls, offers, availability, payouts, profile
+                growth and client trust.
               </p>
             </div>
 
@@ -325,7 +374,7 @@ export default async function ExpertDashboardPage({
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               icon={Video}
               label="Calls today"
@@ -353,12 +402,72 @@ export default async function ExpertDashboardPage({
               value={expert.rating ? expert.rating.toFixed(1) : "New"}
               hint={`${expert.totalReviews} reviews`}
             />
+
+            <MetricCard
+              icon={WalletCards}
+              label="Payouts"
+              value={hasStripePayouts ? "Ready" : "Missing"}
+              hint={hasStripePayouts ? "Stripe connected" : "Connect before launch"}
+            />
           </div>
         </div>
       </section>
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-5">
+          {!isBookable ? (
+            <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
+              <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/70 text-[var(--warning)]">
+                  <ShieldCheck size={24} />
+                </div>
+
+                <div>
+                  <h2 className="text-2xl font-black tracking-[-0.04em]">
+                    Your profile is not ready for paid bookings yet
+                  </h2>
+
+                  <p className="mt-2 leading-7 text-muted">
+                    Complete this before connecting real payments:{" "}
+                    <span className="font-black text-[var(--foreground)]">
+                      {missingBookableSteps.join(", ")}
+                    </span>
+                    .
+                  </p>
+                </div>
+
+                <ButtonLink href={nextSetupHref}>
+                  Complete setup
+                  <ArrowRight size={18} />
+                </ButtonLink>
+              </div>
+            </Card>
+          ) : (
+            <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6">
+              <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/70 text-[var(--success)]">
+                  <CheckCircle2 size={24} />
+                </div>
+
+                <div>
+                  <h2 className="text-2xl font-black tracking-[-0.04em]">
+                    Your profile is ready for paid bookings
+                  </h2>
+
+                  <p className="mt-2 leading-7 text-muted">
+                    You have an active offer, open availability and Stripe payouts
+                    connected.
+                  </p>
+                </div>
+
+                <ButtonLink href={`/experts/${expert.id}`}>
+                  View public profile
+                  <Eye size={18} />
+                </ButtonLink>
+              </div>
+            </Card>
+          )}
+
           <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
             <Card className="p-5 md:p-6">
               {nextBooking ? (
@@ -437,6 +546,12 @@ export default async function ExpertDashboardPage({
                     {nextBooking.status === "PAID" ? (
                       <p className="mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]">
                         Payment received. Confirm this booking from your bookings page.
+                      </p>
+                    ) : null}
+
+                    {nextBooking.status === "CONFIRMED" ? (
+                      <p className="mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-bold text-[var(--success)]">
+                        Booking confirmed. The call room opens 10 minutes before start.
                       </p>
                     ) : null}
                   </div>
@@ -606,6 +721,7 @@ export default async function ExpertDashboardPage({
                   <MiniCheck done={expert.bio.length >= 120} text="Strong biography" />
                   <MiniCheck done={expert.skills.length >= 3} text="Searchable skills" />
                   <MiniCheck done={expert.languages.length > 0} text="Languages added" />
+                  <MiniCheck done={hasStripePayouts} text="Stripe payouts connected" />
                 </div>
               </Card>
 
@@ -733,6 +849,11 @@ export default async function ExpertDashboardPage({
                       label="Paid pending confirmation"
                       value={String(paidBookings.length)}
                     />
+
+                    <MoneyRow
+                      label="Stripe payouts"
+                      value={hasStripePayouts ? "Connected" : "Missing"}
+                    />
                   </div>
                 </Card>
 
@@ -784,8 +905,9 @@ export default async function ExpertDashboardPage({
               </div>
             </div>
           </div>
+
           <UnreadNotificationsCard userId={expert.user.id} email={expert.user.email} />
-          
+
           <Card soft className="p-5 md:p-6">
             <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
@@ -803,6 +925,7 @@ export default async function ExpertDashboardPage({
                     hasAvailability: openSlots.length > 0,
                     hasReviews: expert.reviews.length > 0,
                     hasStrongBio: expert.bio.length >= 120,
+                    hasStripePayouts,
                   })}
                 </p>
               </div>
@@ -813,6 +936,7 @@ export default async function ExpertDashboardPage({
                   hasAvailability: openSlots.length > 0,
                   hasReviews: expert.reviews.length > 0,
                   hasStrongBio: expert.bio.length >= 120,
+                  hasStripePayouts,
                 })}
               >
                 Fix now
@@ -986,6 +1110,7 @@ function calculateProfileScore({
   hasLanguages,
   hasServices,
   hasAvailability,
+  hasStripePayouts,
   isVerified,
 }: {
   hasHeadline: boolean;
@@ -994,6 +1119,7 @@ function calculateProfileScore({
   hasLanguages: boolean;
   hasServices: boolean;
   hasAvailability: boolean;
+  hasStripePayouts: boolean;
   isVerified: boolean;
 }) {
   const checks = [
@@ -1003,6 +1129,7 @@ function calculateProfileScore({
     hasLanguages,
     hasServices,
     hasAvailability,
+    hasStripePayouts,
     isVerified,
   ];
 
@@ -1035,11 +1162,13 @@ function getSmartTip({
   hasAvailability,
   hasReviews,
   hasStrongBio,
+  hasStripePayouts,
 }: {
   hasServices: boolean;
   hasAvailability: boolean;
   hasReviews: boolean;
   hasStrongBio: boolean;
+  hasStripePayouts: boolean;
 }) {
   if (!hasStrongBio) {
     return "Strengthen your biography so clients understand who you help, why they can trust you, and what they will get from a call.";
@@ -1051,6 +1180,10 @@ function getSmartTip({
 
   if (!hasAvailability) {
     return "Add open slots for the next 7 days. A profile without availability is harder for clients to book.";
+  }
+
+  if (!hasStripePayouts) {
+    return "Connect Stripe payouts before enabling real paid bookings. Clients should only pay when your payout setup is ready.";
   }
 
   if (!hasReviews) {
@@ -1065,11 +1198,13 @@ function getSmartTipHref({
   hasAvailability,
   hasReviews,
   hasStrongBio,
+  hasStripePayouts,
 }: {
   hasServices: boolean;
   hasAvailability: boolean;
   hasReviews: boolean;
   hasStrongBio: boolean;
+  hasStripePayouts: boolean;
 }) {
   if (!hasStrongBio) {
     return "/expert/profile";
@@ -1081,6 +1216,10 @@ function getSmartTipHref({
 
   if (!hasAvailability) {
     return "/expert/availability";
+  }
+
+  if (!hasStripePayouts) {
+    return "/expert/earnings";
   }
 
   if (!hasReviews) {
