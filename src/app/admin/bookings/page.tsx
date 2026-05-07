@@ -60,7 +60,6 @@ export default async function AdminBookingsPage({
 
   const query = resolvedSearchParams.q?.trim() ?? "";
   const statusFilter = resolvedSearchParams.status ?? "all";
-
   const statusValue = statusFilter.toUpperCase() as BookingStatus;
 
   const bookingWhere: Prisma.BookingWhereInput = {
@@ -88,13 +87,13 @@ export default async function AdminBookingsPage({
                     {
                       email: {
                         contains: query,
-                        mode: "insensitive",
+                        mode: "insensitive" as const,
                       },
                     },
                     {
                       name: {
                         contains: query,
-                        mode: "insensitive",
+                        mode: "insensitive" as const,
                       },
                     },
                   ],
@@ -110,13 +109,13 @@ export default async function AdminBookingsPage({
                         {
                           email: {
                             contains: query,
-                            mode: "insensitive",
+                            mode: "insensitive" as const,
                           },
                         },
                         {
                           name: {
                             contains: query,
-                            mode: "insensitive",
+                            mode: "insensitive" as const,
                           },
                         },
                       ],
@@ -132,13 +131,13 @@ export default async function AdminBookingsPage({
                     {
                       title: {
                         contains: query,
-                        mode: "insensitive",
+                        mode: "insensitive" as const,
                       },
                     },
                     {
                       description: {
                         contains: query,
-                        mode: "insensitive",
+                        mode: "insensitive" as const,
                       },
                     },
                   ],
@@ -148,7 +147,13 @@ export default async function AdminBookingsPage({
             {
               stripeCheckoutSessionId: {
                 contains: query,
-                mode: "insensitive",
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              stripePaymentIntentId: {
+                contains: query,
+                mode: "insensitive" as const,
               },
             },
           ],
@@ -160,6 +165,7 @@ export default async function AdminBookingsPage({
     bookings,
     totalBookings,
     pendingBookings,
+    paidBookings,
     confirmedBookings,
     completedBookings,
     cancelledBookings,
@@ -184,32 +190,45 @@ export default async function AdminBookingsPage({
       },
       take: 120,
     }),
+
     prisma.booking.count(),
+
     prisma.booking.count({
       where: {
         status: "PENDING",
       },
     }),
+
+    prisma.booking.count({
+      where: {
+        status: "PAID",
+      },
+    }),
+
     prisma.booking.count({
       where: {
         status: "CONFIRMED",
       },
     }),
+
     prisma.booking.count({
       where: {
         status: "COMPLETED",
       },
     }),
+
     prisma.booking.count({
       where: {
         status: "CANCELLED",
       },
     }),
+
     prisma.booking.count({
       where: {
         status: "REFUNDED",
       },
     }),
+
     prisma.booking.count({
       where: {
         status: "DISPUTED",
@@ -225,6 +244,18 @@ export default async function AdminBookingsPage({
         booking.status === "COMPLETED",
     )
     .reduce((sum, booking) => sum + booking.priceCents, 0);
+
+  const shownDisputed = bookings.filter(
+    (booking) => booking.status === "DISPUTED",
+  ).length;
+
+  const shownRefundable = bookings.filter(
+    (booking) =>
+      booking.status === "PAID" ||
+      booking.status === "CONFIRMED" ||
+      booking.status === "COMPLETED" ||
+      booking.status === "DISPUTED",
+  ).length;
 
   return (
     <main>
@@ -257,7 +288,7 @@ export default async function AdminBookingsPage({
             Booking operations
           </Badge>
 
-          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
+          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-end">
             <div>
               <h1 className="heading-lg max-w-4xl text-balance">
                 Manage marketplace bookings.
@@ -269,7 +300,25 @@ export default async function AdminBookingsPage({
               </p>
             </div>
 
-            <Badge>{bookings.length} shown</Badge>
+            <Card className="p-5">
+              <Badge variant="accent">
+                <ShieldAlert size={14} />
+                Current view
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <SummaryRow label="Shown bookings" value={String(bookings.length)} />
+                <SummaryRow label="Shown disputed" value={String(shownDisputed)} />
+                <SummaryRow
+                  label="Shown refundable"
+                  value={String(shownRefundable)}
+                />
+                <SummaryRow
+                  label="Shown paid volume"
+                  value={formatMoney(paidVolumeCents)}
+                />
+              </div>
+            </Card>
           </div>
 
           <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -288,21 +337,21 @@ export default async function AdminBookingsPage({
             />
 
             <AdminStat
+              icon={Euro}
+              label="Paid"
+              value={String(paidBookings)}
+              hint="Waiting confirmation"
+            />
+
+            <AdminStat
               icon={CheckCircle2}
               label="Confirmed"
               value={String(confirmedBookings)}
               hint="Ready calls"
             />
-
-            <AdminStat
-              icon={Euro}
-              label="Shown volume"
-              value={formatMoney(paidVolumeCents)}
-              hint="Paid / confirmed / completed"
-            />
           </div>
 
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <AdminStat
               icon={Video}
               label="Completed"
@@ -321,7 +370,14 @@ export default async function AdminBookingsPage({
               icon={RefreshCcw}
               label="Refunded"
               value={String(refundedBookings)}
-              hint={`${disputedBookings} disputed`}
+              hint="Refunded bookings"
+            />
+
+            <AdminStat
+              icon={ShieldAlert}
+              label="Disputed"
+              value={String(disputedBookings)}
+              hint="Needs admin review"
             />
           </div>
 
@@ -337,7 +393,7 @@ export default async function AdminBookingsPage({
                   name="q"
                   type="search"
                   defaultValue={query}
-                  placeholder="Search buyer, expert, service or Stripe session..."
+                  placeholder="Search buyer, expert, service, Stripe session or payment intent..."
                   className="input min-h-12 w-full pl-11"
                 />
               </div>
@@ -384,6 +440,7 @@ export default async function AdminBookingsPage({
               label="Pending"
               q={query}
             />
+            <FilterLink current={statusFilter} value="paid" label="Paid" q={query} />
             <FilterLink
               current={statusFilter}
               value="confirmed"
@@ -442,6 +499,12 @@ export default async function AdminBookingsPage({
               <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
                 Try another search query or status filter.
               </p>
+
+              <div className="mt-5">
+                <Link href="/admin/bookings" className="btn btn-secondary">
+                  Clear filters
+                </Link>
+              </div>
             </Card>
           )}
         </div>
@@ -465,9 +528,14 @@ function BookingAdminCard({
     priceCents: number;
     currency: string;
     stripeCheckoutSessionId: string | null;
+    stripePaymentIntentId: string | null;
     disputeReason: string | null;
     disputeNote: string | null;
     disputedAt: Date | null;
+    paidAt: Date | null;
+    cancelledAt: Date | null;
+    completedAt: Date | null;
+    refundedAt: Date | null;
     createdAt: Date;
     buyer: {
       name: string | null;
@@ -507,7 +575,7 @@ function BookingAdminCard({
   const canResolveDispute = booking.status === "DISPUTED";
 
   return (
-    <Card className="p-5 md:p-6">
+    <Card className="p-5 md:p-6 hover-lift">
       <div className="grid gap-5 xl:grid-cols-[1fr_320px] xl:items-start">
         <div>
           <div className="flex flex-wrap gap-2">
@@ -516,7 +584,7 @@ function BookingAdminCard({
             {booking.review ? (
               <Badge variant="success">
                 <CheckCircle2 size={14} />
-                Reviewed
+                Reviewed {booking.review.rating}/5
               </Badge>
             ) : null}
 
@@ -578,8 +646,28 @@ function BookingAdminCard({
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <IdBox label="Booking ID" value={booking.id} />
-            <IdBox label="Stripe" value={booking.stripeCheckoutSessionId ?? "—"} />
+            <IdBox
+              label="Checkout"
+              value={booking.stripeCheckoutSessionId ?? "—"}
+            />
+            <IdBox
+              label="Payment intent"
+              value={booking.stripePaymentIntentId ?? "—"}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <IdBox label="Buyer ID" value={booking.buyerId} />
+            <IdBox label="Expert ID" value={booking.expertId} />
             <IdBox label="Slot" value={booking.availabilityId ?? "—"} />
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
+            <TimelineFact label="Paid" value={booking.paidAt} />
+            <TimelineFact label="Completed" value={booking.completedAt} />
+            <TimelineFact label="Cancelled" value={booking.cancelledAt} />
+            <TimelineFact label="Refunded" value={booking.refundedAt} />
+            <TimelineFact label="Created" value={booking.createdAt} />
           </div>
 
           {booking.status === "DISPUTED" ? (
@@ -602,6 +690,14 @@ function BookingAdminCard({
                   Opened {formatDateTime(booking.disputedAt)}
                 </p>
               ) : null}
+            </div>
+          ) : null}
+
+          {booking.callRoom?.roomUrl ? (
+            <div className="mt-4">
+              <Link href={booking.callRoom.roomUrl} className="btn btn-secondary">
+                Open call room
+              </Link>
             </div>
           ) : null}
         </div>
@@ -786,6 +882,20 @@ function IdBox({ label, value }: { label: string; value: string }) {
   );
 }
 
+function TimelineFact({ label, value }: { label: string; value: Date | null }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-xs font-black">
+        {value ? formatShortDate(value) : "—"}
+      </p>
+    </div>
+  );
+}
+
 function AdminStat({
   icon: Icon,
   label,
@@ -798,7 +908,7 @@ function AdminStat({
   hint: string;
 }) {
   return (
-    <Card soft className="p-4">
+    <Card soft className="p-4 hover-lift">
       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <Icon size={20} />
       </div>
@@ -811,6 +921,15 @@ function AdminStat({
 
       <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
     </Card>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-sm font-black">{value}</p>
+    </div>
   );
 }
 
@@ -847,7 +966,7 @@ function FilterLink({
       className={
         isActive
           ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
-          : "rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+          : "hover-scale rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] hover:bg-white hover:text-[var(--primary-dark)]"
       }
     >
       {label}
@@ -922,6 +1041,10 @@ function formatBookingError(error: string) {
 
   if (error === "invalid-resolution") {
     return "Invalid dispute resolution.";
+  }
+
+  if (error === "refund-failed") {
+    return "Refund failed. Please check Stripe and try again.";
   }
 
   return "Something went wrong while updating this booking.";

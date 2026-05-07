@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
+import { ExpertStatus } from "@prisma/client";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -9,6 +11,7 @@ import {
   Sparkles,
   Star,
   UserRound,
+  WalletCards,
   XCircle,
 } from "lucide-react";
 
@@ -42,15 +45,13 @@ export default async function AdminExpertsPage({
   const statusFilter = resolvedSearchParams.status ?? "all";
   const verifiedFilter = resolvedSearchParams.verified ?? "all";
 
-  const expertWhere = {
+  const now = new Date();
+
+  const expertWhere: Prisma.ExpertProfileWhereInput = {
     ...(statusFilter === "all"
       ? {}
       : {
-          status: statusFilter.toUpperCase() as
-            | "PENDING"
-            | "APPROVED"
-            | "REJECTED"
-            | "SUSPENDED",
+          status: statusFilter.toUpperCase() as ExpertStatus,
         }),
 
     ...(verifiedFilter === "all"
@@ -105,92 +106,140 @@ export default async function AdminExpertsPage({
       : {}),
   };
 
-  const rawExperts = await prisma.expertProfile.findMany({
-    where: expertWhere,
-    include: {
-      user: true,
-      services: true,
-      availability: true,
-      reviews: {
-        select: {
-          id: true,
-          rating: true,
-          helpfulness: true,
-          clarity: true,
-          professionalism: true,
-          wouldRecommend: true,
-          createdAt: true,
+  const [
+    rawExperts,
+    totalExperts,
+    approvedExperts,
+    pendingExperts,
+    rejectedExperts,
+    suspendedExperts,
+    verifiedExperts,
+  ] = await Promise.all([
+    prisma.expertProfile.findMany({
+      where: expertWhere,
+      include: {
+        user: true,
+        services: {
+          where: {
+            isActive: true,
+          },
+          orderBy: {
+            priceCents: "asc",
+          },
         },
-        orderBy: {
+        availability: {
+          where: {
+            startTime: {
+              gte: now,
+            },
+            isBooked: false,
+          },
+          orderBy: {
+            startTime: "asc",
+          },
+        },
+        reviews: {
+          select: {
+            id: true,
+            rating: true,
+            helpfulness: true,
+            clarity: true,
+            professionalism: true,
+            wouldRecommend: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 20,
+        },
+      },
+      orderBy: [
+        {
+          status: "asc",
+        },
+        {
           createdAt: "desc",
         },
-        take: 20,
+      ],
+    }),
+
+    prisma.expertProfile.count(),
+
+    prisma.expertProfile.count({
+      where: {
+        status: "APPROVED",
       },
-    },
-    orderBy: [
-      {
-        status: "asc",
+    }),
+
+    prisma.expertProfile.count({
+      where: {
+        status: "PENDING",
       },
-      {
-        createdAt: "desc",
+    }),
+
+    prisma.expertProfile.count({
+      where: {
+        status: "REJECTED",
       },
-    ],
-  });
+    }),
+
+    prisma.expertProfile.count({
+      where: {
+        status: "SUSPENDED",
+      },
+    }),
+
+    prisma.expertProfile.count({
+      where: {
+        isVerified: true,
+      },
+    }),
+  ]);
 
   const experts = rawExperts
-  .map((expert) => {
-    const qualityScore = calculateQualityScore({
-      rating: expert.rating,
-      totalReviews: expert.totalReviews,
-      totalSessions: expert.totalSessions,
-      isVerified: expert.isVerified,
-      openSlots: expert.availability.length,
-      reviews: expert.reviews,
-    });
-
-    return {
-      ...expert,
-      qualityScore,
-      riskLevel: calculateRiskLevel({
+    .map((expert) => {
+      const qualityScore = calculateQualityScore({
+        rating: expert.rating,
+        totalReviews: expert.totalReviews,
+        totalSessions: expert.totalSessions,
+        isVerified: expert.isVerified,
+        openSlots: expert.availability.length,
         reviews: expert.reviews,
+      });
+
+      return {
+        ...expert,
         qualityScore,
-      }),
-    };
-  })
-  .sort((a, b) => {
-    const statusPriority = {
-      PENDING: 0,
-      APPROVED: 1,
-      SUSPENDED: 2,
-      REJECTED: 3,
-    };
+        riskLevel: calculateRiskLevel({
+          reviews: expert.reviews,
+          qualityScore,
+        }),
+      };
+    })
+    .sort((a, b) => {
+      const statusPriority = {
+        PENDING: 0,
+        APPROVED: 1,
+        SUSPENDED: 2,
+        REJECTED: 3,
+      };
 
-    const aPriority =
-      statusPriority[a.status as keyof typeof statusPriority] ?? 9;
-    const bPriority =
-      statusPriority[b.status as keyof typeof statusPriority] ?? 9;
+      const aPriority =
+        statusPriority[a.status as keyof typeof statusPriority] ?? 9;
+      const bPriority =
+        statusPriority[b.status as keyof typeof statusPriority] ?? 9;
 
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
-    }
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
 
-    if (b.qualityScore !== a.qualityScore) {
-      return b.qualityScore - a.qualityScore;
-    }
+      if (b.qualityScore !== a.qualityScore) {
+        return b.qualityScore - a.qualityScore;
+      }
 
-    return b.createdAt.getTime() - a.createdAt.getTime();
-  });
-
-  const totalExperts = await prisma.expertProfile.count();
-  const approvedExperts = await prisma.expertProfile.count({
-    where: { status: "APPROVED" },
-  });
-  const pendingExperts = await prisma.expertProfile.count({
-    where: { status: "PENDING" },
-  });
-  const verifiedExperts = await prisma.expertProfile.count({
-    where: { isVerified: true },
-  });
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
 
   const averageQuality =
     experts.length > 0
@@ -199,6 +248,18 @@ export default async function AdminExpertsPage({
             experts.length,
         )
       : 0;
+
+  const highRiskExperts = experts.filter(
+    (expert) => expert.riskLevel === "HIGH",
+  );
+
+  const mediumRiskExperts = experts.filter(
+    (expert) => expert.riskLevel === "MEDIUM",
+  );
+
+  const payoutReadyExperts = experts.filter((expert) =>
+    Boolean(expert.stripeAccountId),
+  );
 
   return (
     <main>
@@ -222,7 +283,7 @@ export default async function AdminExpertsPage({
 
           {resolvedSearchParams.error ? (
             <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
-              Something went wrong while updating this expert.
+              {formatAdminError(resolvedSearchParams.error)}
             </div>
           ) : null}
 
@@ -231,21 +292,55 @@ export default async function AdminExpertsPage({
             Expert moderation
           </Badge>
 
-          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-            Review and manage expert profiles.
-          </h1>
+          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-end">
+            <div>
+              <h1 className="heading-lg max-w-4xl text-balance">
+                Review and manage expert profiles.
+              </h1>
 
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-            Approve experts, monitor quality, suspend unsafe profiles and manage
-            manual verification.
-          </p>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                Approve experts, monitor quality, suspend unsafe profiles and
+                manage manual verification.
+              </p>
+            </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-5">
+            <Card className="p-5">
+              <Badge variant="accent">
+                <Sparkles size={14} />
+                Filtered results
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <SummaryRow label="Shown experts" value={String(experts.length)} />
+                <SummaryRow label="High risk" value={String(highRiskExperts.length)} />
+                <SummaryRow
+                  label="Medium risk"
+                  value={String(mediumRiskExperts.length)}
+                />
+                <SummaryRow
+                  label="Payout ready"
+                  value={String(payoutReadyExperts.length)}
+                />
+              </div>
+            </Card>
+          </div>
+
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <AdminMiniStat label="Experts" value={String(totalExperts)} />
             <AdminMiniStat label="Approved" value={String(approvedExperts)} />
             <AdminMiniStat label="Pending" value={String(pendingExperts)} />
+            <AdminMiniStat label="Rejected" value={String(rejectedExperts)} />
+            <AdminMiniStat label="Suspended" value={String(suspendedExperts)} />
             <AdminMiniStat label="Verified" value={String(verifiedExperts)} />
-            <AdminMiniStat label="Avg quality" value={`${averageQuality}/100`} />
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <AdminMiniStat label="Average quality" value={`${averageQuality}/100`} />
+            <AdminMiniStat label="High risk shown" value={String(highRiskExperts.length)} />
+            <AdminMiniStat
+              label="Medium risk shown"
+              value={String(mediumRiskExperts.length)}
+            />
           </div>
 
           <form action="/admin/experts" className="mt-6">
@@ -362,9 +457,16 @@ export default async function AdminExpertsPage({
               <h2 className="text-2xl font-black tracking-[-0.04em]">
                 No experts found
               </h2>
-              <p className="mt-3 text-sm font-semibold text-muted">
+
+              <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
                 Try another search query, status or verification filter.
               </p>
+
+              <div className="mt-5">
+                <Link href="/admin/experts" className="btn btn-secondary">
+                  Clear filters
+                </Link>
+              </div>
             </Card>
           )}
         </div>
@@ -387,6 +489,7 @@ function ExpertAdminCard({
     riskLevel: "LOW" | "MEDIUM" | "HIGH";
     totalReviews: number;
     totalSessions: number;
+    stripeAccountId: string | null;
     createdAt: Date;
     user: {
       name: string | null;
@@ -394,9 +497,16 @@ function ExpertAdminCard({
     };
     services: {
       id: string;
+      title: string;
+      priceCents: number;
+      durationMinutes: number;
+      isActive: boolean;
     }[];
     availability: {
       id: string;
+      startTime: Date;
+      endTime: Date;
+      isBooked: boolean;
     }[];
     reviews: {
       id: string;
@@ -435,8 +545,11 @@ function ExpertAdminCard({
         )
       : null;
 
+  const startingService = expert.services[0] ?? null;
+  const nextSlot = expert.availability[0] ?? null;
+
   return (
-    <Card className="p-5 md:p-6">
+    <Card className="p-5 md:p-6 hover-lift">
       <div className="grid gap-5 xl:grid-cols-[1fr_280px] xl:items-start">
         <div className="flex gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
@@ -456,11 +569,23 @@ function ExpertAdminCard({
                 <Badge variant="accent">Not verified</Badge>
               )}
 
+              {expert.stripeAccountId ? (
+                <Badge variant="success">
+                  <WalletCards size={14} />
+                  Payout ready
+                </Badge>
+              ) : (
+                <Badge variant="danger">
+                  <WalletCards size={14} />
+                  Payout missing
+                </Badge>
+              )}
+
               <Badge variant={expert.qualityScore >= 80 ? "success" : "primary"}>
                 <Sparkles size={14} />
                 Quality {expert.qualityScore}/100
               </Badge>
-              
+
               <RiskBadge riskLevel={expert.riskLevel} />
 
               <Badge>
@@ -478,13 +603,13 @@ function ExpertAdminCard({
             </p>
 
             <p className="mt-3 text-sm font-semibold leading-6 text-muted">
-              {expert.headline}
+              {expert.headline || "No headline yet."}
             </p>
 
             <div className="mt-4 grid gap-2 md:grid-cols-4">
               <SmallFact label="Country" value={expert.country ?? "—"} />
               <SmallFact label="Services" value={String(expert.services.length)} />
-              <SmallFact label="Slots" value={String(expert.availability.length)} />
+              <SmallFact label="Open slots" value={String(expert.availability.length)} />
               <SmallFact label="Sessions" value={String(expert.totalSessions)} />
             </div>
 
@@ -514,28 +639,42 @@ function ExpertAdminCard({
               />
             </div>
 
+            <div className="mt-4 grid gap-2 md:grid-cols-3">
+              <SmallFact
+                label="From"
+                value={startingService ? formatMoney(startingService.priceCents) : "—"}
+              />
+              <SmallFact
+                label="Service"
+                value={startingService?.title ?? "—"}
+              />
+              <SmallFact
+                label="Next slot"
+                value={nextSlot ? formatDateTime(nextSlot.startTime) : "—"}
+              />
+            </div>
+
             {expert.qualityScore < 45 ? (
-              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black text-[var(--danger)]">
+              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black leading-6 text-[var(--danger)]">
                 Low quality signal. Review this expert before promoting.
               </div>
             ) : null}
 
             {expert.riskLevel === "HIGH" ? (
-              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black text-[var(--danger)]">
-                High risk expert. Check recent reviews, complaints and booking history before approving or promoting.
-             </div>
+              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black leading-6 text-[var(--danger)]">
+                High risk expert. Check recent reviews, complaints and booking
+                history before approving or promoting.
+              </div>
             ) : null}
 
             {expert.riskLevel === "MEDIUM" ? (
-               <div className="mt-4 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-3 text-sm font-black text-[var(--accent)]">
-                 Medium risk signal. Monitor this expert before promotion.
-               </div>
-             ) : null}
-
-
+              <div className="mt-4 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-3 text-sm font-black leading-6 text-[var(--accent-dark)]">
+                Medium risk signal. Monitor this expert before promotion.
+              </div>
+            ) : null}
 
             {expert.qualityScore >= 80 ? (
-              <div className="mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-black text-[var(--success)]">
+              <div className="mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-black leading-6 text-[var(--success)]">
                 Strong quality signal. Good candidate for promotion.
               </div>
             ) : null}
@@ -553,7 +692,11 @@ function ExpertAdminCard({
             <input type="hidden" name="expertId" value={expert.id} />
             <input type="hidden" name="status" value="APPROVED" />
 
-            <button type="submit" className="btn btn-primary w-full">
+            <button
+              type="submit"
+              className="btn btn-primary w-full"
+              disabled={expert.status === "APPROVED"}
+            >
               <CheckCircle2 size={17} />
               Approve
             </button>
@@ -563,7 +706,11 @@ function ExpertAdminCard({
             <input type="hidden" name="expertId" value={expert.id} />
             <input type="hidden" name="status" value="REJECTED" />
 
-            <button type="submit" className="btn btn-secondary w-full">
+            <button
+              type="submit"
+              className="btn btn-secondary w-full"
+              disabled={expert.status === "REJECTED"}
+            >
               <XCircle size={17} />
               Reject
             </button>
@@ -573,7 +720,11 @@ function ExpertAdminCard({
             <input type="hidden" name="expertId" value={expert.id} />
             <input type="hidden" name="status" value="SUSPENDED" />
 
-            <button type="submit" className="btn btn-danger w-full">
+            <button
+              type="submit"
+              className="btn btn-danger w-full"
+              disabled={expert.status === "SUSPENDED"}
+            >
               <Ban size={17} />
               Suspend
             </button>
@@ -587,6 +738,15 @@ function ExpertAdminCard({
               {expert.isVerified ? "Remove verification" : "Verify manually"}
             </button>
           </form>
+
+          <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+              Created
+            </p>
+            <p className="mt-1 text-sm font-black">
+              {formatDateTime(expert.createdAt)}
+            </p>
+          </div>
         </div>
       </div>
     </Card>
@@ -632,7 +792,7 @@ function FilterLink({
       className={
         isActive
           ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
-          : "rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+          : "hover-scale rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] hover:bg-white hover:text-[var(--primary-dark)]"
       }
     >
       {label}
@@ -658,7 +818,7 @@ function RiskBadge({
 
 function AdminMiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <Card soft className="p-4">
+    <Card soft className="p-4 hover-lift">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
@@ -689,7 +849,16 @@ function SmallFact({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
-      <p className="mt-1 text-sm font-black">{value}</p>
+      <p className="mt-1 break-words text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-sm font-black">{value}</p>
     </div>
   );
 }
@@ -852,4 +1021,34 @@ function averageNullable(values: (number | null)[]) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function formatMoney(cents: number) {
+  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatAdminError(error: string) {
+  if (error === "expert-not-found") {
+    return "This expert could not be found.";
+  }
+
+  if (error === "invalid-status") {
+    return "This expert status is invalid.";
+  }
+
+  if (error === "not-admin") {
+    return "Only admins can update experts.";
+  }
+
+  return "Something went wrong while updating this expert.";
 }

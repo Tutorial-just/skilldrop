@@ -25,13 +25,19 @@ export default async function AdminPage() {
 
   const [
     usersCount,
+    buyersCount,
+    expertsUsersCount,
+    adminsCount,
     expertsCount,
     approvedExpertsCount,
     pendingExpertsCount,
+    rejectedExpertsCount,
     bookingsCount,
     pendingBookingsCount,
+    paidBookingsCount,
     confirmedBookingsCount,
     completedBookingsCount,
+    cancelledBookingsCount,
     disputedBookingsCount,
     refundedBookingsCount,
     reviewsCount,
@@ -42,6 +48,24 @@ export default async function AdminPage() {
     rawExperts,
   ] = await Promise.all([
     prisma.user.count(),
+
+    prisma.user.count({
+      where: {
+        role: "buyer",
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        role: "expert",
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        role: "admin",
+      },
+    }),
 
     prisma.expertProfile.count(),
 
@@ -57,11 +81,23 @@ export default async function AdminPage() {
       },
     }),
 
+    prisma.expertProfile.count({
+      where: {
+        status: "REJECTED",
+      },
+    }),
+
     prisma.booking.count(),
 
     prisma.booking.count({
       where: {
         status: "PENDING",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: "PAID",
       },
     }),
 
@@ -74,6 +110,12 @@ export default async function AdminPage() {
     prisma.booking.count({
       where: {
         status: "COMPLETED",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: "CANCELLED",
       },
     }),
 
@@ -185,7 +227,23 @@ export default async function AdminPage() {
     prisma.expertProfile.findMany({
       include: {
         user: true,
-        availability: true,
+        availability: {
+          where: {
+            startTime: {
+              gte: new Date(),
+            },
+            isBooked: false,
+          },
+        },
+        services: {
+          where: {
+            isActive: true,
+          },
+          orderBy: {
+            priceCents: "asc",
+          },
+          take: 1,
+        },
         reviews: {
           select: {
             rating: true,
@@ -200,6 +258,9 @@ export default async function AdminPage() {
           },
           take: 10,
         },
+      },
+      orderBy: {
+        createdAt: "desc",
       },
       take: 100,
     }),
@@ -283,19 +344,40 @@ export default async function AdminPage() {
             ) : (
               <>
                 <ShieldCheck size={14} />
-                Admin
+                Admin control center
               </>
             )}
           </Badge>
 
-          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-            SkillDrop operations center.
-          </h1>
+          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-end">
+            <div>
+              <h1 className="heading-lg max-w-4xl text-balance">
+                SkillDrop operations center.
+              </h1>
 
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-            Monitor users, experts, bookings, payments, reviews, disputes and
-            marketplace risk from one dashboard.
-          </p>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                Monitor users, experts, bookings, payments, reviews, disputes
+                and marketplace risk from one dashboard.
+              </p>
+            </div>
+
+            <Card className="p-5">
+              <Badge variant="accent">
+                <ShieldCheck size={14} />
+                Admin summary
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <SummaryRow label="Buyers" value={String(buyersCount)} />
+                <SummaryRow label="Expert users" value={String(expertsUsersCount)} />
+                <SummaryRow label="Admins" value={String(adminsCount)} />
+                <SummaryRow
+                  label="Rejected experts"
+                  value={String(rejectedExpertsCount)}
+                />
+              </div>
+            </Card>
+          </div>
 
           <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <AdminStat
@@ -323,7 +405,7 @@ export default async function AdminPage() {
               icon={CircleDollarSign}
               label="Est. commission"
               value={formatMoney(estimatedPlatformFeeCents)}
-              hint="5% from completed calls"
+              hint="Estimated from completed calls"
             />
           </div>
         </div>
@@ -365,14 +447,14 @@ export default async function AdminPage() {
                 <WarningRow
                   label="High-risk experts"
                   value={String(highRiskExperts.length)}
-                  href="/admin/experts"
+                  href="/admin/experts?risk=high"
                   danger={highRiskExperts.length > 0}
                 />
 
                 <WarningRow
                   label="Medium-risk experts"
                   value={String(mediumRiskExperts.length)}
-                  href="/admin/experts"
+                  href="/admin/experts?risk=medium"
                   danger={mediumRiskExperts.length > 3}
                 />
 
@@ -412,8 +494,16 @@ export default async function AdminPage() {
                   value={String(approvedExpertsCount)}
                 />
                 <StatusRow
+                  label="Rejected experts"
+                  value={String(rejectedExpertsCount)}
+                />
+                <StatusRow
                   label="Pending bookings"
                   value={String(pendingBookingsCount)}
+                />
+                <StatusRow
+                  label="Paid bookings"
+                  value={String(paidBookingsCount)}
                 />
                 <StatusRow
                   label="Confirmed bookings"
@@ -422,6 +512,10 @@ export default async function AdminPage() {
                 <StatusRow
                   label="Completed bookings"
                   value={String(completedBookingsCount)}
+                />
+                <StatusRow
+                  label="Cancelled bookings"
+                  value={String(cancelledBookingsCount)}
                 />
                 <StatusRow
                   label="Refunded bookings"
@@ -448,6 +542,11 @@ export default async function AdminPage() {
               <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
                 Experts to review
               </h2>
+
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Risk is calculated from recent reviews, low scores,
+                recommendation signals and overall quality.
+              </p>
 
               <div className="mt-6 grid gap-3">
                 {topRiskExperts.length > 0 ? (
@@ -479,27 +578,36 @@ export default async function AdminPage() {
               </h2>
 
               <div className="mt-6 grid gap-3">
-                <AdminLink href="/admin/users" title="Users" text="View platform users." />
+                <AdminLink
+                  href="/admin/users"
+                  title="Users"
+                  text="View platform users and account roles."
+                />
+
                 <AdminLink
                   href="/admin/experts"
                   title="Experts"
-                  text="Review quality, risk and expert profiles."
+                  text="Review approvals, quality, risk and provider profiles."
                 />
+
                 <AdminLink
                   href="/admin/bookings"
                   title="Bookings"
-                  text="Monitor pending, confirmed, disputed and refunded calls."
+                  text="Monitor pending, paid, confirmed, disputed and refunded calls."
                 />
+
                 <AdminLink
                   href="/admin/reviews"
                   title="Reviews"
                   text="Find low ratings, bad signals and client feedback."
                 />
+
                 <AdminLink
                   href="/admin/audit"
                   title="Audit log"
                   text="Review sensitive admin actions and changes."
                 />
+
                 <AdminLink
                   href="/notifications"
                   title="Notifications"
@@ -530,7 +638,10 @@ export default async function AdminPage() {
               </div>
 
               <div className="mt-5">
-                <Link href="/admin/reviews?bad=true" className="btn btn-secondary">
+                <Link
+                  href="/admin/reviews?bad=true"
+                  className="btn btn-secondary"
+                >
                   View quality issues
                 </Link>
               </div>
@@ -566,7 +677,7 @@ function AdminStat({
   hint: string;
 }) {
   return (
-    <Card soft className="p-4">
+    <Card soft className="p-4 hover-lift">
       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <Icon size={20} />
       </div>
@@ -598,8 +709,8 @@ function WarningRow({
       href={href}
       className={
         danger
-          ? "flex items-center justify-between gap-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-[var(--danger)] transition hover:-translate-y-0.5"
-          : "flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white"
+          ? "interactive flex items-center justify-between gap-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-[var(--danger)]"
+          : "interactive flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4 hover:bg-white"
       }
     >
       <p className="text-sm font-black">{label}</p>
@@ -611,6 +722,15 @@ function WarningRow({
 function StatusRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
       <p className="text-sm font-bold text-muted">{label}</p>
       <p className="text-sm font-black">{value}</p>
     </div>
@@ -629,7 +749,7 @@ function AdminLink({
   return (
     <Link
       href={href}
-      className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--shadow-sm)]"
+      className="interactive rounded-2xl border border-[var(--border)] bg-white/64 p-4 hover:bg-white"
     >
       <p className="font-black tracking-[-0.02em]">{title}</p>
       <p className="mt-1 text-sm font-semibold leading-6 text-muted">{text}</p>
@@ -646,16 +766,29 @@ function RiskExpertRow({
     riskLevel: "LOW" | "MEDIUM" | "HIGH";
     rating: number;
     totalReviews: number;
+    status: string;
+    isVerified: boolean;
+    stripeAccountId: string | null;
+    services: {
+      title: string;
+      priceCents: number;
+    }[];
+    availability: {
+      startTime: Date;
+    }[];
     user: {
       name: string | null;
       email: string;
     };
   };
 }) {
+  const startingPrice = expert.services[0]?.priceCents ?? null;
+  const nextSlot = expert.availability[0]?.startTime ?? null;
+
   return (
     <Link
       href={`/experts/${expert.id}`}
-      className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white"
+      className="interactive rounded-2xl border border-[var(--border)] bg-white/64 p-4 hover:bg-white"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -670,6 +803,22 @@ function RiskExpertRow({
         <RiskBadge riskLevel={expert.riskLevel} />
       </div>
 
+      <div className="mt-3 flex flex-wrap gap-2">
+        <StatusBadge status={expert.status} />
+
+        {expert.isVerified ? (
+          <Badge variant="success">Verified</Badge>
+        ) : (
+          <Badge variant="accent">Not verified</Badge>
+        )}
+
+        {expert.stripeAccountId ? (
+          <Badge variant="success">Payout ready</Badge>
+        ) : (
+          <Badge variant="danger">Payout missing</Badge>
+        )}
+      </div>
+
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <MiniFact label="Quality" value={`${expert.qualityScore}/100`} />
         <MiniFact
@@ -677,6 +826,14 @@ function RiskExpertRow({
           value={expert.rating ? `${expert.rating.toFixed(1)}/5` : "New"}
         />
         <MiniFact label="Reviews" value={String(expert.totalReviews)} />
+        <MiniFact
+          label="From"
+          value={startingPrice ? formatMoney(startingPrice) : "—"}
+        />
+        <MiniFact
+          label="Next slot"
+          value={nextSlot ? formatDateTime(nextSlot) : "—"}
+        />
       </div>
     </Link>
   );
@@ -701,14 +858,14 @@ function RecentReviewRow({
     booking: {
       service: {
         title: string;
-      };
+      } | null;
     };
   };
 }) {
   return (
     <Link
       href="/admin/reviews?bad=true"
-      className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white"
+      className="interactive rounded-2xl border border-[var(--border)] bg-white/64 p-4 hover:bg-white"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Badge variant={review.rating <= 2 ? "danger" : "accent"}>
@@ -722,11 +879,15 @@ function RecentReviewRow({
       </div>
 
       <p className="mt-3 font-black tracking-[-0.02em]">
-        {review.booking.service.title}
+        {review.booking.service?.title ?? "Booked call"}
       </p>
 
       <p className="mt-1 text-sm font-bold text-muted">
         Expert: {review.expert.user.name ?? review.expert.user.email}
+      </p>
+
+      <p className="mt-3 text-xs font-black text-[var(--primary-dark)]">
+        {formatDateTime(review.createdAt)}
       </p>
 
       <p className="mt-3 line-clamp-2 text-sm font-semibold leading-6 text-muted">
@@ -761,6 +922,46 @@ function RiskBadge({
   }
 
   return <Badge variant="success">Risk: Low</Badge>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "APPROVED") {
+    return <Badge variant="success">Approved</Badge>;
+  }
+
+  if (status === "PENDING") {
+    return <Badge variant="accent">Pending</Badge>;
+  }
+
+  if (status === "REJECTED") {
+    return <Badge variant="danger">Rejected</Badge>;
+  }
+
+  if (status === "COMPLETED") {
+    return <Badge variant="success">Completed</Badge>;
+  }
+
+  if (status === "CONFIRMED") {
+    return <Badge variant="success">Confirmed</Badge>;
+  }
+
+  if (status === "PAID") {
+    return <Badge variant="primary">Paid</Badge>;
+  }
+
+  if (status === "CANCELLED") {
+    return <Badge variant="danger">Cancelled</Badge>;
+  }
+
+  if (status === "REFUNDED") {
+    return <Badge variant="danger">Refunded</Badge>;
+  }
+
+  if (status === "DISPUTED") {
+    return <Badge variant="danger">Disputed</Badge>;
+  }
+
+  return <Badge>{status.toLowerCase()}</Badge>;
 }
 
 function calculateRiskLevel({
@@ -925,4 +1126,14 @@ function clamp(value: number, min: number, max: number) {
 
 function formatMoney(cents: number) {
   return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

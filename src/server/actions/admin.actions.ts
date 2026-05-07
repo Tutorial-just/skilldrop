@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { BookingStatus, ExpertStatus, UserRole } from "@prisma/client";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
@@ -41,17 +42,80 @@ async function getCurrentAdmin() {
   return admin;
 }
 
+function getBookingDateUpdates({
+  status,
+  booking,
+}: {
+  status: BookingStatus;
+  booking: {
+    paidAt: Date | null;
+    completedAt: Date | null;
+    cancelledAt: Date | null;
+    refundedAt: Date | null;
+    disputedAt: Date | null;
+  };
+}) {
+  const now = new Date();
+
+  return {
+    paidAt: status === "PAID" && !booking.paidAt ? now : booking.paidAt,
+
+    completedAt:
+      status === "COMPLETED" && !booking.completedAt
+        ? now
+        : booking.completedAt,
+
+    cancelledAt:
+      status === "CANCELLED" && !booking.cancelledAt
+        ? now
+        : booking.cancelledAt,
+
+    refundedAt:
+      status === "REFUNDED" && !booking.refundedAt
+        ? now
+        : booking.refundedAt,
+
+    disputedAt:
+      status === "DISPUTED" && !booking.disputedAt
+        ? now
+        : booking.disputedAt,
+  };
+}
+
+function revalidateAdminBookingPaths(expertId?: string) {
+  revalidatePath("/admin");
+  revalidatePath("/admin/bookings");
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/bookings");
+  revalidatePath("/expert");
+  revalidatePath("/expert/bookings");
+  revalidatePath("/expert/earnings");
+  revalidatePath("/expert/stats");
+  revalidatePath("/experts");
+
+  if (expertId) {
+    revalidatePath(`/experts/${expertId}`);
+  }
+}
+
 export async function updateExpertStatusAction(formData: FormData) {
   const currentAdmin = await getCurrentAdmin();
 
   const expertId = getStringValue(formData, "expertId");
   const status = getStringValue(formData, "status");
 
-  const allowedStatuses = ["PENDING", "APPROVED", "REJECTED", "SUSPENDED"];
+  const allowedStatuses: ExpertStatus[] = [
+    "PENDING",
+    "APPROVED",
+    "REJECTED",
+    "SUSPENDED",
+  ];
 
-  if (!expertId || !allowedStatuses.includes(status)) {
+  if (!expertId || !allowedStatuses.includes(status as ExpertStatus)) {
     redirect("/admin/experts?error=invalid-status");
   }
+
+  const newStatus = status as ExpertStatus;
 
   const expert = await prisma.expertProfile.findUnique({
     where: {
@@ -71,7 +135,7 @@ export async function updateExpertStatusAction(formData: FormData) {
       id: expert.id,
     },
     data: {
-      status: status as "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED",
+      status: newStatus,
     },
   });
 
@@ -81,12 +145,12 @@ export async function updateExpertStatusAction(formData: FormData) {
     action: "EXPERT_STATUS_UPDATED",
     entityType: "EXPERT",
     entityId: expert.id,
-    message: `Expert status changed from ${expert.status} to ${status}.`,
+    message: `Expert status changed from ${expert.status} to ${newStatus}.`,
     metadata: {
       expertId: expert.id,
       expertEmail: expert.user.email,
       previousStatus: expert.status,
-      newStatus: status,
+      newStatus,
     },
   });
 
@@ -161,19 +225,20 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
   const bookingId = getStringValue(formData, "bookingId");
   const status = getStringValue(formData, "status");
 
-  const allowedStatuses = [
+  const allowedStatuses: BookingStatus[] = [
     "PENDING",
     "PAID",
     "CONFIRMED",
     "COMPLETED",
     "CANCELLED",
-    "REFUNDED",
     "DISPUTED",
   ];
 
-  if (!bookingId || !allowedStatuses.includes(status)) {
+  if (!bookingId || !allowedStatuses.includes(status as BookingStatus)) {
     redirect("/admin/bookings?error=invalid-status");
   }
+
+  const newStatus = status as BookingStatus;
 
   const booking = await prisma.booking.findUnique({
     where: {
@@ -200,19 +265,16 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
         id: booking.id,
       },
       data: {
-        status: status as
-          | "PENDING"
-          | "PAID"
-          | "CONFIRMED"
-          | "COMPLETED"
-          | "CANCELLED"
-          | "REFUNDED"
-          | "DISPUTED",
+        status: newStatus,
+        ...getBookingDateUpdates({
+          status: newStatus,
+          booking,
+        }),
       },
     });
 
     if (
-      (status === "CANCELLED" || status === "REFUNDED") &&
+      (newStatus === "CANCELLED" || newStatus === "REFUNDED") &&
       booking.availabilityId
     ) {
       await tx.availability.update({
@@ -224,6 +286,19 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
         },
       });
     }
+
+    if (newStatus === "COMPLETED" && !booking.completedAt) {
+      await tx.expertProfile.update({
+        where: {
+          id: booking.expertId,
+        },
+        data: {
+          totalSessions: {
+            increment: 1,
+          },
+        },
+      });
+    }
   });
 
   await createAdminAuditLog({
@@ -232,28 +307,19 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
     action: "BOOKING_STATUS_UPDATED",
     entityType: "BOOKING",
     entityId: booking.id,
-    message: `Booking status changed from ${booking.status} to ${status}.`,
+    message: `Booking status changed from ${booking.status} to ${newStatus}.`,
     metadata: {
       bookingId: booking.id,
       buyerEmail: booking.buyer.email,
       expertEmail: booking.expert.user.email,
       serviceTitle: booking.service?.title ?? null,
       previousStatus: booking.status,
-      newStatus: status,
+      newStatus,
       priceCents: booking.priceCents,
     },
   });
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/bookings");
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/bookings");
-  revalidatePath("/expert");
-  revalidatePath("/expert/bookings");
-  revalidatePath("/expert/earnings");
-  revalidatePath("/expert/stats");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${booking.expertId}`);
+  revalidateAdminBookingPaths(booking.expertId);
 
   redirect("/admin/bookings?updated=1");
 }
@@ -264,11 +330,13 @@ export async function updateUserRoleByAdminAction(formData: FormData) {
   const userId = getStringValue(formData, "userId");
   const role = getStringValue(formData, "role");
 
-  const allowedRoles = ["BUYER", "EXPERT", "ADMIN"];
+  const allowedRoles: UserRole[] = ["BUYER", "EXPERT", "ADMIN"];
 
-  if (!userId || !allowedRoles.includes(role)) {
+  if (!userId || !allowedRoles.includes(role as UserRole)) {
     redirect("/admin/users?error=invalid-role");
   }
+
+  const newRole = role as UserRole;
 
   const targetUser = await prisma.user.findUnique({
     where: {
@@ -282,7 +350,7 @@ export async function updateUserRoleByAdminAction(formData: FormData) {
 
   const isChangingSelf = currentAdmin.id === targetUser.id;
 
-  if (isChangingSelf && role !== "ADMIN") {
+  if (isChangingSelf && newRole !== "ADMIN") {
     redirect("/admin/users?error=cannot-change-own-admin-role");
   }
 
@@ -291,7 +359,7 @@ export async function updateUserRoleByAdminAction(formData: FormData) {
       id: targetUser.id,
     },
     data: {
-      role: role as "BUYER" | "EXPERT" | "ADMIN",
+      role: newRole,
     },
   });
 
@@ -301,11 +369,11 @@ export async function updateUserRoleByAdminAction(formData: FormData) {
     action: "USER_ROLE_UPDATED",
     entityType: "USER",
     entityId: targetUser.id,
-    message: `User role changed from ${targetUser.role} to ${role}.`,
+    message: `User role changed from ${targetUser.role} to ${newRole}.`,
     metadata: {
       targetUserEmail: targetUser.email,
       previousRole: targetUser.role,
-      newRole: role,
+      newRole,
       changedSelf: isChangingSelf,
     },
   });
@@ -369,15 +437,36 @@ export async function refundBookingByAdminAction(formData: FormData) {
     redirect("/admin/bookings?error=no-payment-intent");
   }
 
-  await stripe.refunds.create({
-    payment_intent: paymentIntentId,
-    reason: "requested_by_customer",
-    reverse_transfer: true,
-    refund_application_fee: true,
-    metadata: {
-      bookingId: booking.id,
-    },
-  });
+  try {
+    await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      reason: "requested_by_customer",
+      reverse_transfer: true,
+      refund_application_fee: true,
+      metadata: {
+        bookingId: booking.id,
+      },
+    });
+  } catch (error) {
+    await createAdminAuditLog({
+      adminId: currentAdmin.id,
+      adminEmail: currentAdmin.email,
+      action: "BOOKING_REFUND_FAILED",
+      entityType: "BOOKING",
+      entityId: booking.id,
+      message: "Stripe refund failed.",
+      metadata: {
+        bookingId: booking.id,
+        buyerEmail: booking.buyer.email,
+        expertEmail: booking.expert.user.email,
+        stripeCheckoutSessionId: booking.stripeCheckoutSessionId,
+        paymentIntentId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+    });
+
+    redirect("/admin/bookings?error=refund-failed");
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
@@ -386,6 +475,7 @@ export async function refundBookingByAdminAction(formData: FormData) {
       },
       data: {
         status: "REFUNDED",
+        refundedAt: new Date(),
       },
     });
 
@@ -445,14 +535,7 @@ export async function refundBookingByAdminAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/bookings");
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/bookings");
-  revalidatePath("/expert");
-  revalidatePath("/expert/bookings");
-  revalidatePath("/expert/earnings");
-  revalidatePath(`/experts/${booking.expertId}`);
+  revalidateAdminBookingPaths(booking.expertId);
 
   redirect("/admin/bookings?status=refunded&updated=1");
 }
@@ -544,13 +627,7 @@ export async function markBookingDisputedByAdminAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/bookings");
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/bookings");
-  revalidatePath("/expert");
-  revalidatePath("/expert/bookings");
-  revalidatePath("/expert/earnings");
+  revalidateAdminBookingPaths(booking.expertId);
 
   redirect("/admin/bookings?status=disputed&updated=1");
 }
@@ -561,11 +638,13 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
   const bookingId = getStringValue(formData, "bookingId");
   const resolution = getStringValue(formData, "resolution");
 
-  const allowedResolutions = ["COMPLETED", "CANCELLED"];
+  const allowedResolutions: BookingStatus[] = ["COMPLETED", "CANCELLED"];
 
-  if (!bookingId || !allowedResolutions.includes(resolution)) {
+  if (!bookingId || !allowedResolutions.includes(resolution as BookingStatus)) {
     redirect("/admin/bookings?status=disputed&error=invalid-resolution");
   }
+
+  const newStatus = resolution as "COMPLETED" | "CANCELLED";
 
   const booking = await prisma.booking.findUnique({
     where: {
@@ -590,20 +669,30 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
     redirect("/admin/bookings?status=disputed&error=not-disputed");
   }
 
+  const now = new Date();
+
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: {
         id: booking.id,
       },
       data: {
-        status: resolution as "COMPLETED" | "CANCELLED",
+        status: newStatus,
+        completedAt:
+          newStatus === "COMPLETED" && !booking.completedAt
+            ? now
+            : booking.completedAt,
+        cancelledAt:
+          newStatus === "CANCELLED" && !booking.cancelledAt
+            ? now
+            : booking.cancelledAt,
         disputeNote: booking.disputeNote
-          ? `${booking.disputeNote}\n\nResolved as ${resolution}.`
-          : `Resolved as ${resolution}.`,
+          ? `${booking.disputeNote}\n\nResolved as ${newStatus}.`
+          : `Resolved as ${newStatus}.`,
       },
     });
 
-    if (resolution === "CANCELLED" && booking.availabilityId) {
+    if (newStatus === "CANCELLED" && booking.availabilityId) {
       await tx.availability.update({
         where: {
           id: booking.availabilityId,
@@ -614,7 +703,7 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
       });
     }
 
-    if (resolution === "COMPLETED") {
+    if (newStatus === "COMPLETED" && !booking.completedAt) {
       await tx.expertProfile.update({
         where: {
           id: booking.expertId,
@@ -634,10 +723,10 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
     subject: "Your SkillDrop dispute was resolved",
     message: `Your booking "${
       booking.service?.title ?? "Booked call"
-    }" was resolved as ${resolution.toLowerCase()}.`,
+    }" was resolved as ${newStatus.toLowerCase()}.`,
     metadata: {
       bookingId: booking.id,
-      resolution,
+      resolution: newStatus,
     },
   });
 
@@ -647,10 +736,10 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
     subject: "A SkillDrop dispute was resolved",
     message: `The booking "${
       booking.service?.title ?? "Booked call"
-    }" was resolved as ${resolution.toLowerCase()}.`,
+    }" was resolved as ${newStatus.toLowerCase()}.`,
     metadata: {
       bookingId: booking.id,
-      resolution,
+      resolution: newStatus,
     },
   });
 
@@ -660,29 +749,21 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
     action: "DISPUTE_RESOLVED",
     entityType: "BOOKING",
     entityId: booking.id,
-    message: `Dispute resolved as ${resolution}.`,
+    message: `Dispute resolved as ${newStatus}.`,
     metadata: {
       bookingId: booking.id,
       buyerEmail: booking.buyer.email,
       expertEmail: booking.expert.user.email,
       serviceTitle: booking.service?.title ?? null,
       previousStatus: booking.status,
-      newStatus: resolution,
+      newStatus,
       disputeReason: booking.disputeReason,
       previousDisputeNote: booking.disputeNote,
-      resolution,
+      resolution: newStatus,
     },
   });
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/bookings");
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/bookings");
-  revalidatePath("/expert");
-  revalidatePath("/expert/bookings");
-  revalidatePath("/expert/earnings");
-  revalidatePath("/expert/stats");
-  revalidatePath(`/experts/${booking.expertId}`);
+  revalidateAdminBookingPaths(booking.expertId);
 
-  redirect(`/admin/bookings?status=${resolution.toLowerCase()}&updated=1`);
+  redirect(`/admin/bookings?status=${newStatus.toLowerCase()}&updated=1`);
 }
