@@ -410,7 +410,6 @@ export default async function AdminBookingsPage({
                 <option value="confirmed">Confirmed</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
-                <option value="refunded">Refunded</option>
                 <option value="disputed">Disputed</option>
               </select>
 
@@ -712,7 +711,6 @@ function BookingAdminCard({
               <option value="CONFIRMED">Confirmed</option>
               <option value="COMPLETED">Completed</option>
               <option value="CANCELLED">Cancelled</option>
-              <option value="REFUNDED">Refunded</option>
               <option value="DISPUTED">Disputed</option>
             </select>
 
