@@ -51,19 +51,19 @@ export default async function AdminPage() {
 
     prisma.user.count({
       where: {
-        role: "buyer",
+        role: "BUYER",
       },
     }),
 
     prisma.user.count({
       where: {
-        role: "expert",
+        role: "EXPERT",
       },
     }),
 
     prisma.user.count({
       where: {
-        role: "admin",
+        role: "ADMIN",
       },
     }),
 
