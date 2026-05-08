@@ -18,6 +18,16 @@ function getCheckoutHref(bookingId: string, error?: string) {
   )}`;
 }
 
+function getAppUrl() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  if (!appUrl) {
+    throw new Error("NEXT_PUBLIC_APP_URL is missing.");
+  }
+
+  return appUrl.replace(/\/$/, "");
+}
+
 function revalidatePaymentPaths(expertId: string, bookingId: string) {
   revalidatePath("/");
   revalidatePath("/experts");
@@ -31,9 +41,48 @@ function revalidatePaymentPaths(expertId: string, bookingId: string) {
   revalidatePath("/expert/bookings");
   revalidatePath("/expert/availability");
   revalidatePath("/expert/earnings");
+  revalidatePath("/expert/settings");
   revalidatePath("/expert/stats");
 
   revalidatePath("/notifications");
+}
+
+function revalidateExpertPayoutPaths(expertId: string) {
+  revalidatePath("/");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
+
+  revalidatePath("/expert");
+  revalidatePath("/expert/earnings");
+  revalidatePath("/expert/settings");
+  revalidatePath("/expert/stats");
+}
+
+async function getCurrentExpertProfileForPayments() {
+  const { user } = await requireRole(["expert", "admin"]);
+
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    redirect("/sign-in");
+  }
+
+  const expert = await prisma.expertProfile.findFirst({
+    where: {
+      user: {
+        email,
+      },
+    },
+    include: {
+      user: true,
+    },
+  });
+
+  if (!expert) {
+    redirect("/become-expert");
+  }
+
+  return expert;
 }
 
 async function cancelExpiredPendingBooking({
@@ -93,6 +142,112 @@ async function cancelExpiredPendingBooking({
   revalidatePaymentPaths(expertId, bookingId);
 }
 
+export async function createStripeConnectAccountAction() {
+  const expert = await getCurrentExpertProfileForPayments();
+  const appUrl = getAppUrl();
+
+  let stripeAccountId = expert.stripeAccountId;
+
+  if (stripeAccountId) {
+    try {
+      await stripe.accounts.retrieve(stripeAccountId);
+    } catch {
+      stripeAccountId = null;
+    }
+  }
+
+  if (!stripeAccountId) {
+    const account = await stripe.accounts.create({
+      type: "express",
+      country: "FR",
+      email: expert.user.email,
+      business_type: "individual",
+      capabilities: {
+        card_payments: {
+          requested: true,
+        },
+        transfers: {
+          requested: true,
+        },
+      },
+      metadata: {
+        expertId: expert.id,
+        userId: expert.userId,
+        userEmail: expert.user.email,
+      },
+    });
+
+    stripeAccountId = account.id;
+
+    await prisma.expertProfile.update({
+      where: {
+        id: expert.id,
+      },
+      data: {
+        stripeAccountId,
+      },
+    });
+  }
+
+  const accountLink = await stripe.accountLinks.create({
+    account: stripeAccountId,
+    refresh_url: `${appUrl}/expert/settings?stripe=refresh`,
+    return_url: `${appUrl}/expert/settings?stripe=return`,
+    type: "account_onboarding",
+  });
+
+  revalidateExpertPayoutPaths(expert.id);
+
+  redirect(accountLink.url);
+}
+
+export async function createStripeConnectDashboardAction() {
+  const expert = await getCurrentExpertProfileForPayments();
+
+  if (!expert.stripeAccountId) {
+    redirect("/expert/settings?error=stripe-account-missing");
+  }
+
+  try {
+    const loginLink = await stripe.accounts.createLoginLink(
+      expert.stripeAccountId,
+    );
+
+    redirect(loginLink.url);
+  } catch {
+    redirect("/expert/settings?error=stripe-dashboard-unavailable");
+  }
+}
+
+export async function refreshStripeConnectStatusAction() {
+  const expert = await getCurrentExpertProfileForPayments();
+
+  if (!expert.stripeAccountId) {
+    redirect("/expert/settings?error=stripe-account-missing");
+  }
+
+  try {
+    await stripe.accounts.retrieve(expert.stripeAccountId);
+  } catch {
+    await prisma.expertProfile.update({
+      where: {
+        id: expert.id,
+      },
+      data: {
+        stripeAccountId: null,
+      },
+    });
+
+    revalidateExpertPayoutPaths(expert.id);
+
+    redirect("/expert/settings?error=stripe-account-invalid");
+  }
+
+  revalidateExpertPayoutPaths(expert.id);
+
+  redirect("/expert/settings?stripe=checked");
+}
+
 export async function createCheckoutSessionAction(bookingId: string) {
   const { user } = await requireRole(["buyer", "admin"]);
 
@@ -102,11 +257,7 @@ export async function createCheckoutSessionAction(bookingId: string) {
     redirect("/sign-in");
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-  if (!appUrl) {
-    throw new Error("NEXT_PUBLIC_APP_URL is missing.");
-  }
+  const appUrl = getAppUrl();
 
   const buyer = await prisma.user.findUnique({
     where: {
@@ -177,9 +328,7 @@ export async function createCheckoutSessionAction(bookingId: string) {
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
-
     payment_method_types: ["card"],
-
     customer_email: buyer.email,
 
     line_items: [

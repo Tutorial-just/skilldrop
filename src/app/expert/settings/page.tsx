@@ -3,20 +3,31 @@ import { redirect } from "next/navigation";
 import {
   ArrowLeft,
   BadgeCheck,
+  CreditCard,
   Download,
+  ExternalLink,
   Eye,
   Globe2,
   Languages,
   Mail,
   Palette,
+  RefreshCcw,
+  ShieldAlert,
   ShieldCheck,
   Settings,
   Trash2,
   UserRound,
+  WalletCards,
 } from "lucide-react";
 
+import {
+  createStripeConnectAccountAction,
+  createStripeConnectDashboardAction,
+  refreshStripeConnectStatusAction,
+} from "@/server/actions/payment.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { AppearanceSettings } from "@/components/expert/appearance-settings";
 import { ProviderSettingsControls } from "@/components/expert/provider-settings-controls";
@@ -24,8 +35,18 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-export default async function ExpertSettingsPage() {
+type ExpertSettingsPageProps = {
+  searchParams?: Promise<{
+    stripe?: string;
+    error?: string;
+  }>;
+};
+
+export default async function ExpertSettingsPage({
+  searchParams,
+}: ExpertSettingsPageProps) {
   const { user, role } = await requireRole(["expert", "admin"]);
+  const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const email = user.email?.toLowerCase();
 
@@ -61,6 +82,8 @@ export default async function ExpertSettingsPage() {
     redirect("/become-expert");
   }
 
+  const stripeStatus = await getStripeStatus(expert.stripeAccountId);
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
@@ -77,6 +100,18 @@ export default async function ExpertSettingsPage() {
                 Back to dashboard
               </Link>
 
+              {resolvedSearchParams.stripe ? (
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                  {formatStripeMessage(resolvedSearchParams.stripe)}
+                </div>
+              ) : null}
+
+              {resolvedSearchParams.error ? (
+                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+                  {formatSettingsError(resolvedSearchParams.error)}
+                </div>
+              ) : null}
+
               <div className="mt-6">
                 <Badge variant="primary">
                   <Settings size={14} />
@@ -89,8 +124,9 @@ export default async function ExpertSettingsPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Manage your account, workspace appearance, public visibility,
-                booking rules, notifications and provider preferences.
+                Manage your account, payments, workspace appearance, public
+                visibility, booking rules, notifications and provider
+                preferences.
               </p>
             </div>
 
@@ -172,6 +208,116 @@ export default async function ExpertSettingsPage() {
             </Card>
           </div>
 
+          <Card className="p-5 md:p-6">
+            <div className="grid gap-6 xl:grid-cols-[1fr_0.95fr] xl:items-start">
+              <div>
+                <Badge variant={stripeStatus.ready ? "success" : "accent"}>
+                  <WalletCards size={14} />
+                  Stripe payouts
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  {stripeStatus.ready
+                    ? "Payments are ready."
+                    : "Connect Stripe to receive payouts."}
+                </h2>
+
+                <p className="mt-3 max-w-3xl leading-7 text-muted">
+                  Buyers can only pay for your calls when your Stripe Connect
+                  account is ready. Stripe handles card payments and provider
+                  payout setup.
+                </p>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-3">
+                  <PayoutStatusBox
+                    label="Stripe account"
+                    value={expert.stripeAccountId ? "Connected" : "Missing"}
+                    tone={expert.stripeAccountId ? "success" : "accent"}
+                  />
+
+                  <PayoutStatusBox
+                    label="Charges"
+                    value={stripeStatus.chargesEnabled ? "Enabled" : "Not ready"}
+                    tone={stripeStatus.chargesEnabled ? "success" : "accent"}
+                  />
+
+                  <PayoutStatusBox
+                    label="Payouts"
+                    value={stripeStatus.payoutsEnabled ? "Enabled" : "Not ready"}
+                    tone={stripeStatus.payoutsEnabled ? "success" : "accent"}
+                  />
+                </div>
+
+                {!stripeStatus.ready ? (
+                  <div className="mt-6 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-sm font-black leading-6 text-[var(--warning)]">
+                    Your profile can exist, but paid bookings stay blocked until
+                    payouts are ready.
+                  </div>
+                ) : (
+                  <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
+                    Your payout setup is ready. Clients can pay and confirm
+                    bookings with you.
+                  </div>
+                )}
+
+                {stripeStatus.error ? (
+                  <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
+                    {stripeStatus.error}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+                <form action={createStripeConnectAccountAction}>
+                  <button type="submit" className="btn btn-primary w-full">
+                    <CreditCard size={17} />
+                    {expert.stripeAccountId
+                      ? "Continue Stripe setup"
+                      : "Connect Stripe"}
+                  </button>
+                </form>
+
+                <form action={refreshStripeConnectStatusAction}>
+                  <button type="submit" className="btn btn-secondary w-full">
+                    <RefreshCcw size={17} />
+                    Refresh status
+                  </button>
+                </form>
+
+                {expert.stripeAccountId ? (
+                  <form action={createStripeConnectDashboardAction}>
+                    <button type="submit" className="btn btn-secondary w-full">
+                      <ExternalLink size={17} />
+                      Open Stripe dashboard
+                    </button>
+                  </form>
+                ) : null}
+
+                <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                  <div className="flex gap-3">
+                    {stripeStatus.ready ? (
+                      <ShieldCheck
+                        size={18}
+                        className="mt-0.5 shrink-0 text-[var(--success)]"
+                      />
+                    ) : (
+                      <ShieldAlert
+                        size={18}
+                        className="mt-0.5 shrink-0 text-[var(--warning)]"
+                      />
+                    )}
+
+                    <p className="text-sm font-bold leading-6 text-muted">
+                      {stripeStatus.ready
+                        ? "Stripe confirmed that charges and payouts are enabled."
+                        : "Finish Stripe onboarding, then refresh the status here."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
           <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
             <Card className="p-5 md:p-6">
               <Badge variant={expert.isVerified ? "success" : "accent"}>
@@ -239,6 +385,12 @@ export default async function ExpertSettingsPage() {
                 />
 
                 <VisibilityRow
+                  label="Payments"
+                  value={stripeStatus.ready ? "Ready" : "Not ready"}
+                  tone={stripeStatus.ready ? "success" : "accent"}
+                />
+
+                <VisibilityRow
                   label="Verified badge"
                   value={expert.isVerified ? "Visible" : "Not yet"}
                   tone={expert.isVerified ? "success" : "accent"}
@@ -303,6 +455,43 @@ export default async function ExpertSettingsPage() {
   );
 }
 
+async function getStripeStatus(stripeAccountId: string | null) {
+  if (!stripeAccountId) {
+    return {
+      ready: false,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+      error: null,
+    };
+  }
+
+  try {
+    const account = await stripe.accounts.retrieve(stripeAccountId);
+
+    const chargesEnabled = Boolean(account.charges_enabled);
+    const payoutsEnabled = Boolean(account.payouts_enabled);
+    const detailsSubmitted = Boolean(account.details_submitted);
+
+    return {
+      ready: chargesEnabled && payoutsEnabled,
+      chargesEnabled,
+      payoutsEnabled,
+      detailsSubmitted,
+      error: null,
+    };
+  } catch {
+    return {
+      ready: false,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+      error:
+        "Stripe account could not be checked. Refresh setup or reconnect Stripe.",
+    };
+  }
+}
+
 function SettingRow({
   icon: Icon,
   label,
@@ -346,6 +535,28 @@ function VisibilityRow({
   );
 }
 
+function PayoutStatusBox({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "accent";
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+
+      <div className="mt-2">
+        <Badge variant={tone}>{value}</Badge>
+      </div>
+    </div>
+  );
+}
+
 function SmallStat({ value, label }: { value: string; label: string }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
@@ -356,4 +567,36 @@ function SmallStat({ value, label }: { value: string; label: string }) {
       </p>
     </div>
   );
+}
+
+function formatStripeMessage(message: string) {
+  if (message === "return") {
+    return "Stripe onboarding finished. Refresh the status to confirm payouts are ready.";
+  }
+
+  if (message === "refresh") {
+    return "Stripe onboarding was refreshed. Continue setup to finish payout activation.";
+  }
+
+  if (message === "checked") {
+    return "Stripe payout status checked.";
+  }
+
+  return "Stripe status updated.";
+}
+
+function formatSettingsError(error: string) {
+  if (error === "stripe-account-missing") {
+    return "Stripe account is missing. Please connect Stripe first.";
+  }
+
+  if (error === "stripe-dashboard-unavailable") {
+    return "Stripe dashboard is not available yet. Finish Stripe onboarding first.";
+  }
+
+  if (error === "stripe-account-invalid") {
+    return "Stripe account could not be found. Please reconnect Stripe.";
+  }
+
+  return "Something went wrong. Please try again.";
 }
