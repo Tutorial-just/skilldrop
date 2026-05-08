@@ -81,6 +81,36 @@ export default async function AdminBookingsPage({
       ? {
           OR: [
             {
+              id: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              buyerId: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              expertId: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              serviceId: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              availabilityId: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
               buyer: {
                 is: {
                   OR: [
@@ -160,7 +190,6 @@ export default async function AdminBookingsPage({
         }
       : {}),
   };
-
   const [
     bookings,
     totalBookings,

@@ -1,9 +1,11 @@
 import Link from "next/link";
+import type { Prisma, UserRole } from "@prisma/client";
 import {
   ArrowLeft,
   BriefcaseBusiness,
   CalendarDays,
   Crown,
+  Euro,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -27,25 +29,35 @@ type AdminUsersPageProps = {
   }>;
 };
 
+const userRoles: UserRole[] = ["BUYER", "EXPERT", "ADMIN"];
+
 export default async function AdminUsersPage({
   searchParams,
 }: AdminUsersPageProps) {
   await requireRole(["admin"]);
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
+
   const roleFilter = resolvedSearchParams.role ?? "all";
   const query = resolvedSearchParams.q?.trim() ?? "";
+  const roleValue = roleFilter.toUpperCase() as UserRole;
 
-  const userWhere = {
-    ...(roleFilter === "all"
-      ? {}
-      : {
-          role: roleFilter.toUpperCase() as "BUYER" | "EXPERT" | "ADMIN",
-        }),
+  const userWhere: Prisma.UserWhereInput = {
+    ...(roleFilter !== "all" && userRoles.includes(roleValue)
+      ? {
+          role: roleValue,
+        }
+      : {}),
 
     ...(query
       ? {
           OR: [
+            {
+              id: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
             {
               email: {
                 contains: query,
@@ -58,51 +70,120 @@ export default async function AdminUsersPage({
                 mode: "insensitive" as const,
               },
             },
+            {
+              expertProfile: {
+                is: {
+                  OR: [
+                    {
+                      headline: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      bio: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      country: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
           ],
         }
       : {}),
   };
 
-  const users = await prisma.user.findMany({
-    where: userWhere,
-    include: {
-      expertProfile: true,
-      bookings: {
-        select: {
-          id: true,
-          status: true,
-          priceCents: true,
+  const [
+    users,
+    totalUsers,
+    buyersCount,
+    expertsCount,
+    adminsCount,
+    expertsWithoutProfileCount,
+    usersWithExpertProfileCount,
+  ] = await Promise.all([
+    prisma.user.findMany({
+      where: userWhere,
+      include: {
+        expertProfile: true,
+        bookings: {
+          select: {
+            id: true,
+            status: true,
+            priceCents: true,
+          },
+        },
+        reviews: {
+          select: {
+            id: true,
+            rating: true,
+            wouldRecommend: true,
+          },
+        },
+        savedExperts: {
+          select: {
+            id: true,
+          },
         },
       },
-      reviews: {
-        select: {
-          id: true,
-          rating: true,
-          wouldRecommend: true,
-        },
+      orderBy: {
+        createdAt: "desc",
       },
-      savedExperts: {
-        select: {
-          id: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 100,
-  });
+      take: 120,
+    }),
 
-  const totalUsers = await prisma.user.count();
-  const buyersCount = await prisma.user.count({ where: { role: "BUYER" } });
-  const expertsCount = await prisma.user.count({ where: { role: "EXPERT" } });
-  const adminsCount = await prisma.user.count({ where: { role: "ADMIN" } });
-  const expertsWithoutProfileCount = await prisma.user.count({
-    where: {
-      role: "EXPERT",
-      expertProfile: null,
-    },
-  });
+    prisma.user.count(),
+
+    prisma.user.count({
+      where: {
+        role: "BUYER",
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        role: "EXPERT",
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        role: "ADMIN",
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        role: "EXPERT",
+        expertProfile: null,
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        expertProfile: {
+          isNot: null,
+        },
+      },
+    }),
+  ]);
+
+  const shownAdmins = users.filter((user) => user.role === "ADMIN").length;
+  const shownExperts = users.filter((user) => user.role === "EXPERT").length;
+  const shownBuyers = users.filter((user) => user.role === "BUYER").length;
+  const shownMissingProfiles = users.filter(
+    (user) => user.role === "EXPERT" && !user.expertProfile,
+  ).length;
+
+  const hasActiveFilters = query || roleFilter !== "all";
 
   return (
     <main>
@@ -135,22 +216,48 @@ export default async function AdminUsersPage({
             User management
           </Badge>
 
-          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-            Manage SkillDrop users.
-          </h1>
+          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-end">
+            <div>
+              <h1 className="heading-lg max-w-4xl text-balance">
+                Manage SkillDrop users.
+              </h1>
 
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-            View user accounts, roles, expert profiles, bookings, reviews and
-            marketplace activity.
-          </p>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                View user accounts, roles, expert profiles, bookings, reviews
+                and marketplace activity.
+              </p>
+            </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-5">
+            <Card className="p-5">
+              <Badge variant="accent">
+                <ShieldCheck size={14} />
+                Current view
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <SummaryRow label="Shown users" value={String(users.length)} />
+                <SummaryRow label="Shown buyers" value={String(shownBuyers)} />
+                <SummaryRow label="Shown experts" value={String(shownExperts)} />
+                <SummaryRow label="Shown admins" value={String(shownAdmins)} />
+                <SummaryRow
+                  label="Missing profiles"
+                  value={String(shownMissingProfiles)}
+                />
+              </div>
+            </Card>
+          </div>
+
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <AdminMiniStat label="Total" value={String(totalUsers)} />
             <AdminMiniStat label="Buyers" value={String(buyersCount)} />
             <AdminMiniStat label="Experts" value={String(expertsCount)} />
             <AdminMiniStat label="Admins" value={String(adminsCount)} />
             <AdminMiniStat
-              label="Experts missing profile"
+              label="Expert profiles"
+              value={String(usersWithExpertProfileCount)}
+            />
+            <AdminMiniStat
+              label="Missing profile"
               value={String(expertsWithoutProfileCount)}
             />
           </div>
@@ -167,7 +274,7 @@ export default async function AdminUsersPage({
                   name="q"
                   type="search"
                   defaultValue={query}
-                  placeholder="Search users by name or email..."
+                  placeholder="Search users by id, name, email, expert headline..."
                   className="input min-h-12 w-full pl-11"
                 />
               </div>
@@ -187,7 +294,7 @@ export default async function AdminUsersPage({
                 Search
               </button>
 
-              {query || roleFilter !== "all" ? (
+              {hasActiveFilters ? (
                 <Link href="/admin/users" className="btn btn-secondary">
                   Clear
                 </Link>
@@ -236,13 +343,23 @@ export default async function AdminUsersPage({
             users.map((user) => <UserAdminCard key={user.id} user={user} />)
           ) : (
             <Card className="p-8 text-center">
-              <h2 className="text-2xl font-black tracking-[-0.04em]">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                <UsersRound size={24} />
+              </div>
+
+              <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
                 No users found
               </h2>
 
-              <p className="mt-3 text-sm font-semibold text-muted">
+              <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
                 Try another role filter or search query.
               </p>
+
+              <div className="mt-5">
+                <Link href="/admin/users" className="btn btn-secondary">
+                  Clear filters
+                </Link>
+              </div>
             </Card>
           )}
         </div>
@@ -258,8 +375,9 @@ function UserAdminCard({
     id: string;
     email: string;
     name: string | null;
-    role: string;
+    role: UserRole;
     createdAt: Date;
+    updatedAt: Date;
     expertProfile: {
       id: string;
       status: string;
@@ -267,6 +385,7 @@ function UserAdminCard({
       rating: number;
       totalReviews: number;
       totalSessions: number;
+      stripeAccountId: string | null;
     } | null;
     bookings: {
       id: string;
@@ -283,16 +402,28 @@ function UserAdminCard({
     }[];
   };
 }) {
-  const completedBookings = user.bookings.filter(
-    (booking) => booking.status === "COMPLETED",
+  const pendingBookings = user.bookings.filter(
+    (booking) => booking.status === "PENDING",
+  );
+
+  const paidBookings = user.bookings.filter(
+    (booking) => booking.status === "PAID",
   );
 
   const confirmedBookings = user.bookings.filter(
     (booking) => booking.status === "CONFIRMED",
   );
 
+  const completedBookings = user.bookings.filter(
+    (booking) => booking.status === "COMPLETED",
+  );
+
   const disputedBookings = user.bookings.filter(
     (booking) => booking.status === "DISPUTED",
+  );
+
+  const refundedBookings = user.bookings.filter(
+    (booking) => booking.status === "REFUNDED",
   );
 
   const completedSpendCents = completedBookings.reduce(
@@ -300,7 +431,17 @@ function UserAdminCard({
     0,
   );
 
+  const activeSpendCents = user.bookings
+    .filter(
+      (booking) =>
+        booking.status === "PAID" ||
+        booking.status === "CONFIRMED" ||
+        booking.status === "COMPLETED",
+    )
+    .reduce((sum, booking) => sum + booking.priceCents, 0);
+
   const lowReviews = user.reviews.filter((review) => review.rating <= 2);
+
   const notRecommendedReviews = user.reviews.filter(
     (review) => review.wouldRecommend === false,
   );
@@ -308,7 +449,7 @@ function UserAdminCard({
   const expertWithoutProfile = user.role === "EXPERT" && !user.expertProfile;
 
   return (
-    <Card className="p-5 md:p-6">
+    <Card className="p-5 md:p-6 hover-lift">
       <div className="grid gap-5 xl:grid-cols-[1fr_280px] xl:items-start">
         <div className="flex gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
@@ -330,6 +471,13 @@ function UserAdminCard({
                 </Badge>
               ) : null}
 
+              {user.expertProfile?.stripeAccountId ? (
+                <Badge variant="success">
+                  <Euro size={14} />
+                  Payout ready
+                </Badge>
+              ) : null}
+
               {expertWithoutProfile ? (
                 <Badge variant="danger">
                   <ShieldAlert size={14} />
@@ -346,8 +494,12 @@ function UserAdminCard({
               {user.email}
             </p>
 
+            <p className="mt-1 break-all text-xs font-bold text-muted">
+              ID: {user.id}
+            </p>
+
             {expertWithoutProfile ? (
-              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black text-[var(--danger)]">
+              <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-black leading-6 text-[var(--danger)]">
                 This user has EXPERT role but no expert profile. They may need
                 to complete onboarding or be changed back to buyer.
               </div>
@@ -355,23 +507,34 @@ function UserAdminCard({
 
             <div className="mt-4 grid gap-2 md:grid-cols-4">
               <SmallFact label="Bookings" value={String(user.bookings.length)} />
+              <SmallFact label="Pending" value={String(pendingBookings.length)} />
+              <SmallFact label="Paid" value={String(paidBookings.length)} />
               <SmallFact label="Confirmed" value={String(confirmedBookings.length)} />
-              <SmallFact label="Completed" value={String(completedBookings.length)} />
-              <SmallFact label="Disputed" value={String(disputedBookings.length)} />
             </div>
 
             <div className="mt-4 grid gap-2 md:grid-cols-4">
-              <SmallFact label="Spend" value={formatMoney(completedSpendCents)} />
+              <SmallFact label="Completed" value={String(completedBookings.length)} />
+              <SmallFact label="Disputed" value={String(disputedBookings.length)} />
+              <SmallFact label="Refunded" value={String(refundedBookings.length)} />
+              <SmallFact label="Saved" value={String(user.savedExperts.length)} />
+            </div>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-4">
+              <SmallFact label="Active spend" value={formatMoney(activeSpendCents)} />
+              <SmallFact
+                label="Completed spend"
+                value={formatMoney(completedSpendCents)}
+              />
               <SmallFact label="Reviews" value={String(user.reviews.length)} />
               <SmallFact
                 label="Bad reviews"
                 value={String(lowReviews.length + notRecommendedReviews.length)}
               />
-              <SmallFact label="Saved" value={String(user.savedExperts.length)} />
             </div>
 
             <div className="mt-4 grid gap-2 md:grid-cols-4">
               <SmallFact label="Created" value={formatShortDate(user.createdAt)} />
+              <SmallFact label="Updated" value={formatShortDate(user.updatedAt)} />
 
               {user.expertProfile ? (
                 <>
@@ -387,38 +550,78 @@ function UserAdminCard({
                         : "New"
                     }
                   />
-                  <SmallFact
-                    label="Expert sessions"
-                    value={String(user.expertProfile.totalSessions)}
-                  />
                 </>
               ) : (
                 <>
                   <SmallFact label="Expert status" value="—" />
                   <SmallFact label="Expert rating" value="—" />
-                  <SmallFact label="Expert sessions" value="—" />
                 </>
               )}
             </div>
 
             {user.expertProfile ? (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 grid gap-2 md:grid-cols-3">
+                <SmallFact
+                  label="Expert reviews"
+                  value={String(user.expertProfile.totalReviews)}
+                />
+                <SmallFact
+                  label="Expert sessions"
+                  value={String(user.expertProfile.totalSessions)}
+                />
+                <SmallFact
+                  label="Payout"
+                  value={user.expertProfile.stripeAccountId ? "ready" : "missing"}
+                />
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {user.expertProfile ? (
                 <Link
                   href={`/experts/${user.expertProfile.id}`}
                   className="btn btn-secondary"
                 >
                   View expert profile
                 </Link>
+              ) : null}
 
-                <Link href="/admin/experts" className="btn btn-secondary">
-                  Manage experts
+              <Link
+                href={`/admin/bookings?q=${encodeURIComponent(user.email)}`}
+                className="btn btn-secondary"
+              >
+                User bookings
+              </Link>
+
+              <Link
+                href={`/admin/reviews?q=${encodeURIComponent(user.email)}`}
+                className="btn btn-secondary"
+              >
+                User reviews
+              </Link>
+
+              {user.expertProfile ? (
+                <Link
+                  href={`/admin/experts?q=${encodeURIComponent(user.email)}`}
+                  className="btn btn-secondary"
+                >
+                  Manage expert
                 </Link>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
 
         <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+          <p className="text-sm font-black tracking-[-0.02em]">
+            Change role
+          </p>
+
+          <p className="text-xs font-bold leading-5 text-muted">
+            Be careful with admin access. Your server action protects your own
+            admin role from being removed.
+          </p>
+
           {user.role !== "BUYER" ? (
             <RoleForm userId={user.id} role="BUYER" label="Make buyer" />
           ) : null}
@@ -430,6 +633,13 @@ function UserAdminCard({
           {user.role !== "ADMIN" ? (
             <RoleForm userId={user.id} role="ADMIN" label="Make admin" />
           ) : null}
+
+          <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+              Current role
+            </p>
+            <p className="mt-1 text-sm font-black">{user.role}</p>
+          </div>
         </div>
       </div>
     </Card>
@@ -442,7 +652,7 @@ function RoleForm({
   label,
 }: {
   userId: string;
-  role: "BUYER" | "EXPERT" | "ADMIN";
+  role: UserRole;
   label: string;
 }) {
   return (
@@ -457,7 +667,7 @@ function RoleForm({
   );
 }
 
-function RoleBadge({ role }: { role: string }) {
+function RoleBadge({ role }: { role: UserRole }) {
   if (role === "ADMIN") {
     return (
       <Badge variant="success">
@@ -476,7 +686,12 @@ function RoleBadge({ role }: { role: string }) {
     );
   }
 
-  return <Badge variant="accent">Buyer</Badge>;
+  return (
+    <Badge variant="accent">
+      <UserRound size={14} />
+      Buyer
+    </Badge>
+  );
 }
 
 function FilterLink({
@@ -512,7 +727,7 @@ function FilterLink({
       className={
         isActive
           ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
-          : "rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+          : "hover-scale rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] hover:bg-white hover:text-[var(--primary-dark)]"
       }
     >
       {label}
@@ -522,7 +737,7 @@ function FilterLink({
 
 function AdminMiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <Card soft className="p-4">
+    <Card soft className="p-4 hover-lift">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
@@ -537,10 +752,20 @@ function SmallFact({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
-      <p className="mt-1 text-sm font-black">{value}</p>
+      <p className="mt-1 break-words text-sm font-black">{value}</p>
     </div>
   );
 }
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
 function formatUserAdminError(error: string) {
   if (error === "invalid-role") {
     return "Invalid role selected.";
@@ -556,6 +781,7 @@ function formatUserAdminError(error: string) {
 
   return "Something went wrong while updating this user.";
 }
+
 function formatMoney(cents: number) {
   return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
 }

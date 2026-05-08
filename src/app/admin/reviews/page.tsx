@@ -1,8 +1,10 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import {
   ArrowLeft,
   AlertTriangle,
   MessageCircle,
+  Search,
   ShieldCheck,
   Star,
   ThumbsDown,
@@ -17,6 +19,7 @@ import { Card } from "@/components/ui/card";
 
 type AdminReviewsPageProps = {
   searchParams?: Promise<{
+    q?: string;
     rating?: string;
     bad?: string;
     recommend?: string;
@@ -30,79 +33,25 @@ export default async function AdminReviewsPage({
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
+  const query = resolvedSearchParams.q?.trim() ?? "";
   const ratingFilter = resolvedSearchParams.rating ?? "all";
   const badOnly = resolvedSearchParams.bad === "true";
   const recommendFilter = resolvedSearchParams.recommend ?? "all";
 
-  const reviewWhere = {
-    ...(ratingFilter === "all"
-      ? {}
-      : {
-          rating: Number(ratingFilter),
-        }),
+  const filters: Prisma.ReviewWhereInput[] = [];
 
-    ...(badOnly
-      ? {
-          OR: [
-            {
-              rating: {
-                lte: 2,
-              },
-            },
-            {
-              wouldRecommend: false,
-            },
-            {
-              helpfulness: {
-                lte: 2,
-              },
-            },
-            {
-              clarity: {
-                lte: 2,
-              },
-            },
-            {
-              professionalism: {
-                lte: 2,
-              },
-            },
-          ],
-        }
-      : {}),
+  if (ratingFilter !== "all") {
+    const parsedRating = Number(ratingFilter);
 
-    ...(recommendFilter === "all"
-      ? {}
-      : {
-          wouldRecommend: recommendFilter === "yes",
-        }),
-  };
+    if (Number.isFinite(parsedRating) && parsedRating >= 1 && parsedRating <= 5) {
+      filters.push({
+        rating: parsedRating,
+      });
+    }
+  }
 
-  const reviews = await prisma.review.findMany({
-    where: reviewWhere,
-    include: {
-      buyer: true,
-      expert: {
-        include: {
-          user: true,
-        },
-      },
-      booking: {
-        include: {
-          service: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 100,
-  });
-
-  const totalReviews = await prisma.review.count();
-
-  const lowReviews = await prisma.review.count({
-    where: {
+  if (badOnly) {
+    filters.push({
       OR: [
         {
           rating: {
@@ -128,31 +77,199 @@ export default async function AdminReviewsPage({
           },
         },
       ],
-    },
-  });
+    });
+  }
 
-  const recommendedReviews = await prisma.review.count({
-    where: {
-      wouldRecommend: true,
-    },
-  });
+  if (recommendFilter !== "all") {
+    filters.push({
+      wouldRecommend: recommendFilter === "yes",
+    });
+  }
 
-  const notRecommendedReviews = await prisma.review.count({
-    where: {
-      wouldRecommend: false,
-    },
-  });
-
-  const averageRating =
-    totalReviews > 0
-      ? await prisma.review
-          .aggregate({
-            _avg: {
-              rating: true,
+  if (query) {
+    filters.push({
+      OR: [
+        {
+          comment: {
+            contains: query,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          buyer: {
+            is: {
+              OR: [
+                {
+                  name: {
+                    contains: query,
+                    mode: "insensitive" as const,
+                  },
+                },
+                {
+                  email: {
+                    contains: query,
+                    mode: "insensitive" as const,
+                  },
+                },
+              ],
             },
-          })
-          .then((result) => result._avg.rating ?? 0)
-      : 0;
+          },
+        },
+        {
+          expert: {
+            is: {
+              user: {
+                is: {
+                  OR: [
+                    {
+                      name: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      email: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          booking: {
+            is: {
+              service: {
+                is: {
+                  OR: [
+                    {
+                      title: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      description: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  const reviewWhere: Prisma.ReviewWhereInput =
+    filters.length > 0
+      ? {
+          AND: filters,
+        }
+      : {};
+
+  const [
+    reviews,
+    totalReviews,
+    lowReviews,
+    recommendedReviews,
+    notRecommendedReviews,
+    averageRatingResult,
+  ] = await Promise.all([
+    prisma.review.findMany({
+      where: reviewWhere,
+      include: {
+        buyer: true,
+        expert: {
+          include: {
+            user: true,
+          },
+        },
+        booking: {
+          include: {
+            service: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 120,
+    }),
+
+    prisma.review.count(),
+
+    prisma.review.count({
+      where: {
+        OR: [
+          {
+            rating: {
+              lte: 2,
+            },
+          },
+          {
+            wouldRecommend: false,
+          },
+          {
+            helpfulness: {
+              lte: 2,
+            },
+          },
+          {
+            clarity: {
+              lte: 2,
+            },
+          },
+          {
+            professionalism: {
+              lte: 2,
+            },
+          },
+        ],
+      },
+    }),
+
+    prisma.review.count({
+      where: {
+        wouldRecommend: true,
+      },
+    }),
+
+    prisma.review.count({
+      where: {
+        wouldRecommend: false,
+      },
+    }),
+
+    prisma.review.aggregate({
+      _avg: {
+        rating: true,
+      },
+    }),
+  ]);
+
+  const averageRating = averageRatingResult._avg.rating ?? 0;
+
+  const shownQualityIssues = reviews.filter((review) =>
+    hasReviewQualityIssue(review),
+  ).length;
+
+  const shownRecommended = reviews.filter(
+    (review) => review.wouldRecommend === true,
+  ).length;
+
+  const shownNotRecommended = reviews.filter(
+    (review) => review.wouldRecommend === false,
+  ).length;
+
+  const hasActiveFilters =
+    query || ratingFilter !== "all" || badOnly || recommendFilter !== "all";
 
   return (
     <main>
@@ -173,16 +290,43 @@ export default async function AdminReviewsPage({
             Review moderation
           </Badge>
 
-          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-            Monitor marketplace feedback.
-          </h1>
+          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-end">
+            <div>
+              <h1 className="heading-lg max-w-4xl text-balance">
+                Monitor marketplace feedback.
+              </h1>
 
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-            Track review quality, low ratings, recommendation signals and trust
-            issues across SkillDrop.
-          </p>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                Track review quality, low ratings, recommendation signals and
+                trust issues across SkillDrop.
+              </p>
+            </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-5">
+            <Card className="p-5">
+              <Badge variant="accent">
+                <ShieldCheck size={14} />
+                Current view
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <SummaryRow label="Shown reviews" value={String(reviews.length)} />
+                <SummaryRow
+                  label="Shown quality issues"
+                  value={String(shownQualityIssues)}
+                />
+                <SummaryRow
+                  label="Shown recommended"
+                  value={String(shownRecommended)}
+                />
+                <SummaryRow
+                  label="Shown not recommended"
+                  value={String(shownNotRecommended)}
+                />
+              </div>
+            </Card>
+          </div>
+
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <AdminMiniStat label="Reviews" value={String(totalReviews)} />
             <AdminMiniStat
               label="Average"
@@ -199,8 +343,73 @@ export default async function AdminReviewsPage({
             />
           </div>
 
+          <form action="/admin/reviews" className="mt-6">
+            <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] xl:grid-cols-[1fr_160px_180px_auto_auto] xl:items-center">
+              <div className="relative">
+                <Search
+                  size={17}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+                />
+
+                <input
+                  name="q"
+                  type="search"
+                  defaultValue={query}
+                  placeholder="Search buyer, expert, service or review comment..."
+                  className="input min-h-12 w-full pl-11"
+                />
+              </div>
+
+              <select
+                name="rating"
+                defaultValue={ratingFilter}
+                className="input min-h-12"
+              >
+                <option value="all">All ratings</option>
+                <option value="5">5 stars</option>
+                <option value="4">4 stars</option>
+                <option value="3">3 stars</option>
+                <option value="2">2 stars</option>
+                <option value="1">1 star</option>
+              </select>
+
+              <select
+                name="recommend"
+                defaultValue={recommendFilter}
+                className="input min-h-12"
+              >
+                <option value="all">All recommendations</option>
+                <option value="yes">Recommended</option>
+                <option value="no">Not recommended</option>
+              </select>
+
+              <label className="flex min-h-12 items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)]">
+                <input
+                  type="checkbox"
+                  name="bad"
+                  value="true"
+                  defaultChecked={badOnly}
+                />
+                Issues only
+              </label>
+
+              <div className="flex gap-2">
+                <button type="submit" className="btn btn-primary">
+                  Search
+                </button>
+
+                {hasActiveFilters ? (
+                  <Link href="/admin/reviews" className="btn btn-secondary">
+                    Clear
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </form>
+
           <div className="mt-6 flex flex-wrap gap-2">
             <FilterLink
+              q={query}
               rating="all"
               bad={false}
               recommend={recommendFilter}
@@ -209,6 +418,7 @@ export default async function AdminReviewsPage({
               label="All"
             />
             <FilterLink
+              q={query}
               rating="5"
               bad={false}
               recommend={recommendFilter}
@@ -217,6 +427,7 @@ export default async function AdminReviewsPage({
               label="5 stars"
             />
             <FilterLink
+              q={query}
               rating="4"
               bad={false}
               recommend={recommendFilter}
@@ -225,6 +436,7 @@ export default async function AdminReviewsPage({
               label="4 stars"
             />
             <FilterLink
+              q={query}
               rating="3"
               bad={false}
               recommend={recommendFilter}
@@ -233,6 +445,7 @@ export default async function AdminReviewsPage({
               label="3 stars"
             />
             <FilterLink
+              q={query}
               rating="2"
               bad={false}
               recommend={recommendFilter}
@@ -241,6 +454,7 @@ export default async function AdminReviewsPage({
               label="2 stars"
             />
             <FilterLink
+              q={query}
               rating="1"
               bad={false}
               recommend={recommendFilter}
@@ -249,6 +463,7 @@ export default async function AdminReviewsPage({
               label="1 star"
             />
             <FilterLink
+              q={query}
               rating="all"
               bad
               recommend={recommendFilter}
@@ -260,6 +475,7 @@ export default async function AdminReviewsPage({
 
           <div className="mt-3 flex flex-wrap gap-2">
             <RecommendFilterLink
+              q={query}
               rating={ratingFilter}
               bad={badOnly}
               value="all"
@@ -267,6 +483,7 @@ export default async function AdminReviewsPage({
               label="All recommendations"
             />
             <RecommendFilterLink
+              q={query}
               rating={ratingFilter}
               bad={badOnly}
               value="yes"
@@ -274,6 +491,7 @@ export default async function AdminReviewsPage({
               label="Recommended"
             />
             <RecommendFilterLink
+              q={query}
               rating={ratingFilter}
               bad={badOnly}
               value="no"
@@ -286,6 +504,7 @@ export default async function AdminReviewsPage({
 
       <section className="container-page py-8 md:py-10 lg:py-12">
         <div className="mb-5 flex flex-wrap gap-2">
+          <Badge>Search: {query || "none"}</Badge>
           <Badge>Rating: {ratingFilter}</Badge>
           <Badge>Quality issues: {badOnly ? "yes" : "no"}</Badge>
           <Badge>Recommend: {recommendFilter}</Badge>
@@ -299,13 +518,23 @@ export default async function AdminReviewsPage({
             ))
           ) : (
             <Card className="p-8 text-center">
-              <h2 className="text-2xl font-black tracking-[-0.04em]">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                <MessageCircle size={24} />
+              </div>
+
+              <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
                 No reviews found
               </h2>
 
-              <p className="mt-3 text-sm font-semibold text-muted">
-                Try another rating or recommendation filter.
+              <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+                Try another search query, rating or recommendation filter.
               </p>
+
+              <div className="mt-5">
+                <Link href="/admin/reviews" className="btn btn-secondary">
+                  Clear filters
+                </Link>
+              </div>
             </Card>
           )}
         </div>
@@ -346,15 +575,10 @@ function ReviewAdminCard({
     };
   };
 }) {
-  const hasQualityIssue =
-    review.rating <= 2 ||
-    review.wouldRecommend === false ||
-    (review.helpfulness !== null && review.helpfulness <= 2) ||
-    (review.clarity !== null && review.clarity <= 2) ||
-    (review.professionalism !== null && review.professionalism <= 2);
+  const hasQualityIssue = hasReviewQualityIssue(review);
 
   return (
-    <Card className="p-5 md:p-6">
+    <Card className="p-5 md:p-6 hover-lift">
       <div className="grid gap-5 xl:grid-cols-[1fr_260px] xl:items-start">
         <div>
           <div className="flex flex-wrap gap-2">
@@ -392,9 +616,9 @@ function ReviewAdminCard({
           </h2>
 
           {hasQualityIssue ? (
-            <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+            <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
               This review has a quality risk signal. Check the booking, expert
-              history and possible dispute/refund context.
+              history and possible dispute or refund context.
             </div>
           ) : null}
 
@@ -435,12 +659,20 @@ function ReviewAdminCard({
             View expert
           </Link>
 
-          <Link href="/admin/bookings?status=all" className="btn btn-secondary">
-            View bookings
+          <Link
+            href={`/admin/bookings?q=${encodeURIComponent(review.booking.id)}`}
+            className="btn btn-secondary"
+          >
+            Find booking
           </Link>
 
-          <Link href="/admin/experts" className="btn btn-secondary">
-            Manage experts
+          <Link
+            href={`/admin/experts?q=${encodeURIComponent(
+              review.expert.user.email,
+            )}`}
+            className="btn btn-secondary"
+          >
+            Manage expert
           </Link>
         </div>
       </div>
@@ -449,6 +681,7 @@ function ReviewAdminCard({
 }
 
 function FilterLink({
+  q,
   rating,
   bad,
   recommend,
@@ -456,6 +689,7 @@ function FilterLink({
   currentBad,
   label,
 }: {
+  q: string;
   rating: string;
   bad: boolean;
   recommend: string;
@@ -466,6 +700,10 @@ function FilterLink({
   const isActive = currentRating === rating && currentBad === bad;
 
   const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
 
   if (rating !== "all") {
     params.set("rating", rating);
@@ -489,7 +727,7 @@ function FilterLink({
       className={
         isActive
           ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
-          : "rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+          : "hover-scale rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] hover:bg-white hover:text-[var(--primary-dark)]"
       }
     >
       {label}
@@ -498,12 +736,14 @@ function FilterLink({
 }
 
 function RecommendFilterLink({
+  q,
   rating,
   bad,
   value,
   current,
   label,
 }: {
+  q: string;
   rating: string;
   bad: boolean;
   value: string;
@@ -513,6 +753,10 @@ function RecommendFilterLink({
   const isActive = current === value;
 
   const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
 
   if (rating !== "all") {
     params.set("rating", rating);
@@ -536,7 +780,7 @@ function RecommendFilterLink({
       className={
         isActive
           ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
-          : "rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+          : "hover-scale rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] hover:bg-white hover:text-[var(--primary-dark)]"
       }
     >
       {label}
@@ -546,7 +790,7 @@ function RecommendFilterLink({
 
 function AdminMiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <Card soft className="p-4">
+    <Card soft className="p-4 hover-lift">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
@@ -581,6 +825,7 @@ function ScoreRow({
       >
         {label}
       </p>
+
       <p className="mt-1 text-sm font-black">{value ? `${value}/5` : "—"}</p>
     </div>
   );
@@ -601,10 +846,36 @@ function SmallFact({
         <Icon size={13} />
         {label}
       </div>
+
       <p className="mt-2 truncate text-sm font-black" title={value}>
         {value}
       </p>
     </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
+function hasReviewQualityIssue(review: {
+  rating: number;
+  helpfulness: number | null;
+  clarity: number | null;
+  professionalism: number | null;
+  wouldRecommend: boolean | null;
+}) {
+  return (
+    review.rating <= 2 ||
+    review.wouldRecommend === false ||
+    (review.helpfulness !== null && review.helpfulness <= 2) ||
+    (review.clarity !== null && review.clarity <= 2) ||
+    (review.professionalism !== null && review.professionalism <= 2)
   );
 }
 
