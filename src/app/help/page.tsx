@@ -1,0 +1,430 @@
+import Link from "next/link";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  HelpCircle,
+  MessageCircle,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  UserRound,
+  Video,
+  WalletCards,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
+const buyerSteps = [
+  {
+    icon: Search,
+    title: "Find a provider",
+    text: "Search by topic, language, category or practical problem.",
+  },
+  {
+    icon: UserRound,
+    title: "Open a profile",
+    text: "Check services, prices, reviews, languages and availability.",
+  },
+  {
+    icon: CalendarDays,
+    title: "Choose a time",
+    text: "Pick an available slot that works for you.",
+  },
+  {
+    icon: WalletCards,
+    title: "Pay securely",
+    text: "Complete checkout to confirm your booking.",
+  },
+  {
+    icon: Video,
+    title: "Join the call",
+    text: "Prepare one clear question and join the 1:1 session.",
+  },
+  {
+    icon: Star,
+    title: "Leave a review",
+    text: "After the call, share feedback to help other buyers choose safely.",
+  },
+];
+
+const providerSteps = [
+  {
+    icon: UserRound,
+    title: "Create your profile",
+    text: "Add your headline, bio, country, timezone, languages and skills.",
+  },
+  {
+    icon: WalletCards,
+    title: "Create services",
+    text: "Add clear offers with title, description, duration and price.",
+  },
+  {
+    icon: CalendarDays,
+    title: "Add availability",
+    text: "Open time slots so buyers can book calls.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Complete payout setup",
+    text: "Connect Stripe so paid bookings can be accepted.",
+  },
+  {
+    icon: Video,
+    title: "Attend calls",
+    text: "Join on time and give practical, useful help.",
+  },
+  {
+    icon: BadgeCheck,
+    title: "Build trust",
+    text: "Earn reviews and verification after successful sessions.",
+  },
+];
+
+const faqs = [
+  {
+    question: "What is SkillDrop?",
+    answer:
+      "SkillDrop is a marketplace for short 1:1 calls with people who can help with practical questions like career, documents, languages, relocation, business and everyday decisions.",
+  },
+  {
+    question: "When is a booking confirmed?",
+    answer:
+      "A booking is confirmed only after payment succeeds. Before payment, the slot is only temporarily reserved.",
+  },
+  {
+    question: "Can I book without an account?",
+    answer:
+      "You can browse providers, but you need an account to save providers, create bookings and complete payment.",
+  },
+  {
+    question: "Can providers set their own prices?",
+    answer:
+      "Yes. Providers create their own services, durations, prices and availability.",
+  },
+  {
+    question: "How does verification work?",
+    answer:
+      "Verification is earned after successful calls and a minimum rating threshold. Admins can also review quality and safety signals.",
+  },
+  {
+    question: "What if something goes wrong?",
+    answer:
+      "Bookings can be reviewed by admins if there is a no-show, payment problem, dispute, abuse report or serious service issue.",
+  },
+];
+
+export default function HelpPage() {
+  return (
+    <main className="container-page py-10 md:py-14">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+      >
+        <ArrowLeft size={16} />
+        Back home
+      </Link>
+
+      <section className="mt-8">
+        <Badge variant="primary">
+          <HelpCircle size={14} />
+          Help center
+        </Badge>
+
+        <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-end">
+          <div>
+            <h1 className="heading-lg max-w-4xl text-balance">
+              How to use SkillDrop
+            </h1>
+
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
+              Learn how to find help, book short calls, offer services, manage
+              bookings and stay safe on the marketplace.
+            </p>
+          </div>
+
+          <Card className="p-5">
+            <Badge variant="accent">
+              <Sparkles size={14} />
+              Quick start
+            </Badge>
+
+            <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              Start with one clear problem. Search for a provider, choose a
+              service, pick a time and complete payment to confirm the call.
+            </p>
+          </Card>
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <ButtonLink href="/experts">
+            Find help
+            <ArrowRight size={18} />
+          </ButtonLink>
+
+          <ButtonLink href="/sign-up?role=expert" variant="secondary">
+            Offer help
+          </ButtonLink>
+
+          <ButtonLink href="/legal/safety" variant="secondary">
+            Safety
+          </ButtonLink>
+        </div>
+      </section>
+
+      <section className="mt-10 grid gap-5 md:grid-cols-3">
+        <TopCard
+          icon={Search}
+          title="For buyers"
+          text="Find the right person, choose a service and book a practical call."
+        />
+
+        <TopCard
+          icon={WalletCards}
+          title="For providers"
+          text="Create offers, set availability and earn from short useful calls."
+        />
+
+        <TopCard
+          icon={ShieldCheck}
+          title="For trust"
+          text="Use reviews, verification, safe payments and dispute review."
+        />
+      </section>
+
+      <section className="mt-12 grid gap-8 lg:grid-cols-2">
+        <Card className="p-6 md:p-8">
+          <Badge variant="primary">
+            <Search size={14} />
+            Buyer guide
+          </Badge>
+
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+            I need help
+          </h2>
+
+          <p className="mt-3 text-sm font-bold leading-6 text-muted">
+            Follow these steps to book a useful short call.
+          </p>
+
+          <div className="mt-6 grid gap-4">
+            {buyerSteps.map((step, index) => (
+              <GuideStep key={step.title} step={step} number={index + 1} />
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-6 md:p-8">
+          <Badge variant="accent">
+            <WalletCards size={14} />
+            Provider guide
+          </Badge>
+
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+            I want to offer help
+          </h2>
+
+          <p className="mt-3 text-sm font-bold leading-6 text-muted">
+            Follow these steps to make your profile bookable.
+          </p>
+
+          <div className="mt-6 grid gap-4">
+            {providerSteps.map((step, index) => (
+              <GuideStep key={step.title} step={step} number={index + 1} />
+            ))}
+          </div>
+        </Card>
+      </section>
+
+      <section className="mt-12">
+        <Card className="p-6 md:p-8">
+          <Badge variant="success">
+            <CheckCircle2 size={14} />
+            Best practices
+          </Badge>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <Practice
+              title="Prepare one clear question"
+              text="Short calls work best when the buyer knows what they want to solve."
+            />
+
+            <Practice
+              title="Keep services specific"
+              text="Providers should explain exactly what the buyer gets from the call."
+            />
+
+            <Practice
+              title="Join on time"
+              text="Both sides should be ready a few minutes before the scheduled time."
+            />
+
+            <Practice
+              title="Leave honest feedback"
+              text="Reviews help good providers grow and help buyers choose safely."
+            />
+
+            <Practice
+              title="Use the platform flow"
+              text="Create bookings, payments, reviews and disputes inside SkillDrop for traceability."
+            />
+
+            <Practice
+              title="Report serious problems"
+              text="No-shows, abuse, fraud or misleading services should be reviewed by admins."
+            />
+          </div>
+        </Card>
+      </section>
+
+      <section className="mt-12">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <Badge variant="primary">
+              <MessageCircle size={14} />
+              FAQ
+            </Badge>
+
+            <h2 className="heading-lg mt-4">Common questions</h2>
+          </div>
+
+          <ButtonLink href="/legal/terms" variant="secondary">
+            View terms
+          </ButtonLink>
+        </div>
+
+        <div className="mt-6 grid gap-5 md:grid-cols-2">
+          {faqs.map((faq) => (
+            <FaqCard key={faq.question} faq={faq} />
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-12">
+        <Card soft className="p-6 md:p-8">
+          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <Badge variant="accent">
+                <Clock3 size={14} />
+                Start now
+              </Badge>
+
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Ready to use SkillDrop?
+              </h2>
+
+              <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-muted">
+                Browse providers or create your account to offer practical help.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+              <ButtonLink href="/experts">
+                Find help
+                <ArrowRight size={18} />
+              </ButtonLink>
+
+              <ButtonLink href="/sign-up?role=expert" variant="secondary">
+                Offer help
+              </ButtonLink>
+            </div>
+          </div>
+        </Card>
+      </section>
+    </main>
+  );
+}
+
+function TopCard({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: typeof Search;
+  title: string;
+  text: string;
+}) {
+  return (
+    <Card className="p-6 hover-lift">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={22} />
+      </div>
+
+      <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">{title}</h2>
+
+      <p className="mt-3 text-sm font-bold leading-7 text-muted">{text}</p>
+    </Card>
+  );
+}
+
+function GuideStep({
+  step,
+  number,
+}: {
+  step: {
+    icon: typeof Search;
+    title: string;
+    text: string;
+  };
+  number: number;
+}) {
+  const Icon = step.icon;
+
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <div className="flex gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-black text-[var(--primary-dark)]">
+          {number}
+        </div>
+
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Icon size={16} className="text-[var(--primary-dark)]" />
+
+            <h3 className="font-black tracking-[-0.02em]">{step.title}</h3>
+          </div>
+
+          <p className="mt-2 text-sm font-bold leading-6 text-muted">
+            {step.text}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Practice({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <h3 className="font-black tracking-[-0.02em]">{title}</h3>
+      <p className="mt-2 text-sm font-bold leading-6 text-muted">{text}</p>
+    </div>
+  );
+}
+
+function FaqCard({
+  faq,
+}: {
+  faq: {
+    question: string;
+    answer: string;
+  };
+}) {
+  return (
+    <Card className="p-5 hover-lift">
+      <h3 className="text-xl font-black tracking-[-0.03em]">
+        {faq.question}
+      </h3>
+
+      <p className="mt-3 text-sm font-bold leading-7 text-muted">
+        {faq.answer}
+      </p>
+    </Card>
+  );
+}
