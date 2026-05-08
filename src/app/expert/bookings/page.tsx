@@ -18,6 +18,7 @@ import {
   releaseExpiredPendingBookings,
   updateBookingStatusAction,
 } from "@/server/actions/booking.actions";
+import { markCallCompletedAction } from "@/server/actions/call.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ import { Card } from "@/components/ui/card";
 type ExpertBookingsPageProps = {
   searchParams?: Promise<{
     error?: string;
+    completed?: string;
   }>;
 };
 
@@ -126,6 +128,12 @@ export default async function ExpertBookingsPage({
           {topMessage ? (
             <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
               {topMessage}
+            </div>
+          ) : null}
+
+          {resolvedSearchParams.completed ? (
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+              Call marked as completed. The client can now leave a review.
             </div>
           ) : null}
 
@@ -548,11 +556,11 @@ function BookingCard({
 
 function CompleteCallForm({ bookingId }: { bookingId: string }) {
   return (
-    <form action={updateBookingStatusAction}>
+    <form action={markCallCompletedAction}>
       <input type="hidden" name="bookingId" value={bookingId} />
-      <input type="hidden" name="status" value="COMPLETED" />
 
       <button type="submit" className="btn btn-primary w-full">
+        <CheckCircle2 size={17} />
         Complete call
       </button>
     </form>

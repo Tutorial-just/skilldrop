@@ -10,7 +10,7 @@ import {
   UserRound,
   Video,
 } from "lucide-react";
-
+import { markCallCompletedAction } from "@/server/actions/call.actions";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
@@ -170,6 +170,16 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
         <ArrowLeft size={16} />
         Back to bookings
       </Link>
+
+      {isExpert || isAdmin ? (
+         <form action={markCallCompletedAction}>
+         <input type="hidden" name="bookingId" value={booking.id} />
+          <button type="submit" className="btn btn-primary w-full">
+            <CheckCircle2 size={17} />
+            Mark call completed
+          </button>
+         </form>
+      ) : null}
 
       <div className="mx-auto mt-8 max-w-5xl">
         <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start">

@@ -105,9 +105,6 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
   const rawExperts = await prisma.expertProfile.findMany({
     where: {
       status: "APPROVED",
-      stripeAccountId: {
-        not: null,
-      },
 
       ...(verifiedOnly ? { isVerified: true } : {}),
 
@@ -129,15 +126,6 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 },
               }
             : {}),
-        },
-      },
-
-      availability: {
-        some: {
-          startTime: {
-            gte: now,
-          },
-          isBooked: false,
         },
       },
 
@@ -317,6 +305,10 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
   const verifiedCount = experts.filter((expert) => expert.isVerified).length;
 
+  const paymentReadyCount = experts.filter(
+    (expert) => expert.stripeAccountId,
+  ).length;
+
   const hasActiveFilters =
     Boolean(query) ||
     verifiedOnly ||
@@ -343,23 +335,24 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
               <p className="mt-5 max-w-3xl text-lg leading-8 text-muted">
                 Search by topic, language, skill or practical problem. Choose a
-                service, pick a time and book a 1:1 video call.
+                service, check payment readiness, pick a time and book a 1:1
+                video call.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2">
                 <Badge variant="success">
                   <CheckCircle2 size={14} />
-                  Bookable providers only
+                  Approved providers
                 </Badge>
 
                 <Badge variant="primary">
                   <WalletCards size={14} />
-                  Payouts ready
+                  Payment status visible
                 </Badge>
 
                 <Badge variant="accent">
                   <CalendarDays size={14} />
-                  Future availability
+                  Availability shown
                 </Badge>
               </div>
             </div>
@@ -376,6 +369,10 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   value={String(experts.length)}
                 />
                 <StatRow label="Verified" value={String(verifiedCount)} />
+                <StatRow
+                  label="Payments ready"
+                  value={String(paymentReadyCount)}
+                />
                 <StatRow label="Open time slots" value={String(totalOpenSlots)} />
                 <StatRow label="Sort" value={sortLabels[sort] ?? "Best match"} />
               </div>
@@ -491,7 +488,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 <Step
                   number="4"
                   title="Pay safely"
-                  text="Confirm booking through checkout."
+                  text="Confirm booking through checkout if payments are ready."
                 />
               </div>
             </Card>
@@ -515,9 +512,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <TrustPoint text="Only experts with active services are shown." />
-                <TrustPoint text="Only experts with open time slots are shown." />
-                <TrustPoint text="Only experts ready for payouts are shown." />
+                <TrustPoint text="Only approved experts with active services are shown." />
+                <TrustPoint text="Payment readiness is visible before booking." />
+                <TrustPoint text="Profiles without open slots can still be discovered." />
               </div>
             </Card>
           </aside>
@@ -530,8 +527,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 </h2>
 
                 <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                  Showing providers with active services, future availability,
-                  payout setup and quality-based ranking.
+                  Showing approved providers with active services, payment
+                  readiness, availability and quality-based ranking.
                 </p>
               </div>
 
@@ -547,7 +544,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             ) : (
               <EmptyState
                 title="No providers found"
-                text="Try another keyword, remove filters, or check back later when more providers add availability."
+                text="Try another keyword, remove filters, or check back later when more providers create active services."
               />
             )}
           </div>
@@ -562,6 +559,7 @@ function ExpertSearchCard({
 }: {
   expert: {
     id: string;
+    stripeAccountId: string | null;
     headline: string;
     bio: string;
     country: string | null;
@@ -630,10 +628,29 @@ function ExpertSearchCard({
                   <Badge variant="accent">New</Badge>
                 )}
 
-                <Badge variant="success">
-                  <WalletCards size={14} />
-                  Payments ready
-                </Badge>
+                {expert.stripeAccountId ? (
+                  <Badge variant="success">
+                    <WalletCards size={14} />
+                    Payments ready
+                  </Badge>
+                ) : (
+                  <Badge variant="accent">
+                    <WalletCards size={14} />
+                    Payments not ready
+                  </Badge>
+                )}
+
+                {expert.availability.length > 0 ? (
+                  <Badge variant="primary">
+                    <CalendarDays size={14} />
+                    Open slots
+                  </Badge>
+                ) : (
+                  <Badge variant="accent">
+                    <CalendarDays size={14} />
+                    No open slots
+                  </Badge>
+                )}
 
                 <Badge
                   variant={expert.qualityScore >= 80 ? "success" : "primary"}
@@ -698,6 +715,11 @@ function ExpertSearchCard({
               <SideRow
                 label="Next slot"
                 value={nextSlot ? formatShortDateTime(nextSlot.startTime) : "—"}
+              />
+
+              <SideRow
+                label="Payments"
+                value={expert.stripeAccountId ? "Ready" : "Not ready"}
               />
 
               <SideRow label="Match" value={`${expert.qualityScore}/100`} />

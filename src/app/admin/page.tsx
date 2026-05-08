@@ -613,6 +613,12 @@ export default async function AdminPage() {
                   title="Notifications"
                   text="View your SkillDrop account notifications."
                 />
+
+                <AdminLink
+                  href="/admin/launch"
+                  title="Launch checklist"
+                  text="Check production readiness before public launch."
+                />
               </div>
             </Card>
 

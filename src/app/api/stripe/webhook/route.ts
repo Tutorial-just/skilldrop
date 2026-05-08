@@ -7,6 +7,8 @@ import { stripe } from "@/lib/stripe";
 import { sendNotification } from "@/server/services/notification.service";
 import { calculatePricingBreakdown } from "@/config/pricing";
 
+export const runtime = "nodejs";
+
 type ConfirmedBookingData = {
   id: string;
   expertId: string;
@@ -22,6 +24,26 @@ type ConfirmedBookingData = {
   clientServiceFeeCents: number;
   clientTotalCents: number;
   platformGrossFeeCents: number;
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId: string | null;
+};
+
+type FailedBookingData = {
+  id: string;
+  expertId: string;
+  availabilityId: string | null;
+  buyerEmail: string | null;
+  expertEmail: string | null;
+  serviceTitle: string;
+};
+
+type RefundedBookingData = {
+  id: string;
+  expertId: string;
+  availabilityId: string | null;
+  buyerEmail: string | null;
+  expertEmail: string | null;
+  serviceTitle: string;
 };
 
 function getPaymentIntentId(session: Stripe.Checkout.Session) {
@@ -34,6 +56,18 @@ function getPaymentIntentId(session: Stripe.Checkout.Session) {
   }
 
   return session.payment_intent.id;
+}
+
+function getPaymentIntentIdFromCharge(charge: Stripe.Charge) {
+  if (!charge.payment_intent) {
+    return null;
+  }
+
+  if (typeof charge.payment_intent === "string") {
+    return charge.payment_intent;
+  }
+
+  return charge.payment_intent.id;
 }
 
 function createCallRoomData(bookingId: string) {
@@ -90,6 +124,450 @@ function getDisplayName(user: { name: string | null; email: string }) {
   return user.name?.trim() || user.email.split("@")[0] || "Client";
 }
 
+async function handleCheckoutSessionCompleted({
+  eventId,
+  session,
+}: {
+  eventId: string;
+  session: Stripe.Checkout.Session;
+}) {
+  const bookingId = session.metadata?.bookingId;
+
+  if (!bookingId) {
+    await markStripeEventProcessed(eventId);
+
+    return null;
+  }
+
+  if (session.payment_status !== "paid") {
+    await markStripeEventProcessed(eventId);
+
+    return null;
+  }
+
+  const paymentIntentId = getPaymentIntentId(session);
+
+  const confirmedBooking = await prisma.$transaction(
+    async (tx): Promise<ConfirmedBookingData | null> => {
+      const booking = await tx.booking.findUnique({
+        where: {
+          id: bookingId,
+        },
+        include: {
+          buyer: true,
+          expert: {
+            include: {
+              user: true,
+            },
+          },
+          service: true,
+          callRoom: true,
+        },
+      });
+
+      if (!booking) {
+        await tx.stripeEvent.update({
+          where: {
+            id: eventId,
+          },
+          data: {
+            processed: true,
+          },
+        });
+
+        return null;
+      }
+
+      if (booking.status === "CONFIRMED") {
+        await tx.stripeEvent.update({
+          where: {
+            id: eventId,
+          },
+          data: {
+            processed: true,
+          },
+        });
+
+        return null;
+      }
+
+      if (booking.status !== "PENDING") {
+        await tx.stripeEvent.update({
+          where: {
+            id: eventId,
+          },
+          data: {
+            processed: true,
+          },
+        });
+
+        return null;
+      }
+
+      const now = new Date();
+      const pricing = calculatePricingBreakdown(booking.priceCents);
+
+      const updatedBooking = await tx.booking.updateMany({
+        where: {
+          id: booking.id,
+          status: "PENDING",
+        },
+        data: {
+          status: "CONFIRMED",
+          paidAt: now,
+          stripeCheckoutSessionId: session.id,
+          stripePaymentIntentId: paymentIntentId,
+          platformFeeCents: pricing.providerCommissionCents,
+          providerNetCents: pricing.providerNetCents,
+          clientServiceFeeCents: pricing.clientServiceFeeCents,
+          clientTotalCents: pricing.clientTotalCents,
+          expiresAt: null,
+        },
+      });
+
+      if (updatedBooking.count === 0) {
+        await tx.stripeEvent.update({
+          where: {
+            id: eventId,
+          },
+          data: {
+            processed: true,
+          },
+        });
+
+        return null;
+      }
+
+      if (!booking.callRoom) {
+        const room = createCallRoomData(booking.id);
+
+        await tx.callRoom.create({
+          data: {
+            bookingId: booking.id,
+            provider: room.provider,
+            roomName: room.roomName,
+            roomUrl: room.roomUrl,
+            startsAt: booking.startTime,
+            endsAt: booking.endTime,
+          },
+        });
+      }
+
+      await tx.stripeEvent.update({
+        where: {
+          id: eventId,
+        },
+        data: {
+          processed: true,
+        },
+      });
+
+      return {
+        id: booking.id,
+        expertId: booking.expertId,
+        buyerEmail: booking.buyer.email,
+        expertEmail: booking.expert.user.email,
+        buyerName: getDisplayName(booking.buyer),
+        serviceTitle: booking.service?.title ?? "Booked call",
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        servicePriceCents: pricing.servicePriceCents,
+        providerCommissionCents: pricing.providerCommissionCents,
+        providerNetCents: pricing.providerNetCents,
+        clientServiceFeeCents: pricing.clientServiceFeeCents,
+        clientTotalCents: pricing.clientTotalCents,
+        platformGrossFeeCents: pricing.platformGrossFeeCents,
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: paymentIntentId,
+      };
+    },
+  );
+
+  if (!confirmedBooking) {
+    return null;
+  }
+
+  await sendNotification({
+    to: confirmedBooking.buyerEmail,
+    type: "PAYMENT_CONFIRMED",
+    subject: "Your call is confirmed",
+    message: `Your payment was received and your call "${confirmedBooking.serviceTitle}" is confirmed.`,
+    metadata: {
+      bookingId: confirmedBooking.id,
+      expertId: confirmedBooking.expertId,
+      serviceTitle: confirmedBooking.serviceTitle,
+      startTime: confirmedBooking.startTime.toISOString(),
+      endTime: confirmedBooking.endTime.toISOString(),
+      servicePriceCents: confirmedBooking.servicePriceCents,
+      clientServiceFeeCents: confirmedBooking.clientServiceFeeCents,
+      clientTotalCents: confirmedBooking.clientTotalCents,
+      stripeCheckoutSessionId: confirmedBooking.stripeCheckoutSessionId,
+      stripePaymentIntentId: confirmedBooking.stripePaymentIntentId,
+    },
+  });
+
+  await sendNotification({
+    to: confirmedBooking.expertEmail,
+    type: "PAYMENT_CONFIRMED",
+    subject: "New confirmed booking",
+    message: `${confirmedBooking.buyerName} paid and confirmed "${
+      confirmedBooking.serviceTitle
+    }" for ${formatDateTime(
+      confirmedBooking.startTime,
+    )}. You can join the call 10 minutes before start.`,
+    metadata: {
+      bookingId: confirmedBooking.id,
+      expertId: confirmedBooking.expertId,
+      buyerName: confirmedBooking.buyerName,
+      serviceTitle: confirmedBooking.serviceTitle,
+      startTime: confirmedBooking.startTime.toISOString(),
+      endTime: confirmedBooking.endTime.toISOString(),
+      servicePriceCents: confirmedBooking.servicePriceCents,
+      providerCommissionCents: confirmedBooking.providerCommissionCents,
+      providerNetCents: confirmedBooking.providerNetCents,
+      platformGrossFeeCents: confirmedBooking.platformGrossFeeCents,
+      stripeCheckoutSessionId: confirmedBooking.stripeCheckoutSessionId,
+      stripePaymentIntentId: confirmedBooking.stripePaymentIntentId,
+    },
+  });
+
+  revalidateWebhookPaths(confirmedBooking.expertId, confirmedBooking.id);
+
+  return confirmedBooking;
+}
+
+async function handlePaymentIntentFailed({
+  eventId,
+  paymentIntent,
+}: {
+  eventId: string;
+  paymentIntent: Stripe.PaymentIntent;
+}) {
+  const bookingId = paymentIntent.metadata?.bookingId;
+
+  if (!bookingId) {
+    await markStripeEventProcessed(eventId);
+    return null;
+  }
+
+  const failedBooking = await prisma.$transaction(
+    async (tx): Promise<FailedBookingData | null> => {
+      const booking = await tx.booking.findUnique({
+        where: {
+          id: bookingId,
+        },
+        include: {
+          buyer: true,
+          expert: {
+            include: {
+              user: true,
+            },
+          },
+          service: true,
+        },
+      });
+
+      if (!booking) {
+        await tx.stripeEvent.update({
+          where: {
+            id: eventId,
+          },
+          data: {
+            processed: true,
+          },
+        });
+
+        return null;
+      }
+
+      if (booking.status === "PENDING") {
+        await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: new Date(),
+            expiresAt: null,
+            stripePaymentIntentId: paymentIntent.id,
+          },
+        });
+
+        if (booking.availabilityId) {
+          await tx.availability.update({
+            where: {
+              id: booking.availabilityId,
+            },
+            data: {
+              isBooked: false,
+            },
+          });
+        }
+      }
+
+      await tx.stripeEvent.update({
+        where: {
+          id: eventId,
+        },
+        data: {
+          processed: true,
+        },
+      });
+
+      return {
+        id: booking.id,
+        expertId: booking.expertId,
+        availabilityId: booking.availabilityId,
+        buyerEmail: booking.buyer.email,
+        expertEmail: booking.expert.user.email,
+        serviceTitle: booking.service?.title ?? "Booked call",
+      };
+    },
+  );
+
+  if (!failedBooking) {
+    return null;
+  }
+
+  await sendNotification({
+    to: failedBooking.buyerEmail,
+    type: "BOOKING_CANCELLED",
+    subject: "Payment failed",
+    message: `Payment failed for "${failedBooking.serviceTitle}". The booking was not confirmed.`,
+    metadata: {
+      bookingId: failedBooking.id,
+      expertId: failedBooking.expertId,
+      stripePaymentIntentId: paymentIntent.id,
+    },
+  });
+
+  revalidateWebhookPaths(failedBooking.expertId, failedBooking.id);
+
+  return failedBooking;
+}
+
+async function handleChargeRefunded({
+  eventId,
+  charge,
+}: {
+  eventId: string;
+  charge: Stripe.Charge;
+}) {
+  const paymentIntentId = getPaymentIntentIdFromCharge(charge);
+
+  if (!paymentIntentId) {
+    await markStripeEventProcessed(eventId);
+    return null;
+  }
+
+  const refundedBooking = await prisma.$transaction(
+    async (tx): Promise<RefundedBookingData | null> => {
+      const booking = await tx.booking.findFirst({
+        where: {
+          stripePaymentIntentId: paymentIntentId,
+        },
+        include: {
+          buyer: true,
+          expert: {
+            include: {
+              user: true,
+            },
+          },
+          service: true,
+        },
+      });
+
+      if (!booking) {
+        await tx.stripeEvent.update({
+          where: {
+            id: eventId,
+          },
+          data: {
+            processed: true,
+          },
+        });
+
+        return null;
+      }
+
+      if (booking.status !== "REFUNDED") {
+        await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+          data: {
+            status: "REFUNDED",
+            refundedAt: new Date(),
+          },
+        });
+
+        if (booking.availabilityId) {
+          await tx.availability.update({
+            where: {
+              id: booking.availabilityId,
+            },
+            data: {
+              isBooked: false,
+            },
+          });
+        }
+      }
+
+      await tx.stripeEvent.update({
+        where: {
+          id: eventId,
+        },
+        data: {
+          processed: true,
+        },
+      });
+
+      return {
+        id: booking.id,
+        expertId: booking.expertId,
+        availabilityId: booking.availabilityId,
+        buyerEmail: booking.buyer.email,
+        expertEmail: booking.expert.user.email,
+        serviceTitle: booking.service?.title ?? "Booked call",
+      };
+    },
+  );
+
+  if (!refundedBooking) {
+    return null;
+  }
+
+  await sendNotification({
+    to: refundedBooking.buyerEmail,
+    type: "BOOKING_REFUNDED",
+    subject: "Your SkillDrop booking was refunded",
+    message: `Your booking "${refundedBooking.serviceTitle}" was refunded.`,
+    metadata: {
+      bookingId: refundedBooking.id,
+      expertId: refundedBooking.expertId,
+      stripePaymentIntentId: paymentIntentId,
+      chargeId: charge.id,
+    },
+  });
+
+  await sendNotification({
+    to: refundedBooking.expertEmail,
+    type: "BOOKING_REFUNDED",
+    subject: "A booking was refunded",
+    message: `The booking "${refundedBooking.serviceTitle}" was refunded.`,
+    metadata: {
+      bookingId: refundedBooking.id,
+      expertId: refundedBooking.expertId,
+      stripePaymentIntentId: paymentIntentId,
+      chargeId: charge.id,
+    },
+  });
+
+  revalidateWebhookPaths(refundedBooking.expertId, refundedBooking.id);
+
+  return refundedBooking;
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
@@ -137,7 +615,9 @@ export async function POST(request: Request) {
     where: {
       id: event.id,
     },
-    update: {},
+    update: {
+      type: event.type,
+    },
     create: {
       id: event.id,
       type: event.type,
@@ -145,216 +625,56 @@ export async function POST(request: Request) {
     },
   });
 
-  if (event.type !== "checkout.session.completed") {
-    await markStripeEventProcessed(event.id);
+  try {
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
 
-    return NextResponse.json({ received: true });
-  }
+      await handleCheckoutSessionCompleted({
+        eventId: event.id,
+        session,
+      });
 
-  const session = event.data.object as Stripe.Checkout.Session;
-  const bookingId = session.metadata?.bookingId;
+      return NextResponse.json({ received: true });
+    }
 
-  if (!bookingId) {
-    await markStripeEventProcessed(event.id);
+    if (event.type === "payment_intent.payment_failed") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-    return NextResponse.json(
-      { error: "Missing bookingId metadata" },
-      { status: 400 },
-    );
-  }
+      await handlePaymentIntentFailed({
+        eventId: event.id,
+        paymentIntent,
+      });
 
-  if (session.payment_status !== "paid") {
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge;
+
+      await handleChargeRefunded({
+        eventId: event.id,
+        charge,
+      });
+
+      return NextResponse.json({ received: true });
+    }
+
     await markStripeEventProcessed(event.id);
 
     return NextResponse.json({
       received: true,
-      skipped: "checkout-session-not-paid",
+      ignored: event.type,
     });
-  }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Webhook error";
 
-  const paymentIntentId = getPaymentIntentId(session);
+    console.error("Stripe webhook error:", message);
 
-  const confirmedBooking = await prisma.$transaction(
-    async (tx): Promise<ConfirmedBookingData | null> => {
-      const booking = await tx.booking.findUnique({
-        where: {
-          id: bookingId,
-        },
-        include: {
-          buyer: true,
-          expert: {
-            include: {
-              user: true,
-            },
-          },
-          service: true,
-          callRoom: true,
-        },
-      });
-
-      if (!booking) {
-        await tx.stripeEvent.update({
-          where: {
-            id: event.id,
-          },
-          data: {
-            processed: true,
-          },
-        });
-
-        return null;
-      }
-
-      if (booking.status === "CONFIRMED") {
-        await tx.stripeEvent.update({
-          where: {
-            id: event.id,
-          },
-          data: {
-            processed: true,
-          },
-        });
-
-        return null;
-      }
-
-      if (booking.status !== "PENDING") {
-        await tx.stripeEvent.update({
-          where: {
-            id: event.id,
-          },
-          data: {
-            processed: true,
-          },
-        });
-
-        return null;
-      }
-
-      const now = new Date();
-      const pricing = calculatePricingBreakdown(booking.priceCents);
-
-      const updatedBooking = await tx.booking.updateMany({
-        where: {
-          id: booking.id,
-          status: "PENDING",
-        },
-        data: {
-          status: "CONFIRMED",
-          paidAt: now,
-          stripeCheckoutSessionId: session.id,
-          stripePaymentIntentId: paymentIntentId,
-          platformFeeCents: pricing.providerCommissionCents,
-          providerNetCents: pricing.providerNetCents,
-          clientServiceFeeCents: pricing.clientServiceFeeCents,
-          clientTotalCents: pricing.clientTotalCents,
-          expiresAt: null,
-        },
-      });
-
-      if (updatedBooking.count === 0) {
-        await tx.stripeEvent.update({
-          where: {
-            id: event.id,
-          },
-          data: {
-            processed: true,
-          },
-        });
-
-        return null;
-      }
-
-      if (!booking.callRoom) {
-        const room = createCallRoomData(booking.id);
-
-        await tx.callRoom.create({
-          data: {
-            bookingId: booking.id,
-            provider: room.provider,
-            roomName: room.roomName,
-            roomUrl: room.roomUrl,
-            startsAt: booking.startTime,
-            endsAt: booking.endTime,
-          },
-        });
-      }
-
-      await tx.stripeEvent.update({
-        where: {
-          id: event.id,
-        },
-        data: {
-          processed: true,
-        },
-      });
-
-      return {
-        id: booking.id,
-        expertId: booking.expertId,
-        buyerEmail: booking.buyer.email,
-        expertEmail: booking.expert.user.email,
-        buyerName: getDisplayName(booking.buyer),
-        serviceTitle: booking.service?.title ?? "Booked call",
-        startTime: booking.startTime,
-        endTime: booking.endTime,
-        servicePriceCents: pricing.servicePriceCents,
-        providerCommissionCents: pricing.providerCommissionCents,
-        providerNetCents: pricing.providerNetCents,
-        clientServiceFeeCents: pricing.clientServiceFeeCents,
-        clientTotalCents: pricing.clientTotalCents,
-        platformGrossFeeCents: pricing.platformGrossFeeCents,
-      };
-    },
-  );
-
-  if (confirmedBooking) {
-    await sendNotification({
-      to: confirmedBooking.buyerEmail,
-      type: "PAYMENT_CONFIRMED",
-      subject: "Your call is confirmed",
-      message: `Your payment was received and your call "${confirmedBooking.serviceTitle}" is confirmed.`,
-      metadata: {
-        bookingId: confirmedBooking.id,
-        expertId: confirmedBooking.expertId,
-        serviceTitle: confirmedBooking.serviceTitle,
-        startTime: confirmedBooking.startTime.toISOString(),
-        endTime: confirmedBooking.endTime.toISOString(),
-        servicePriceCents: confirmedBooking.servicePriceCents,
-        clientServiceFeeCents: confirmedBooking.clientServiceFeeCents,
-        clientTotalCents: confirmedBooking.clientTotalCents,
-        stripeCheckoutSessionId: session.id,
-        stripePaymentIntentId: paymentIntentId,
+    return NextResponse.json(
+      {
+        error: message,
       },
-    });
-
-    await sendNotification({
-      to: confirmedBooking.expertEmail,
-      type: "PAYMENT_CONFIRMED",
-      subject: "New confirmed booking",
-      message: `${confirmedBooking.buyerName} paid and confirmed "${
-        confirmedBooking.serviceTitle
-      }" for ${formatDateTime(
-        confirmedBooking.startTime,
-      )}. You can join the call 10 minutes before start.`,
-      metadata: {
-        bookingId: confirmedBooking.id,
-        expertId: confirmedBooking.expertId,
-        buyerName: confirmedBooking.buyerName,
-        serviceTitle: confirmedBooking.serviceTitle,
-        startTime: confirmedBooking.startTime.toISOString(),
-        endTime: confirmedBooking.endTime.toISOString(),
-        servicePriceCents: confirmedBooking.servicePriceCents,
-        providerCommissionCents: confirmedBooking.providerCommissionCents,
-        providerNetCents: confirmedBooking.providerNetCents,
-        platformGrossFeeCents: confirmedBooking.platformGrossFeeCents,
-        stripeCheckoutSessionId: session.id,
-        stripePaymentIntentId: paymentIntentId,
-      },
-    });
-
-    revalidateWebhookPaths(confirmedBooking.expertId, confirmedBooking.id);
+      { status: 500 },
+    );
   }
-
-  return NextResponse.json({ received: true });
 }

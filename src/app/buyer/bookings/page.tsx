@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Clock3,
   Euro,
-  MessageCircle,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -541,6 +540,7 @@ type BookingCardBooking = {
   endTime: Date;
   priceCents: number;
   status: string;
+  clientServiceFeeCents?: number | null;
   clientTotalCents?: number | null;
   platformFeeCents?: number | null;
   providerNetCents?: number | null;
@@ -963,16 +963,16 @@ function canJoinBooking(booking: {
 
 function getBookingPricing(booking: {
   priceCents: number;
+  clientServiceFeeCents?: number | null;
   clientTotalCents?: number | null;
-  platformFeeCents?: number | null;
 }) {
   const fallback = calculatePricingBreakdown(booking.priceCents);
 
   return {
     servicePriceCents: booking.priceCents,
     clientServiceFeeCents:
-      typeof booking.platformFeeCents === "number"
-        ? Math.max(booking.platformFeeCents - fallback.providerCommissionCents, 0)
+      typeof booking.clientServiceFeeCents === "number"
+        ? booking.clientServiceFeeCents
         : fallback.clientServiceFeeCents,
     clientTotalCents:
       typeof booking.clientTotalCents === "number"

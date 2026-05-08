@@ -7,7 +7,26 @@ import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 
-export async function createStripeConnectAccountAction() {
+function getAppUrl() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  if (!appUrl) {
+    throw new Error("NEXT_PUBLIC_APP_URL is missing.");
+  }
+
+  return appUrl.replace(/\/$/, "");
+}
+
+function revalidateStripeConnectPaths(expertId: string) {
+  revalidatePath("/");
+  revalidatePath("/expert");
+  revalidatePath("/expert/earnings");
+  revalidatePath("/expert/settings");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
+}
+
+async function getCurrentExpert() {
   const { user } = await requireRole(["expert", "admin"]);
 
   const email = user.email?.toLowerCase();
@@ -33,26 +52,40 @@ export async function createStripeConnectAccountAction() {
     redirect("/become-expert");
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  return {
+    user: currentUser,
+    expert: currentUser.expertProfile,
+  };
+}
 
-  if (!appUrl) {
-    throw new Error("NEXT_PUBLIC_APP_URL is missing.");
+async function getValidStripeAccountId(stripeAccountId: string | null) {
+  if (!stripeAccountId) {
+    return null;
   }
 
-  let stripeAccountId = currentUser.expertProfile.stripeAccountId;
+  try {
+    const account = await stripe.accounts.retrieve(stripeAccountId);
 
-  if (stripeAccountId) {
-    try {
-      await stripe.accounts.retrieve(stripeAccountId);
-    } catch {
-      stripeAccountId = null;
+    if (account.deleted) {
+      return null;
     }
+
+    return account.id;
+  } catch {
+    return null;
   }
+}
+
+export async function createStripeConnectAccountAction() {
+  const { user, expert } = await getCurrentExpert();
+  const appUrl = getAppUrl();
+
+  let stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
 
   if (!stripeAccountId) {
     const account = await stripe.accounts.create({
       type: "express",
-      email: currentUser.email,
+      email: user.email,
       business_type: "individual",
       capabilities: {
         card_payments: {
@@ -63,13 +96,13 @@ export async function createStripeConnectAccountAction() {
         },
       },
       business_profile: {
-        name: currentUser.name ?? "SkillDrop provider",
+        name: user.name ?? "SkillDrop provider",
         product_description:
           "Paid short 1:1 calls for practical help, career, language, documents and guidance through SkillDrop.",
       },
       metadata: {
-        userId: currentUser.id,
-        expertProfileId: currentUser.expertProfile.id,
+        userId: user.id,
+        expertProfileId: expert.id,
       },
     });
 
@@ -77,7 +110,7 @@ export async function createStripeConnectAccountAction() {
 
     await prisma.expertProfile.update({
       where: {
-        id: currentUser.expertProfile.id,
+        id: expert.id,
       },
       data: {
         stripeAccountId,
@@ -92,14 +125,21 @@ export async function createStripeConnectAccountAction() {
     type: "account_onboarding",
   });
 
-  if (!accountLink.url) {
+  revalidateStripeConnectPaths(expert.id);
+
+  redirect(accountLink.url);
+}
+
+export async function openStripeDashboardAction() {
+  const { expert } = await getCurrentExpert();
+
+  const stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
+
+  if (!stripeAccountId) {
     redirect("/expert/earnings?stripe=refresh");
   }
 
-  revalidatePath("/expert");
-  revalidatePath("/expert/earnings");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${currentUser.expertProfile.id}`);
+  const loginLink = await stripe.accounts.createLoginLink(stripeAccountId);
 
-  redirect(accountLink.url);
+  redirect(loginLink.url);
 }

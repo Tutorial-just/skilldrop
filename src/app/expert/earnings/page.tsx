@@ -12,7 +12,10 @@ import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
-import { createStripeConnectAccountAction } from "@/server/actions/stripe-connect.actions";
+import {
+  createStripeConnectAccountAction,
+  openStripeDashboardAction,
+} from "@/server/actions/stripe-connect.actions";
 import { calculatePricingBreakdown } from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -255,6 +258,12 @@ export default async function ExpertEarningsPage({
                   {hasStripeAccount
                     ? "Continue Stripe setup"
                     : "Connect Stripe account"}
+                </button>
+              </form>
+
+              <form action={openStripeDashboardAction}>
+                <button type="submit" className="btn btn-secondary w-full">
+                   Open Stripe dashboard
                 </button>
               </form>
             </Card>
