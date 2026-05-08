@@ -15,7 +15,9 @@ import {
 
 import {
   createAvailabilityAction,
+  createBulkAvailabilityAction,
   deleteAvailabilityAction,
+  deletePastOpenAvailabilityAction,
 } from "@/server/actions/availability.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
@@ -28,6 +30,8 @@ type ExpertAvailabilityPageProps = {
     error?: string;
     saved?: string;
     deleted?: string;
+    created?: string;
+    skipped?: string;
     view?: string;
   }>;
 };
@@ -35,6 +39,8 @@ type ExpertAvailabilityPageProps = {
 type AvailabilityView = "all" | "open" | "booked" | "today" | "week" | "past";
 
 const durationOptions = [15, 30, 45, 60];
+const breakOptions = [0, 5, 10, 15, 30];
+const repeatWeekOptions = [1, 2, 3, 4, 6, 8];
 const MAX_VISIBLE_SLOTS = 60;
 
 const viewTabs: {
@@ -47,6 +53,16 @@ const viewTabs: {
   { label: "Today", value: "today" },
   { label: "This week", value: "week" },
   { label: "Past", value: "past" },
+];
+
+const weekdays = [
+  { label: "Mon", value: "1" },
+  { label: "Tue", value: "2" },
+  { label: "Wed", value: "3" },
+  { label: "Thu", value: "4" },
+  { label: "Fri", value: "5" },
+  { label: "Sat", value: "6" },
+  { label: "Sun", value: "0" },
 ];
 
 export default async function ExpertAvailabilityPage({
@@ -105,6 +121,7 @@ export default async function ExpertAvailabilityPage({
   const openSlots = upcomingSlots.filter((slot) => !slot.isBooked);
   const bookedSlots = upcomingSlots.filter((slot) => slot.isBooked);
   const pastSlots = expert.availability.filter((slot) => slot.startTime < now);
+  const pastOpenSlots = pastSlots.filter((slot) => !slot.isBooked);
 
   const filteredSlots = filterSlotsByView({
     slots: expert.availability,
@@ -117,6 +134,19 @@ export default async function ExpertAvailabilityPage({
   const groupedSlots = groupSlotsByDate(visibleSlots);
 
   const minDateTime = toDateTimeLocalValue(now);
+  const minDate = toDateValue(now);
+
+  const createdCount = resolvedSearchParams.created
+    ? Number(resolvedSearchParams.created)
+    : null;
+
+  const skippedCount = resolvedSearchParams.skipped
+    ? Number(resolvedSearchParams.skipped)
+    : null;
+
+  const deletedCount = resolvedSearchParams.deleted
+    ? Number(resolvedSearchParams.deleted)
+    : null;
 
   return (
     <main>
@@ -136,13 +166,25 @@ export default async function ExpertAvailabilityPage({
 
               {resolvedSearchParams.saved ? (
                 <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-                  Availability added. Clients can now book this open time.
+                  {createdCount && createdCount > 0
+                    ? `${createdCount} availability slot${
+                        createdCount === 1 ? "" : "s"
+                      } created.${
+                        skippedCount && skippedCount > 0
+                          ? ` ${skippedCount} overlapping slot${
+                              skippedCount === 1 ? "" : "s"
+                            } skipped.`
+                          : ""
+                      }`
+                    : "Availability added. Clients can now book this open time."}
                 </div>
               ) : null}
 
               {resolvedSearchParams.deleted ? (
                 <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-                  Availability slot removed.
+                  {deletedCount && deletedCount > 1
+                    ? `${deletedCount} old open slots removed.`
+                    : "Availability slot removed."}
                 </div>
               ) : null}
 
@@ -164,8 +206,8 @@ export default async function ExpertAvailabilityPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Add time slots, filter your calendar, and manage bookings without
-                a long messy list.
+                Add single slots, bulk-create weekly availability, filter your
+                calendar and keep your bookable schedule clean.
               </p>
             </div>
 
@@ -192,7 +234,7 @@ export default async function ExpertAvailabilityPage({
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-5">
-          <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr] lg:items-start">
+          <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr] xl:items-start">
             <details className="self-start rounded-[26px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[20px]">
                 <div className="flex items-center gap-4">
@@ -279,19 +321,170 @@ export default async function ExpertAvailabilityPage({
                       Bulk create slots
                     </p>
                     <p className="mt-1 text-sm font-semibold text-muted">
-                      Coming next: weekly schedule.
+                      Create repeated availability for the next weeks.
                     </p>
                   </div>
                 </div>
 
-                <Badge variant="accent">Soon</Badge>
+                <Badge variant="accent">Weekly</Badge>
               </summary>
 
-              <div className="mt-4 grid gap-2 border-t border-[var(--border)] pt-4 sm:grid-cols-2">
-                <BulkPreviewRow label="Day" value="Monday" />
-                <BulkPreviewRow label="Range" value="10:00 — 14:00" />
-                <BulkPreviewRow label="Duration" value="30 min" />
-                <BulkPreviewRow label="Break" value="10 min" />
+              <div className="mt-4 border-t border-[var(--border)] pt-4">
+                <form action={createBulkAvailabilityAction} className="grid gap-5">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <label htmlFor="startDate" className="text-sm font-black">
+                        Start date
+                      </label>
+
+                      <input
+                        id="startDate"
+                        name="startDate"
+                        type="date"
+                        min={minDate}
+                        required
+                        className="input mt-2"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="bulkStartTime"
+                        className="text-sm font-black"
+                      >
+                        From
+                      </label>
+
+                      <input
+                        id="bulkStartTime"
+                        name="startTime"
+                        type="time"
+                        required
+                        defaultValue="10:00"
+                        className="input mt-2"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="bulkEndTime" className="text-sm font-black">
+                        To
+                      </label>
+
+                      <input
+                        id="bulkEndTime"
+                        name="endTime"
+                        type="time"
+                        required
+                        defaultValue="14:00"
+                        className="input mt-2"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-black">Weekdays</p>
+
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {weekdays.map((day) => (
+                        <label
+                          key={day.value}
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+                        >
+                          <input
+                            type="checkbox"
+                            name="weekdays"
+                            value={day.value}
+                            defaultChecked={
+                              day.value !== "0" && day.value !== "6"
+                            }
+                          />
+                          {day.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <label
+                        htmlFor="bulkDurationMinutes"
+                        className="text-sm font-black"
+                      >
+                        Slot duration
+                      </label>
+
+                      <select
+                        id="bulkDurationMinutes"
+                        name="durationMinutes"
+                        required
+                        defaultValue="30"
+                        className="input mt-2"
+                      >
+                        {durationOptions.map((duration) => (
+                          <option key={duration} value={duration}>
+                            {duration} min
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="breakMinutes"
+                        className="text-sm font-black"
+                      >
+                        Break
+                      </label>
+
+                      <select
+                        id="breakMinutes"
+                        name="breakMinutes"
+                        required
+                        defaultValue="10"
+                        className="input mt-2"
+                      >
+                        {breakOptions.map((breakMinutes) => (
+                          <option key={breakMinutes} value={breakMinutes}>
+                            {breakMinutes} min
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="repeatWeeks" className="text-sm font-black">
+                        Repeat
+                      </label>
+
+                      <select
+                        id="repeatWeeks"
+                        name="repeatWeeks"
+                        required
+                        defaultValue="2"
+                        className="input mt-2"
+                      >
+                        {repeatWeekOptions.map((weeks) => (
+                          <option key={weeks} value={weeks}>
+                            {weeks} week{weeks === 1 ? "" : "s"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[var(--border)] bg-white/55 p-4">
+                    <p className="text-sm font-bold leading-6 text-muted">
+                      Existing overlapping slots will be skipped automatically.
+                      Maximum bulk creation is limited to keep your calendar
+                      clean.
+                    </p>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary w-full">
+                    Create weekly slots
+                    <ArrowRight size={18} />
+                  </button>
+                </form>
               </div>
             </details>
           </div>
@@ -313,9 +506,20 @@ export default async function ExpertAvailabilityPage({
                 </p>
               </div>
 
-              {hiddenSlotsCount > 0 ? (
-                <Badge variant="accent">+{hiddenSlotsCount} more hidden</Badge>
-              ) : null}
+              <div className="flex flex-wrap gap-2">
+                {pastOpenSlots.length > 0 ? (
+                  <form action={deletePastOpenAvailabilityAction}>
+                    <button type="submit" className="btn btn-secondary">
+                      Clean past open slots
+                      <Trash2 size={17} />
+                    </button>
+                  </form>
+                ) : null}
+
+                {hiddenSlotsCount > 0 ? (
+                  <Badge variant="accent">+{hiddenSlotsCount} more hidden</Badge>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
@@ -434,8 +638,9 @@ export default async function ExpertAvailabilityPage({
 
               <div className="mt-5 grid gap-3">
                 <CompactTip text="Keep 7–14 days of open slots visible." />
-                <CompactTip text="Use short slots to increase bookings." />
-                <CompactTip text="Use filters when your calendar grows." />
+                <CompactTip text="Use bulk create to prepare your week faster." />
+                <CompactTip text="Delete old open slots to keep the calendar clean." />
+                <CompactTip text="Short 15–30 minute slots can increase bookings." />
               </div>
             </Card>
           </div>
@@ -516,15 +721,6 @@ function CompactTip({ text }: { text: string }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white/62 p-4">
       <p className="text-sm font-bold leading-6 text-muted">{text}</p>
-    </div>
-  );
-}
-
-function BulkPreviewRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-xs font-bold text-muted">{label}</p>
-      <p className="text-sm font-black">{value}</p>
     </div>
   );
 }
@@ -675,6 +871,13 @@ function toDateTimeLocalValue(date: Date) {
   return localDate.toISOString().slice(0, 16);
 }
 
+function toDateValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  const localDate = new Date(date.getTime() - offsetMs);
+
+  return localDate.toISOString().slice(0, 10);
+}
+
 function formatStatus(status: string) {
   if (status === "PENDING") {
     return "Pending payment";
@@ -712,6 +915,10 @@ function formatAvailabilityError(error: string) {
     return "Please choose a valid start time.";
   }
 
+  if (error === "invalid-start-date") {
+    return "Please choose a valid start date.";
+  }
+
   if (error === "past-time") {
     return "You cannot add availability in the past.";
   }
@@ -720,8 +927,40 @@ function formatAvailabilityError(error: string) {
     return "Please choose a valid duration.";
   }
 
+  if (error === "invalid-time-range") {
+    return "Please choose a valid time range.";
+  }
+
+  if (error === "invalid-break") {
+    return "Please choose a valid break duration.";
+  }
+
+  if (error === "invalid-repeat") {
+    return "Please choose a valid repeat period.";
+  }
+
+  if (error === "missing-weekdays") {
+    return "Please choose at least one weekday.";
+  }
+
+  if (error === "no-valid-slots") {
+    return "No valid future slots could be created.";
+  }
+
   if (error === "overlap") {
     return "This slot overlaps with another availability slot.";
+  }
+
+  if (error === "all-slots-overlap") {
+    return "All generated slots overlap with existing availability.";
+  }
+
+  if (error === "too-many-slots") {
+    return "You already have too many future slots. Delete some old slots first.";
+  }
+
+  if (error === "too-many-bulk-slots") {
+    return "This bulk action would create too many slots at once. Reduce weeks or time range.";
   }
 
   if (error === "slot-not-found") {
@@ -730,6 +969,10 @@ function formatAvailabilityError(error: string) {
 
   if (error === "cannot-delete-booked-slot") {
     return "You cannot delete a slot that already has a booking.";
+  }
+
+  if (error === "cannot-delete-past-slot") {
+    return "You cannot delete a past slot here.";
   }
 
   if (error === "not-signed-in") {
