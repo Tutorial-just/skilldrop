@@ -1,15 +1,20 @@
 import Link from "next/link";
 import {
   ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
   CheckCircle2,
   Clock3,
+  HelpCircle,
   RefreshCcw,
   ShieldAlert,
   ShieldCheck,
+  WalletCards,
   XCircle,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export default function RefundsPage() {
@@ -34,47 +39,115 @@ export default function RefundsPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
-          This policy explains what happens when a booking is cancelled, missed
-          or disputed. It is designed to protect both buyers and providers.
+          This policy explains what happens when a booking is pending, paid,
+          confirmed, cancelled, missed, completed or disputed. It is designed to
+          protect both buyers and providers.
         </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <ButtonLink href="/experts">
+            Explore marketplace
+            <ArrowRight size={18} />
+          </ButtonLink>
+
+          <ButtonLink href="/legal/terms" variant="secondary">
+            Terms
+          </ButtonLink>
+
+          <ButtonLink href="/legal/safety" variant="secondary">
+            Safety rules
+          </ButtonLink>
+        </div>
       </section>
 
-      <section className="mt-10 grid gap-5 md:grid-cols-2">
-        <PolicyCard
-          icon={Clock3}
-          title="Pending bookings"
-          text="If payment is not completed before the reservation expires, the booking can be released and the slot becomes available again."
-        />
+      <section className="mt-10 grid gap-6 lg:grid-cols-[0.82fr_1.18fr]">
+        <aside className="grid content-start gap-5 lg:sticky lg:top-[96px]">
+          <Card className="p-5">
+            <Badge variant="success">
+              <ShieldCheck size={14} />
+              Key principle
+            </Badge>
 
-        <PolicyCard
-          icon={CheckCircle2}
-          title="Confirmed bookings"
-          text="A booking becomes confirmed after successful payment. The buyer and provider should both attend the scheduled call."
-        />
+            <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              A booking is only confirmed after successful payment. Pending
+              reservations can expire if checkout is not completed.
+            </p>
+          </Card>
 
-        <PolicyCard
-          icon={XCircle}
-          title="Buyer cancellation"
-          text="If cancellation is allowed before the call starts, the booking may be cancelled according to platform rules. Refund eligibility depends on timing and status."
-        />
+          <Card className="p-5">
+            <Badge variant="accent">
+              <WalletCards size={14} />
+              Stripe payments
+            </Badge>
 
-        <PolicyCard
-          icon={ShieldAlert}
-          title="Provider no-show"
-          text="If the provider does not attend the call, the buyer may open a dispute. SkillDrop may review the case and issue a refund when appropriate."
-        />
+            <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              Payments and refunds are processed through Stripe. Some refunds
+              may require manual review before they are issued.
+            </p>
+          </Card>
 
-        <PolicyCard
-          icon={ShieldCheck}
-          title="Buyer no-show"
-          text="If the buyer does not attend a confirmed call, the provider may still be eligible for payment depending on the rules and evidence."
-        />
+          <Card soft className="p-5">
+            <Badge variant="primary">
+              <HelpCircle size={14} />
+              MVP note
+            </Badge>
 
-        <PolicyCard
-          icon={RefreshCcw}
-          title="Disputed calls"
-          text="SkillDrop may review call status, timestamps, messages, payment status and reports before deciding whether a refund is appropriate."
-        />
+            <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              This is a practical MVP policy draft. Before public launch, adapt
+              it to your company, market, payment setup and local legal rules.
+            </p>
+          </Card>
+        </aside>
+
+        <div className="grid gap-5">
+          <PolicyCard
+            icon={Clock3}
+            title="Pending bookings"
+            text="If payment is not completed before the reservation expires, the booking can be released and the slot becomes available again. No confirmed call exists until checkout succeeds."
+          />
+
+          <PolicyCard
+            icon={CheckCircle2}
+            title="Paid and confirmed bookings"
+            text="After successful payment, the booking becomes confirmed. The buyer and provider should both attend the scheduled call and be ready at the agreed time."
+          />
+
+          <PolicyCard
+            icon={XCircle}
+            title="Buyer cancellation"
+            text="If cancellation is allowed before the call starts, the booking may be cancelled according to platform rules. Refund eligibility depends on timing, booking status and dispute context."
+          />
+
+          <PolicyCard
+            icon={ShieldAlert}
+            title="Provider no-show"
+            text="If the provider does not attend the call, the buyer may open a dispute. SkillDrop may review the case and issue a refund when appropriate."
+          />
+
+          <PolicyCard
+            icon={ShieldCheck}
+            title="Buyer no-show"
+            text="If the buyer does not attend a confirmed call, the provider may still be eligible for payment depending on the rules, call timing and available evidence."
+          />
+
+          <PolicyCard
+            icon={RefreshCcw}
+            title="Disputed calls"
+            text="SkillDrop may review booking status, payment status, call timing, reports, provider history and user messages before deciding whether a refund is appropriate."
+          />
+
+          <PolicyCard
+            icon={BadgeCheck}
+            title="Completed calls"
+            text="Completed calls are generally not automatically refundable unless there is a no-show, major technical issue, abuse, fraud or serious mismatch between the service description and the call."
+          />
+
+          <PolicyCard
+            icon={HelpCircle}
+            title="Manual review"
+            text="For the MVP, disputes should be reviewed manually by an admin before refunds are automated. This helps prevent abuse and protects both sides."
+          />
+        </div>
       </section>
 
       <section className="mt-10">
@@ -87,23 +160,52 @@ export default function RefundsPage() {
           <div className="mt-6 grid gap-4">
             <Rule
               title="Before payment"
-              text="No charge is made until checkout succeeds. If payment fails or expires, the booking is not confirmed."
+              text="No charge is made until checkout succeeds. If payment fails or expires, the booking is not confirmed and the time slot can become available again."
             />
 
             <Rule
-              title="Before call"
-              text="Allow cancellation while the booking is still pending. For confirmed bookings, define a cancellation window before production launch."
+              title="Pending booking"
+              text="Pending bookings are temporary reservations. They should expire automatically if payment is not completed within the allowed time."
             />
 
             <Rule
-              title="After call"
-              text="Completed calls are generally not automatically refundable unless there is a no-show, technical issue, abuse or serious service problem."
+              title="Confirmed booking"
+              text="For confirmed bookings, define a clear cancellation window before production launch. Until then, use manual admin review for edge cases."
             />
 
             <Rule
-              title="Manual review"
-              text="For MVP launch, disputes should be reviewed manually by the admin before refunds are automated."
+              title="After the call"
+              text="Completed calls are generally not refundable by default. Exceptions can include provider no-show, serious service issue, fraud, abuse or technical failure."
             />
+
+            <Rule
+              title="Disputes"
+              text="Disputes should be reviewed using booking status, payment status, call room data, user reports, timestamps and provider history."
+            />
+
+            <Rule
+              title="Refund execution"
+              text="Refunds should be issued only through the admin refund flow so the platform records audit logs, updates booking status and notifies both users."
+            />
+          </div>
+        </Card>
+      </section>
+
+      <section className="mt-10">
+        <Card soft className="p-6 md:p-8">
+          <div className="flex items-start gap-3">
+            <BadgeCheck className="mt-1 h-5 w-5 text-[var(--success)]" />
+
+            <div>
+              <p className="text-sm font-black text-[var(--foreground)]">
+                Last updated: May 2026
+              </p>
+
+              <p className="mt-1 text-sm font-bold leading-6 text-muted">
+                This MVP refund policy should be reviewed before production
+                launch.
+              </p>
+            </div>
           </div>
         </Card>
       </section>

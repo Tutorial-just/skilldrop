@@ -1,13 +1,16 @@
 import Link from "next/link";
 import {
   ArrowLeft,
+  ArrowRight,
   BadgeCheck,
   FileText,
+  Scale,
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export default function TermsPage() {
@@ -33,13 +36,28 @@ export default function TermsPage() {
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
           These terms explain how SkillDrop works for buyers and providers. This
-          page is a practical draft for your MVP and should be reviewed by a
-          qualified legal professional before a real public launch.
+          is a practical MVP draft and should be reviewed by a qualified legal
+          professional before a real public launch.
         </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <ButtonLink href="/experts">
+            Explore marketplace
+            <ArrowRight size={18} />
+          </ButtonLink>
+
+          <ButtonLink href="/legal/refunds" variant="secondary">
+            Refund policy
+          </ButtonLink>
+
+          <ButtonLink href="/legal/safety" variant="secondary">
+            Safety rules
+          </ButtonLink>
+        </div>
       </section>
 
       <section className="mt-10 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-        <aside className="grid content-start gap-5">
+        <aside className="grid content-start gap-5 lg:sticky lg:top-[96px]">
           <Card className="p-5">
             <Badge variant="success">
               <ShieldCheck size={14} />
@@ -61,6 +79,18 @@ export default function TermsPage() {
             <p className="mt-4 text-sm font-bold leading-6 text-muted">
               Payments are handled through Stripe. A booking is confirmed only
               after checkout succeeds.
+            </p>
+          </Card>
+
+          <Card soft className="p-5">
+            <Badge variant="primary">
+              <Scale size={14} />
+              Important
+            </Badge>
+
+            <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              This page is not legal advice. Before launch, adapt it to your
+              company, country, payment setup and marketplace rules.
             </p>
           </Card>
         </aside>
@@ -97,27 +127,49 @@ export default function TermsPage() {
           />
 
           <LegalSection
-            title="7. Prohibited use"
+            title="7. User conduct"
+            text="Users should communicate respectfully, attend booked calls on time and avoid misleading, abusive or harmful behavior. SkillDrop may limit accounts or bookings when conduct creates risk for the platform."
+          />
+
+          <LegalSection
+            title="8. Prohibited use"
             text="Users must not use SkillDrop for scams, harassment, illegal activities, dangerous advice, impersonation, spam or misleading services. SkillDrop may remove content, restrict accounts or cancel bookings when needed."
           />
 
           <LegalSection
-            title="8. No guarantee of results"
+            title="9. No guarantee of results"
             text="SkillDrop helps people access practical human help, but does not guarantee a specific result from any call. Buyers are responsible for deciding how to use the information they receive."
           />
 
           <LegalSection
-            title="9. Changes"
+            title="10. Reviews and trust signals"
+            text="Buyers may leave reviews after completed calls. Reviews, ratings and verification badges help other users make informed decisions. SkillDrop may moderate reviews that appear abusive, fake or misleading."
+          />
+
+          <LegalSection
+            title="11. Account restrictions"
+            text="SkillDrop may suspend or restrict users, providers, services or bookings when there are safety concerns, payment issues, quality problems, abuse reports or violations of these terms."
+          />
+
+          <LegalSection
+            title="12. Changes"
             text="SkillDrop may update these terms as the product evolves. Continued use of the platform means the user accepts the updated terms."
           />
 
           <Card soft className="p-5">
             <div className="flex items-start gap-3">
               <BadgeCheck className="mt-1 h-5 w-5 text-[var(--success)]" />
-              <p className="text-sm font-bold leading-6 text-muted">
-                Last updated: May 2026. This MVP legal text should be reviewed
-                before production launch.
-              </p>
+
+              <div>
+                <p className="text-sm font-black text-[var(--foreground)]">
+                  Last updated: May 2026
+                </p>
+
+                <p className="mt-1 text-sm font-bold leading-6 text-muted">
+                  This MVP legal text should be reviewed before production
+                  launch.
+                </p>
+              </div>
             </div>
           </Card>
         </div>

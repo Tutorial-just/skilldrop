@@ -1,17 +1,22 @@
 import Link from "next/link";
 import {
   ArrowLeft,
+  ArrowRight,
   BadgeCheck,
   CheckCircle2,
   Eye,
   Flag,
+  Handshake,
+  LockKeyhole,
   ShieldAlert,
   ShieldCheck,
   Star,
   WalletCards,
+  XCircle,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 export default function SafetyPage() {
@@ -37,46 +42,115 @@ export default function SafetyPage() {
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
           SkillDrop is built around short practical calls, clear pricing,
-          provider readiness and post-call reviews.
+          provider readiness, safe payments, dispute review and post-call
+          feedback.
         </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <ButtonLink href="/experts">
+            Explore marketplace
+            <ArrowRight size={18} />
+          </ButtonLink>
+
+          <ButtonLink href="/legal/terms" variant="secondary">
+            Terms
+          </ButtonLink>
+
+          <ButtonLink href="/legal/refunds" variant="secondary">
+            Refund policy
+          </ButtonLink>
+        </div>
       </section>
 
-      <section className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-        <SafetyCard
-          icon={Eye}
-          title="Clear profiles"
-          text="Buyers can review provider profiles, skills, languages, services, prices and availability before booking."
-        />
+      <section className="mt-10 grid gap-6 lg:grid-cols-[0.82fr_1.18fr]">
+        <aside className="grid content-start gap-5 lg:sticky lg:top-[96px]">
+          <Card className="p-5">
+            <Badge variant="success">
+              <ShieldCheck size={14} />
+              Trust principle
+            </Badge>
 
-        <SafetyCard
-          icon={WalletCards}
-          title="Payout readiness"
-          text="Providers should complete payout setup before accepting paid bookings."
-        />
+            <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              A marketplace becomes stronger when profiles are clear, payments
+              are transparent, reviews are honest and disputes are handled
+              fairly.
+            </p>
+          </Card>
 
-        <SafetyCard
-          icon={Star}
-          title="Reviews"
-          text="Buyers can leave reviews after completed calls to help future buyers choose safely."
-        />
+          <Card className="p-5">
+            <Badge variant="accent">
+              <WalletCards size={14} />
+              Payment safety
+            </Badge>
 
-        <SafetyCard
-          icon={BadgeCheck}
-          title="Earned verification"
-          text="Verification is earned through successful calls and a minimum rating threshold."
-        />
+            <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              Bookings are confirmed only after payment succeeds. Providers
+              should complete payout setup before accepting paid calls.
+            </p>
+          </Card>
 
-        <SafetyCard
-          icon={Flag}
-          title="Reports"
-          text="Users should be able to report problematic behavior, no-shows, misleading services or abuse."
-        />
+          <Card soft className="p-5">
+            <Badge variant="primary">
+              <LockKeyhole size={14} />
+              MVP note
+            </Badge>
 
-        <SafetyCard
-          icon={ShieldAlert}
-          title="Disputes"
-          text="Disputed bookings should be reviewed carefully before refunds, payouts or account actions."
-        />
+            <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              For launch, keep expert approval and dispute handling manual until
+              the marketplace has enough real activity and quality data.
+            </p>
+          </Card>
+        </aside>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <SafetyCard
+            icon={Eye}
+            title="Clear profiles"
+            text="Buyers can review provider profiles, skills, languages, services, prices and availability before booking."
+          />
+
+          <SafetyCard
+            icon={WalletCards}
+            title="Payout readiness"
+            text="Providers should complete Stripe payout setup before accepting paid bookings."
+          />
+
+          <SafetyCard
+            icon={Star}
+            title="Reviews"
+            text="Buyers can leave reviews after completed calls to help future buyers choose safely."
+          />
+
+          <SafetyCard
+            icon={BadgeCheck}
+            title="Earned verification"
+            text="Verification is earned through successful calls and a minimum rating threshold."
+          />
+
+          <SafetyCard
+            icon={Flag}
+            title="Reports"
+            text="Users should be able to report problematic behavior, no-shows, misleading services or abuse."
+          />
+
+          <SafetyCard
+            icon={ShieldAlert}
+            title="Disputes"
+            text="Disputed bookings should be reviewed carefully before refunds, payouts or account actions."
+          />
+
+          <SafetyCard
+            icon={Handshake}
+            title="Fair marketplace"
+            text="Buyers and providers should both act honestly, communicate respectfully and attend scheduled calls on time."
+          />
+
+          <SafetyCard
+            icon={LockKeyhole}
+            title="Admin audit"
+            text="Sensitive admin actions should be recorded in audit logs so moderation, refunds and role changes stay traceable."
+          />
+        </div>
       </section>
 
       <section className="mt-10">
@@ -99,13 +173,63 @@ export default function SafetyPage() {
 
             <Standard
               title="For SkillDrop"
-              text="Keep the booking flow clear, handle payment states safely and review disputes fairly."
+              text="Keep the booking flow clear, handle payment states safely, record admin actions and review disputes fairly."
             />
 
             <Standard
               title="For launch"
-              text="Start with manually reviewed experts and manual dispute handling before scaling."
+              text="Start with manually reviewed experts, manual dispute handling and careful monitoring before scaling."
             />
+          </div>
+        </Card>
+      </section>
+
+      <section className="mt-10">
+        <Card className="p-6 md:p-8">
+          <Badge variant="danger">
+            <XCircle size={14} />
+            Not allowed
+          </Badge>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <Standard
+              title="Scams or misleading services"
+              text="Providers must not create fake offers, fake credentials, unrealistic promises or deceptive services."
+            />
+
+            <Standard
+              title="Harassment or abuse"
+              text="Users must not harass, threaten, insult, discriminate or pressure other users."
+            />
+
+            <Standard
+              title="Illegal or dangerous help"
+              text="SkillDrop should not be used for illegal activity, dangerous instructions or harmful services."
+            />
+
+            <Standard
+              title="Review manipulation"
+              text="Fake reviews, review pressure or attempts to manipulate trust signals should not be allowed."
+            />
+          </div>
+        </Card>
+      </section>
+
+      <section className="mt-10">
+        <Card soft className="p-6 md:p-8">
+          <div className="flex items-start gap-3">
+            <BadgeCheck className="mt-1 h-5 w-5 text-[var(--success)]" />
+
+            <div>
+              <p className="text-sm font-black text-[var(--foreground)]">
+                Last updated: May 2026
+              </p>
+
+              <p className="mt-1 text-sm font-bold leading-6 text-muted">
+                This MVP safety page should be reviewed before production
+                launch.
+              </p>
+            </div>
           </div>
         </Card>
       </section>
