@@ -8,6 +8,13 @@ import { requireRole } from "@/lib/auth/get-current-user";
 
 const MAX_AVATAR_SIZE_BYTES = 1024 * 1024;
 
+const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+const ALLOWED_DURATIONS = [15, 30, 45, 60];
+
+const MAX_LIST_ITEMS = 24;
+const MAX_TAG_LENGTH = 40;
+
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -22,26 +29,35 @@ function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
+function cleanText(value: string, maxLength = 2000) {
+  return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
 function parseList(value: string) {
   return value
     .split(",")
     .map((item) => item.trim())
+    .map((item) => item.replace(/\s+/g, " "))
     .filter(Boolean)
+    .map((item) => item.slice(0, MAX_TAG_LENGTH))
     .filter(
       (item, index, array) =>
         array.findIndex(
           (currentItem) => currentItem.toLowerCase() === item.toLowerCase(),
         ) === index,
-    );
+    )
+    .slice(0, MAX_LIST_ITEMS);
 }
 
 function createSlug(value: string) {
-  return value
+  const slug = value
     .toLowerCase()
     .trim()
     .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
+
+  return slug || "general";
 }
 
 function parsePriceCents(value: string) {
@@ -52,14 +68,17 @@ function parsePriceCents(value: string) {
     return null;
   }
 
+  if (price > 1000) {
+    return null;
+  }
+
   return Math.round(price * 100);
 }
 
 function parseDuration(value: string) {
   const duration = Number(value);
-  const allowedDurations = [15, 30, 45, 60];
 
-  if (!allowedDurations.includes(duration)) {
+  if (!ALLOWED_DURATIONS.includes(duration)) {
     return null;
   }
 
@@ -77,9 +96,7 @@ async function getAvatarDataUrl(formData: FormData, errorPath: string) {
     return null;
   }
 
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-
-  if (!allowedTypes.includes(avatar.type)) {
+  if (!ALLOWED_AVATAR_TYPES.includes(avatar.type)) {
     redirectWithError(errorPath, "invalid-avatar");
   }
 
@@ -95,6 +112,7 @@ async function getAvatarDataUrl(formData: FormData, errorPath: string) {
 
 async function getCurrentExpertProfile() {
   const { user } = await requireRole(["expert", "admin"]);
+
   const email = user.email?.toLowerCase();
 
   if (!email) {
@@ -120,27 +138,156 @@ async function getCurrentExpertProfile() {
 }
 
 async function getOrCreateCategory(categoryName: string) {
-  const categorySlug = createSlug(categoryName);
+  const cleanCategoryName = cleanText(categoryName, 80);
+  const categorySlug = createSlug(cleanCategoryName);
 
   return prisma.category.upsert({
     where: {
       slug: categorySlug,
     },
     update: {
-      name: categoryName,
+      name: cleanCategoryName,
       isActive: true,
     },
     create: {
-      name: categoryName,
+      name: cleanCategoryName,
       slug: categorySlug,
-      description: `${categoryName} services`,
+      description: `${cleanCategoryName} services`,
       isActive: true,
     },
   });
 }
 
+function validateProviderProfileInput({
+  displayName,
+  headline,
+  bio,
+  categoryName,
+  timezone,
+  languages,
+  skills,
+  serviceTitle,
+  serviceDescription,
+  durationMinutes,
+  priceCents,
+  errorPath,
+}: {
+  displayName: string;
+  headline: string;
+  bio: string;
+  categoryName: string;
+  timezone: string;
+  languages: string[];
+  skills: string[];
+  serviceTitle: string;
+  serviceDescription: string;
+  durationMinutes: number | null;
+  priceCents: number | null;
+  errorPath: string;
+}) {
+  if (!displayName || !categoryName || !timezone || !serviceTitle) {
+    redirectWithError(errorPath, "missing-required-fields");
+  }
+
+  if (displayName.length > 80) {
+    redirectWithError(errorPath, "name-too-long");
+  }
+
+  if (headline.length < 8) {
+    redirectWithError(errorPath, "headline-too-short");
+  }
+
+  if (headline.length > 120) {
+    redirectWithError(errorPath, "headline-too-long");
+  }
+
+  if (bio.length < 80) {
+    redirectWithError(errorPath, "bio-too-short");
+  }
+
+  if (bio.length > 1200) {
+    redirectWithError(errorPath, "bio-too-long");
+  }
+
+  if (languages.length === 0) {
+    redirectWithError(errorPath, "missing-languages");
+  }
+
+  if (skills.length < 2) {
+    redirectWithError(errorPath, "missing-skills");
+  }
+
+  if (serviceTitle.length < 4) {
+    redirectWithError(errorPath, "title-too-short");
+  }
+
+  if (serviceTitle.length > 120) {
+    redirectWithError(errorPath, "title-too-long");
+  }
+
+  if (serviceDescription.length < 30) {
+    redirectWithError(errorPath, "service-description-too-short");
+  }
+
+  if (serviceDescription.length > 800) {
+    redirectWithError(errorPath, "service-description-too-long");
+  }
+
+  if (!durationMinutes) {
+    redirectWithError(errorPath, "invalid-duration");
+  }
+
+  if (!priceCents) {
+    redirectWithError(errorPath, "invalid-price");
+  }
+}
+
+function validateServiceInput({
+  categoryName,
+  title,
+  description,
+  durationMinutes,
+  priceCents,
+  errorPath,
+}: {
+  categoryName: string;
+  title: string;
+  description: string;
+  durationMinutes: number | null;
+  priceCents: number | null;
+  errorPath: string;
+}) {
+  if (!categoryName) {
+    redirectWithError(errorPath, "missing-required-fields");
+  }
+
+  if (title.length < 4) {
+    redirectWithError(errorPath, "title-too-short");
+  }
+
+  if (title.length > 120) {
+    redirectWithError(errorPath, "title-too-long");
+  }
+
+  if (description.length < 30) {
+    redirectWithError(errorPath, "description-too-short");
+  }
+
+  if (description.length > 800) {
+    redirectWithError(errorPath, "description-too-long");
+  }
+
+  if (!durationMinutes) {
+    redirectWithError(errorPath, "invalid-duration");
+  }
+
+  if (!priceCents) {
+    redirectWithError(errorPath, "invalid-price");
+  }
+}
+
 export async function createProviderProfileAction(formData: FormData) {
-  const { user } = await requireRole(["expert", "admin"]);
+  const { user } = await requireRole(["buyer", "expert", "admin"]);
 
   const email = user.email?.toLowerCase();
 
@@ -148,68 +295,65 @@ export async function createProviderProfileAction(formData: FormData) {
     redirectWithError("/become-expert", "not-signed-in");
   }
 
-  const displayName = getStringValue(formData, "displayName") || user.name || email;
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+    include: {
+      expertProfile: true,
+    },
+  });
 
-  const headline = getStringValue(formData, "headline");
-  const bio = getStringValue(formData, "bio");
-  const categoryName = getStringValue(formData, "category");
-  const country = getStringValue(formData, "country");
-  const timezone = getStringValue(formData, "timezone") || "Europe/Paris";
+  if (existingUser?.expertProfile) {
+    redirectWithError("/become-expert", "profile-already-exists");
+  }
+
+  const displayName = cleanText(
+    getStringValue(formData, "displayName") || user.name || email,
+    80,
+  );
+
+  const headline = cleanText(getStringValue(formData, "headline"), 120);
+  const bio = getStringValue(formData, "bio").trim().slice(0, 1200);
+  const categoryName = cleanText(getStringValue(formData, "category"), 80);
+  const country = cleanText(getStringValue(formData, "country"), 80);
+  const timezone =
+    cleanText(getStringValue(formData, "timezone"), 80) || "Europe/Paris";
+
   const languages = parseList(getStringValue(formData, "languages"));
   const skills = parseList(getStringValue(formData, "skills"));
   const tags = parseList(getStringValue(formData, "tags"));
 
-  const serviceTitle = getStringValue(formData, "serviceTitle");
-  const serviceDescription = getStringValue(formData, "serviceDescription");
+  const serviceTitle = cleanText(getStringValue(formData, "serviceTitle"), 120);
+  const serviceDescription = getStringValue(formData, "serviceDescription")
+    .trim()
+    .slice(0, 800);
+
   const durationMinutes = parseDuration(
     getStringValue(formData, "durationMinutes"),
   );
+
   const priceCents = parsePriceCents(getStringValue(formData, "price"));
   const avatarDataUrl = await getAvatarDataUrl(formData, "/become-expert");
 
-  if (!displayName) {
-    redirectWithError("/become-expert", "missing-required-fields");
-  }
-
-  if (headline.length < 8) {
-    redirectWithError("/become-expert", "headline-too-short");
-  }
-
-  if (bio.length < 80) {
-    redirectWithError("/become-expert", "bio-too-short");
-  }
-
-  if (!categoryName) {
-    redirectWithError("/become-expert", "missing-required-fields");
-  }
-
-  if (languages.length === 0) {
-    redirectWithError("/become-expert", "missing-languages");
-  }
-
-  if (skills.length < 2) {
-    redirectWithError("/become-expert", "missing-skills");
-  }
-
-  if (!serviceTitle) {
-    redirectWithError("/become-expert", "missing-required-fields");
-  }
-
-  if (serviceDescription.length < 30) {
-    redirectWithError("/become-expert", "service-description-too-short");
-  }
-
-  if (!durationMinutes) {
-    redirectWithError("/become-expert", "invalid-duration");
-  }
-
-  if (!priceCents) {
-    redirectWithError("/become-expert", "invalid-price");
-  }
+  validateProviderProfileInput({
+    displayName,
+    headline,
+    bio,
+    categoryName,
+    timezone,
+    languages,
+    skills,
+    serviceTitle,
+    serviceDescription,
+    durationMinutes,
+    priceCents,
+    errorPath: "/become-expert",
+  });
 
   const categorySlug = createSlug(categoryName);
 
-  await prisma.$transaction(async (tx) => {
+  const expertProfileId = await prisma.$transaction(async (tx) => {
     const dbUser = await tx.user.upsert({
       where: {
         email,
@@ -235,6 +379,16 @@ export async function createProviderProfileAction(formData: FormData) {
       },
     });
 
+    const existingProfile = await tx.expertProfile.findUnique({
+      where: {
+        userId: dbUser.id,
+      },
+    });
+
+    if (existingProfile) {
+      redirectWithError("/become-expert", "profile-already-exists");
+    }
+
     const category = await tx.category.upsert({
       where: {
         slug: categorySlug,
@@ -251,21 +405,8 @@ export async function createProviderProfileAction(formData: FormData) {
       },
     });
 
-    const expertProfile = await tx.expertProfile.upsert({
-      where: {
-        userId: dbUser.id,
-      },
-      update: {
-        headline,
-        bio,
-        country: country || null,
-        timezone,
-        languages,
-        skills,
-        tags,
-        status: "APPROVED",
-      },
-      create: {
+    const expertProfile = await tx.expertProfile.create({
+      data: {
         userId: dbUser.id,
         headline,
         bio,
@@ -279,52 +420,30 @@ export async function createProviderProfileAction(formData: FormData) {
       },
     });
 
-    const existingActiveService = await tx.service.findFirst({
-      where: {
+    await tx.service.create({
+      data: {
         expertId: expertProfile.id,
+        categoryId: category.id,
+        title: serviceTitle,
+        description: serviceDescription,
+        durationMinutes: durationMinutes!,
+        priceCents: priceCents!,
+        currency: "EUR",
         isActive: true,
-      },
-      orderBy: {
-        createdAt: "asc",
       },
     });
 
-    if (existingActiveService) {
-      await tx.service.update({
-        where: {
-          id: existingActiveService.id,
-        },
-        data: {
-          categoryId: category.id,
-          title: serviceTitle,
-          description: serviceDescription,
-          durationMinutes,
-          priceCents,
-          currency: "EUR",
-          isActive: true,
-        },
-      });
-    } else {
-      await tx.service.create({
-        data: {
-          expertId: expertProfile.id,
-          categoryId: category.id,
-          title: serviceTitle,
-          description: serviceDescription,
-          durationMinutes,
-          priceCents,
-          currency: "EUR",
-          isActive: true,
-        },
-      });
-    }
+    return expertProfile.id;
   });
 
   revalidatePath("/expert");
   revalidatePath("/expert/profile");
+  revalidatePath("/expert/services");
+  revalidatePath("/become-expert");
   revalidatePath("/experts");
+  revalidatePath(`/experts/${expertProfileId}`);
 
-  redirect("/expert");
+  redirect("/expert?profile=created");
 }
 
 export async function updateProviderProfileAction(formData: FormData) {
@@ -336,14 +455,17 @@ export async function updateProviderProfileAction(formData: FormData) {
     redirectWithError("/expert/profile", "not-signed-in");
   }
 
-  const displayName = getStringValue(formData, "displayName");
-  const headline = getStringValue(formData, "headline");
-  const bio = getStringValue(formData, "bio");
-  const country = getStringValue(formData, "country");
-  const timezone = getStringValue(formData, "timezone") || "Europe/Paris";
+  const displayName = cleanText(getStringValue(formData, "displayName"), 80);
+  const headline = cleanText(getStringValue(formData, "headline"), 120);
+  const bio = getStringValue(formData, "bio").trim().slice(0, 1200);
+  const country = cleanText(getStringValue(formData, "country"), 80);
+  const timezone =
+    cleanText(getStringValue(formData, "timezone"), 80) || "Europe/Paris";
+
   const languages = parseList(getStringValue(formData, "languages"));
   const skills = parseList(getStringValue(formData, "skills"));
   const tags = parseList(getStringValue(formData, "tags"));
+
   const avatarDataUrl = await getAvatarDataUrl(formData, "/expert/profile");
   const removeAvatar = getStringValue(formData, "removeAvatar") === "true";
 
@@ -351,12 +473,24 @@ export async function updateProviderProfileAction(formData: FormData) {
     redirectWithError("/expert/profile", "missing-required-fields");
   }
 
+  if (displayName.length > 80) {
+    redirectWithError("/expert/profile", "name-too-long");
+  }
+
   if (headline.length < 8) {
     redirectWithError("/expert/profile", "headline-too-short");
   }
 
+  if (headline.length > 120) {
+    redirectWithError("/expert/profile", "headline-too-long");
+  }
+
   if (bio.length < 80) {
     redirectWithError("/expert/profile", "bio-too-short");
+  }
+
+  if (bio.length > 1200) {
+    redirectWithError("/expert/profile", "bio-too-long");
   }
 
   if (languages.length === 0) {
@@ -429,33 +563,24 @@ export async function updateProviderProfileAction(formData: FormData) {
 export async function createProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
-  const categoryName = getStringValue(formData, "category");
-  const title = getStringValue(formData, "title");
-  const description = getStringValue(formData, "description");
+  const categoryName = cleanText(getStringValue(formData, "category"), 80);
+  const title = cleanText(getStringValue(formData, "title"), 120);
+  const description = getStringValue(formData, "description").trim().slice(0, 800);
+
   const durationMinutes = parseDuration(
     getStringValue(formData, "durationMinutes"),
   );
+
   const priceCents = parsePriceCents(getStringValue(formData, "price"));
 
-  if (!categoryName) {
-    redirectWithError("/expert/services", "missing-required-fields");
-  }
-
-  if (title.length < 4) {
-    redirectWithError("/expert/services", "title-too-short");
-  }
-
-  if (description.length < 30) {
-    redirectWithError("/expert/services", "description-too-short");
-  }
-
-  if (!durationMinutes) {
-    redirectWithError("/expert/services", "invalid-duration");
-  }
-
-  if (!priceCents) {
-    redirectWithError("/expert/services", "invalid-price");
-  }
+  validateServiceInput({
+    categoryName,
+    title,
+    description,
+    durationMinutes,
+    priceCents,
+    errorPath: "/expert/services",
+  });
 
   const category = await getOrCreateCategory(categoryName);
 
@@ -465,8 +590,8 @@ export async function createProviderServiceAction(formData: FormData) {
       categoryId: category.id,
       title,
       description,
-      durationMinutes,
-      priceCents,
+      durationMinutes: durationMinutes!,
+      priceCents: priceCents!,
       currency: "EUR",
       isActive: true,
     },
@@ -477,44 +602,35 @@ export async function createProviderServiceAction(formData: FormData) {
   revalidatePath("/experts");
   revalidatePath(`/experts/${expert.id}`);
 
-  redirect("/expert/services");
+  redirect("/expert/services?saved=1");
 }
 
 export async function updateProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
   const serviceId = getStringValue(formData, "serviceId");
-  const categoryName = getStringValue(formData, "category");
-  const title = getStringValue(formData, "title");
-  const description = getStringValue(formData, "description");
+  const categoryName = cleanText(getStringValue(formData, "category"), 80);
+  const title = cleanText(getStringValue(formData, "title"), 120);
+  const description = getStringValue(formData, "description").trim().slice(0, 800);
+
   const durationMinutes = parseDuration(
     getStringValue(formData, "durationMinutes"),
   );
+
   const priceCents = parsePriceCents(getStringValue(formData, "price"));
 
   if (!serviceId) {
     redirectWithError("/expert/services", "service-not-found");
   }
 
-  if (!categoryName) {
-    redirectWithError("/expert/services", "missing-required-fields");
-  }
-
-  if (title.length < 4) {
-    redirectWithError("/expert/services", "title-too-short");
-  }
-
-  if (description.length < 30) {
-    redirectWithError("/expert/services", "description-too-short");
-  }
-
-  if (!durationMinutes) {
-    redirectWithError("/expert/services", "invalid-duration");
-  }
-
-  if (!priceCents) {
-    redirectWithError("/expert/services", "invalid-price");
-  }
+  validateServiceInput({
+    categoryName,
+    title,
+    description,
+    durationMinutes,
+    priceCents,
+    errorPath: "/expert/services",
+  });
 
   const existingService = await prisma.service.findFirst({
     where: {
@@ -537,8 +653,8 @@ export async function updateProviderServiceAction(formData: FormData) {
       categoryId: category.id,
       title,
       description,
-      durationMinutes,
-      priceCents,
+      durationMinutes: durationMinutes!,
+      priceCents: priceCents!,
       currency: "EUR",
     },
   });
@@ -548,7 +664,7 @@ export async function updateProviderServiceAction(formData: FormData) {
   revalidatePath("/experts");
   revalidatePath(`/experts/${expert.id}`);
 
-  redirect("/expert/services");
+  redirect("/expert/services?saved=1");
 }
 
 export async function toggleProviderServiceAction(formData: FormData) {
@@ -585,5 +701,5 @@ export async function toggleProviderServiceAction(formData: FormData) {
   revalidatePath("/experts");
   revalidatePath(`/experts/${expert.id}`);
 
-  redirect("/expert/services");
+  redirect("/expert/services?saved=1");
 }
