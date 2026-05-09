@@ -44,6 +44,14 @@ function getBookingsHref(role: string) {
   return "/buyer/bookings";
 }
 
+function getCompletedRedirectHref(role: string, bookingId: string) {
+  if (role === "ADMIN") {
+    return "/admin/bookings?updated=1";
+  }
+
+  return `/expert/bookings?completed=${bookingId}`;
+}
+
 function revalidateCallPaths(expertId: string, bookingId: string) {
   revalidatePath("/");
   revalidatePath("/buyer");
@@ -183,7 +191,7 @@ export async function markCallCompletedAction(formData: FormData) {
   });
 
   if (!booking) {
-    redirect("/expert/bookings?error=booking-not-found");
+    redirect(`${getBookingsHref(currentUser.role)}?error=booking-not-found`);
   }
 
   const isExpertOwner = booking.expert.userId === currentUser.id;
@@ -194,7 +202,7 @@ export async function markCallCompletedAction(formData: FormData) {
   }
 
   if (booking.status === "COMPLETED") {
-    redirect(`/expert/bookings?completed=${booking.id}`);
+    redirect(getCompletedRedirectHref(currentUser.role, booking.id));
   }
 
   if (booking.status !== "CONFIRMED") {
@@ -203,11 +211,11 @@ export async function markCallCompletedAction(formData: FormData) {
 
   const now = new Date();
 
-  if (now < booking.startTime && !isAdmin) {
-    redirect(`/calls/${booking.id}?error=call-not-started`);
+  if (now < booking.endTime && !isAdmin) {
+    redirect(`/calls/${booking.id}?error=call-not-ended`);
   }
 
-  await prisma.$transaction(async (tx) => {
+  const completed = await prisma.$transaction(async (tx) => {
     const updatedBooking = await tx.booking.updateMany({
       where: {
         id: booking.id,
@@ -220,10 +228,10 @@ export async function markCallCompletedAction(formData: FormData) {
     });
 
     if (updatedBooking.count === 0) {
-      return;
+      return false;
     }
 
-    await tx.expertProfile.update({
+    const updatedExpert = await tx.expertProfile.update({
       where: {
         id: booking.expertId,
       },
@@ -234,18 +242,38 @@ export async function markCallCompletedAction(formData: FormData) {
       },
     });
 
-    if (booking.callRoom) {
-      await tx.callRoom.update({
+    if (
+      updatedExpert.totalSessions >= 3 &&
+      updatedExpert.rating >= 3.8 &&
+      !updatedExpert.isVerified
+    ) {
+      await tx.expertProfile.update({
         where: {
-          bookingId: booking.id,
+          id: updatedExpert.id,
         },
         data: {
-          status: "ENDED",
-          endsAt: now,
+          isVerified: true,
+          verifiedAt: now,
         },
       });
     }
+
+    await tx.callRoom.updateMany({
+      where: {
+        bookingId: booking.id,
+      },
+      data: {
+        status: "ENDED",
+        endsAt: now,
+      },
+    });
+
+    return true;
   });
+
+  if (!completed) {
+    redirect(getCompletedRedirectHref(currentUser.role, booking.id));
+  }
 
   await sendNotification({
     to: booking.buyer.email,
@@ -277,5 +305,5 @@ export async function markCallCompletedAction(formData: FormData) {
 
   revalidateCallPaths(booking.expertId, booking.id);
 
-  redirect(`/expert/bookings?completed=${booking.id}`);
+  redirect(getCompletedRedirectHref(currentUser.role, booking.id));
 }

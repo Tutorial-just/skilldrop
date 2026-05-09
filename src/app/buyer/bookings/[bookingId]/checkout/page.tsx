@@ -2,14 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ArrowLeft,
-  CalendarDays,
   CheckCircle2,
   Clock3,
   Euro,
+  MessageCircle,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
-  Video,
   WalletCards,
 } from "lucide-react";
 
@@ -90,6 +89,7 @@ export default async function BookingCheckoutPage({
   const serviceTitle = booking.service?.title ?? "Booked call";
   const expertCanReceivePayouts = Boolean(booking.expert.stripeAccountId);
   const durationMinutes = getDurationMinutes(booking.startTime, booking.endTime);
+  const bookingNote = booking.note?.trim() || "";
 
   const pricing = calculatePricingBreakdown(booking.priceCents);
 
@@ -158,6 +158,37 @@ export default async function BookingCheckoutPage({
               <InfoRow label="Duration" value={`${durationMinutes} minutes`} />
               <InfoRow label="Status" value="Waiting for payment" />
             </div>
+          </Card>
+
+          <Card className="p-6 md:p-8">
+            <Badge variant="primary">
+              <MessageCircle size={14} />
+              Your note for the provider
+            </Badge>
+
+            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              What you need help with
+            </h2>
+
+            {bookingNote ? (
+              <div className="mt-5 rounded-[24px] border border-[var(--border)] bg-white/64 p-5">
+                <p className="whitespace-pre-wrap text-sm font-bold leading-7 text-[var(--foreground)]">
+                  {bookingNote}
+                </p>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-5">
+                <p className="text-sm font-bold leading-7 text-muted">
+                  No note was added. The provider will still receive your
+                  booking details after payment.
+                </p>
+              </div>
+            )}
+
+            <p className="mt-4 text-sm font-semibold leading-6 text-muted">
+              This note helps the provider prepare before the call. You can add
+              more context directly during the session.
+            </p>
           </Card>
 
           <Card className="p-6 md:p-8">
@@ -263,7 +294,10 @@ export default async function BookingCheckoutPage({
           <div className="mt-6 grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
             <PaymentRow label="Provider" value={providerName} />
             <PaymentRow label="Service" value={serviceTitle} />
-            <PaymentRow label="Time" value={formatShortDateTime(booking.startTime)} />
+            <PaymentRow
+              label="Time"
+              value={formatShortDateTime(booking.startTime)}
+            />
             <PaymentRow label="Duration" value={`${durationMinutes} min`} />
             <div className="h-px bg-[var(--border)]" />
             <PaymentRow
@@ -281,6 +315,23 @@ export default async function BookingCheckoutPage({
               strong
             />
           </div>
+
+          {bookingNote ? (
+            <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+              <div className="flex gap-3">
+                <MessageCircle
+                  size={18}
+                  className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+                />
+                <div>
+                  <p className="text-sm font-black">Your note</p>
+                  <p className="mt-1 line-clamp-4 text-sm font-bold leading-6 text-muted">
+                    {bookingNote}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {!expertCanReceivePayouts ? (
             <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
@@ -322,11 +373,11 @@ export default async function BookingCheckoutPage({
           <p className="mt-4 text-center text-xs font-bold leading-5 text-muted">
             By paying, you agree to SkillDrop{" "}
             <Link href="/legal/terms" className="text-[var(--primary-dark)]">
-                Terms
+              Terms
             </Link>{" "}
             and{" "}
             <Link href="/legal/refunds" className="text-[var(--primary-dark)]">
-                Refund Policy
+              Refund Policy
             </Link>
             .
           </p>

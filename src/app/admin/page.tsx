@@ -12,13 +12,13 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
-
+import { calculatePricingBreakdown } from "@/config/pricing";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-const PLATFORM_FEE_RATE = 0.05;
+
 
 export default async function AdminPage() {
   await requireRole(["admin"]);
@@ -175,6 +175,10 @@ export default async function AdminPage() {
       },
       select: {
         priceCents: true,
+         platformFeeCents: true,
+         clientServiceFeeCents: true,
+         clientTotalCents: true,
+         providerNetCents: true,
       },
     }),
 
@@ -267,12 +271,18 @@ export default async function AdminPage() {
   ]);
 
   const grossCompletedCents = completedBookings.reduce(
-    (sum, booking) => sum + booking.priceCents,
+    (sum, booking) => sum + getClientTotalCents(booking),
     0,
   );
 
-  const estimatedPlatformFeeCents = Math.round(
-    grossCompletedCents * PLATFORM_FEE_RATE,
+  const estimatedPlatformFeeCents = completedBookings.reduce(
+    (sum, booking) => sum + getPlatformGrossFeeCents(booking),
+    0,
+  );
+
+  const providerNetCompletedCents = completedBookings.reduce(
+   (sum, booking) => sum + getProviderNetCents(booking),
+   0,
   );
 
   const expertsWithRisk = rawExperts.map((expert) => {
@@ -523,11 +533,15 @@ export default async function AdminPage() {
                 />
                 <StatusRow label="Reviews" value={String(reviewsCount)} />
                 <StatusRow
-                  label="Completed booking volume"
+                  label="Completed client volume"
                   value={formatMoney(grossCompletedCents)}
                 />
                 <StatusRow
-                  label="Estimated platform commission"
+                  label="Provider net completed"
+                  value={formatMoney(providerNetCompletedCents)}
+                />
+                <StatusRow
+                  label="Estimated platform gross fee"
                   value={formatMoney(estimatedPlatformFeeCents)}
                 />
               </div>
@@ -1128,6 +1142,54 @@ function averageNullable(values: (number | null)[]) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function getPlatformGrossFeeCents(booking: {
+  priceCents: number;
+  platformFeeCents: number | null;
+  clientServiceFeeCents: number | null;
+}) {
+  if (
+    typeof booking.platformFeeCents === "number" &&
+    typeof booking.clientServiceFeeCents === "number"
+  ) {
+    return booking.platformFeeCents + booking.clientServiceFeeCents;
+  }
+
+  const pricing = calculatePricingBreakdown(booking.priceCents);
+
+  return pricing.platformGrossFeeCents;
+}
+
+function getClientTotalCents(booking: {
+  priceCents: number;
+  clientTotalCents: number | null;
+}) {
+  if (typeof booking.clientTotalCents === "number") {
+    return booking.clientTotalCents;
+  }
+
+  const pricing = calculatePricingBreakdown(booking.priceCents);
+
+  return pricing.clientTotalCents;
+}
+
+function getProviderNetCents(booking: {
+  priceCents: number;
+  providerNetCents: number | null;
+  platformFeeCents: number | null;
+}) {
+  if (typeof booking.providerNetCents === "number") {
+    return booking.providerNetCents;
+  }
+
+  if (typeof booking.platformFeeCents === "number") {
+    return Math.max(booking.priceCents - booking.platformFeeCents, 0);
+  }
+
+  const pricing = calculatePricingBreakdown(booking.priceCents);
+
+  return pricing.providerNetCents;
 }
 
 function formatMoney(cents: number) {

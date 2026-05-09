@@ -7,6 +7,7 @@ import {
   Clock3,
   Euro,
   Mail,
+  MessageCircle,
   ShieldCheck,
   Star,
   UserRound,
@@ -149,8 +150,8 @@ export default async function ExpertBookingsPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Join upcoming sessions, complete finished calls and manage
-                cancellations from one workspace.
+                Join upcoming sessions, review client notes, complete finished
+                calls and manage cancellations from one workspace.
               </p>
             </div>
 
@@ -244,6 +245,10 @@ export default async function ExpertBookingsPage({
                     />
                   </div>
 
+                  {nextBooking.note ? (
+                    <ClientNote note={nextBooking.note} className="mt-5" />
+                  ) : null}
+
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                     {canJoinBooking(nextBooking) ? (
                       <Link
@@ -306,6 +311,7 @@ export default async function ExpertBookingsPage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
+                <Tip text="Read the client note before the call so you can prepare faster." />
                 <Tip text="Paid bookings are confirmed automatically after Stripe payment." />
                 <Tip text="Complete calls after the session so clients can leave reviews." />
                 <Tip text="Keep your availability fresh every week." />
@@ -400,6 +406,7 @@ function BookingCard({
     endTime: Date;
     status: string;
     priceCents: number;
+    note: string | null;
     buyer: {
       name: string | null;
       email: string;
@@ -448,6 +455,13 @@ function BookingCard({
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
+
+            {booking.note ? (
+              <Badge variant="primary">
+                <MessageCircle size={14} />
+                Client note
+              </Badge>
+            ) : null}
 
             {booking.review ? (
               <Badge variant="success">
@@ -505,6 +519,10 @@ function BookingCard({
             <SmallPill icon={Euro} text={formatMoney(booking.priceCents)} />
           </div>
 
+          {booking.note ? (
+            <ClientNote note={booking.note} className="mt-4" />
+          ) : null}
+
           {isPending ? (
             <p className="mt-4 rounded-2xl border border-[var(--warning)]/20 bg-white/55 p-3 text-sm font-bold text-[var(--warning)]">
               This reservation is waiting for client payment.
@@ -548,6 +566,34 @@ function BookingCard({
           {canComplete ? <CompleteCallForm bookingId={booking.id} /> : null}
 
           {canCancel ? <CancelCallForm bookingId={booking.id} /> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientNote({
+  note,
+  className = "",
+}: {
+  note: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-[var(--border)] bg-white/64 p-4 ${className}`}
+    >
+      <div className="flex gap-3">
+        <MessageCircle
+          size={18}
+          className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+        />
+
+        <div>
+          <p className="text-sm font-black">Client note</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
+            {note}
+          </p>
         </div>
       </div>
     </div>

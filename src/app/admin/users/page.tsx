@@ -119,6 +119,7 @@ export default async function AdminUsersPage({
             id: true,
             status: true,
             priceCents: true,
+            clientTotalCents: true,
           },
         },
         reviews: {
@@ -391,6 +392,7 @@ function UserAdminCard({
       id: string;
       status: string;
       priceCents: number;
+      clientTotalCents: number | null;
     }[];
     reviews: {
       id: string;
@@ -427,7 +429,7 @@ function UserAdminCard({
   );
 
   const completedSpendCents = completedBookings.reduce(
-    (sum, booking) => sum + booking.priceCents,
+    (sum, booking) => sum + getBookingClientTotalCents(booking),
     0,
   );
 
@@ -438,7 +440,7 @@ function UserAdminCard({
         booking.status === "CONFIRMED" ||
         booking.status === "COMPLETED",
     )
-    .reduce((sum, booking) => sum + booking.priceCents, 0);
+    .reduce((sum, booking) => sum + getBookingClientTotalCents(booking), 0);
 
   const lowReviews = user.reviews.filter((review) => review.rating <= 2);
 
@@ -752,7 +754,9 @@ function SmallFact({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
-      <p className="mt-1 break-words text-sm font-black">{value}</p>
+      <p className="mt-1 line-clamp-2 break-words text-sm font-black" title={value}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -764,6 +768,17 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <p className="text-sm font-black">{value}</p>
     </div>
   );
+}
+
+function getBookingClientTotalCents(booking: {
+  priceCents: number;
+  clientTotalCents: number | null;
+}) {
+  if (typeof booking.clientTotalCents === "number") {
+    return booking.clientTotalCents;
+  }
+
+  return booking.priceCents;
 }
 
 function formatUserAdminError(error: string) {

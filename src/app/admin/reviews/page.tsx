@@ -640,11 +640,14 @@ function ReviewAdminCard({
               icon={UserRound}
               label="Buyer"
               value={review.buyer.name ?? review.buyer.email}
+              title={review.buyer.email}
+              
             />
             <SmallFact
               icon={ShieldCheck}
               label="Expert"
               value={review.expert.user.name ?? review.expert.user.email}
+              title={review.expert.user.email}
             />
             <SmallFact
               icon={MessageCircle}
@@ -673,6 +676,13 @@ function ReviewAdminCard({
             className="btn btn-secondary"
           >
             Manage expert
+          </Link>
+
+          <Link
+            href={`/admin/users?q=${encodeURIComponent(review.buyer.email)}`}
+            className="btn btn-secondary"
+          >
+            Find buyer
           </Link>
         </div>
       </div>
@@ -826,7 +836,9 @@ function ScoreRow({
         {label}
       </p>
 
-      <p className="mt-1 text-sm font-black">{value ? `${value}/5` : "—"}</p>
+      <p className="mt-1 text-sm font-black">
+        {typeof value === "number" ? `${value}/5` : "—"}
+      </p>
     </div>
   );
 }
@@ -835,10 +847,12 @@ function SmallFact({
   icon: Icon,
   label,
   value,
+  title,
 }: {
   icon: typeof UserRound;
   label: string;
   value: string;
+  title?: string;
 }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
@@ -847,13 +861,18 @@ function SmallFact({
         {label}
       </div>
 
-      <p className="mt-2 truncate text-sm font-black" title={value}>
+      <p className="mt-2 truncate text-sm font-black" title={title ?? value}>
         {value}
       </p>
+
+      {title && title !== value ? (
+        <p className="mt-1 truncate text-xs font-bold text-muted" title={title}>
+          {title}
+        </p>
+      ) : null}
     </div>
   );
 }
-
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">

@@ -20,11 +20,15 @@ import {
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  calculatePricingBreakdown,
+  formatMoneyFromCents,
+} from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-const PLATFORM_COMMISSION_RATE = 0.15;
+
 
 export default async function ExpertStatsPage() {
   const { user } = await requireRole(["expert", "admin"]);
@@ -100,8 +104,14 @@ export default async function ExpertStatsPage() {
   );
 
   const totalRevenueCents = completedRevenueCents + upcomingRevenueCents;
-  const platformFeeCents = Math.round(totalRevenueCents * PLATFORM_COMMISSION_RATE);
-  const estimatedPayoutCents = totalRevenueCents - platformFeeCents;
+  const platformFeeCents = [...completedBookings, ...upcomingBookings].reduce(
+    (sum, booking) => sum + getBookingPricing(booking).platformFeeCents,
+    0,
+  );
+  const estimatedPayoutCents = [...completedBookings, ...upcomingBookings].reduce(
+    (sum, booking) => sum + getBookingPricing(booking).providerNetCents,
+    0,
+  );
 
   const averageBookingValueCents =
     expert.bookings.length > 0
@@ -219,7 +229,7 @@ export default async function ExpertStatsPage() {
               icon={WalletCards}
               label="Estimated payout"
               value={formatMoney(estimatedPayoutCents)}
-              hint="After 15% commission"
+              hint="After SkillDrop commission"
             />
 
             <Metric
@@ -348,7 +358,7 @@ export default async function ExpertStatsPage() {
                 <MoneyBox
                   label="Commission"
                   value={formatMoney(platformFeeCents)}
-                  hint="15% estimate"
+                  hint="SkillDrop fee estimate"
                 />
 
                 <MoneyBox
@@ -838,8 +848,38 @@ function buildMonthlyStats(
   return months;
 }
 
+function getBookingPricing(booking: {
+  priceCents: number;
+  platformFeeCents?: number | null;
+  providerNetCents?: number | null;
+  clientServiceFeeCents?: number | null;
+  clientTotalCents?: number | null;
+}) {
+  const fallback = calculatePricingBreakdown(booking.priceCents);
+
+  return {
+    servicePriceCents: booking.priceCents,
+    platformFeeCents:
+      typeof booking.platformFeeCents === "number"
+        ? booking.platformFeeCents
+        : fallback.providerCommissionCents,
+    providerNetCents:
+      typeof booking.providerNetCents === "number"
+        ? booking.providerNetCents
+        : fallback.providerNetCents,
+    clientServiceFeeCents:
+      typeof booking.clientServiceFeeCents === "number"
+        ? booking.clientServiceFeeCents
+        : fallback.clientServiceFeeCents,
+    clientTotalCents:
+      typeof booking.clientTotalCents === "number"
+        ? booking.clientTotalCents
+        : fallback.clientTotalCents,
+  };
+}
+
 function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+   return formatMoneyFromCents(cents);
 }
 
 function formatDate(date: Date) {

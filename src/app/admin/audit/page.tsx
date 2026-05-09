@@ -578,8 +578,19 @@ function AuditLogCard({
           <SmallFact label="Log ID" value={log.id} />
         </div>
 
+        {getEntityHref(log.entityType, log.entityId) ? (
+          <div className="mt-4">
+            <Link
+              href={getEntityHref(log.entityType, log.entityId) ?? "/admin"}
+              className="btn btn-secondary"
+            >
+              Open related {log.entityType.toLowerCase()}
+            </Link>
+          </div>
+        ) : null}
+
         <pre className="mt-4 max-h-[240px] overflow-auto rounded-2xl border border-[var(--border)] bg-white/64 p-4 text-xs font-bold leading-6 text-muted">
-          {JSON.stringify(log.metadata ?? {}, null, 2)}
+          {formatMetadata(log.metadata)}
         </pre>
       </div>
     </Card>
@@ -697,6 +708,26 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function getEntityHref(entityType: string, entityId: string | null) {
+  if (!entityId) {
+    return null;
+  }
+
+  if (entityType === "USER") {
+    return `/admin/users?q=${encodeURIComponent(entityId)}`;
+  }
+
+  if (entityType === "EXPERT") {
+    return `/admin/experts?q=${encodeURIComponent(entityId)}`;
+  }
+
+  if (entityType === "BOOKING") {
+    return `/admin/bookings?q=${encodeURIComponent(entityId)}`;
+  }
+
+  return null;
+}
+
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("en", {
     weekday: "short",
@@ -706,4 +737,12 @@ function formatDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatMetadata(metadata: Prisma.JsonValue | null) {
+  try {
+    return JSON.stringify(metadata ?? {}, null, 2);
+  } catch {
+    return "{}";
+  }
 }

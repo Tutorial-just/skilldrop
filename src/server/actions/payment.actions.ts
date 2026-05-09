@@ -326,9 +326,23 @@ export async function createCheckoutSessionAction(bookingId: string) {
   const providerName = booking.expert.user.name ?? "Provider";
   const serviceTitle = booking.service?.title ?? "SkillDrop call";
 
+  const stripeMetadata = {
+    bookingId: booking.id,
+    buyerId: buyer.id,
+    expertId: booking.expertId,
+    serviceId: booking.serviceId ?? "",
+    servicePriceCents: String(pricing.servicePriceCents),
+    providerCommissionCents: String(pricing.providerCommissionCents),
+    providerNetCents: String(pricing.providerNetCents),
+    clientServiceFeeCents: String(pricing.clientServiceFeeCents),
+    clientTotalCents: String(pricing.clientTotalCents),
+    platformFeeCents: String(pricing.platformFeeCents),
+    platformGrossFeeCents: String(pricing.platformGrossFeeCents),
+    currency: booking.currency.toLowerCase(),
+  };
+
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
-    payment_method_types: ["card"],
     customer_email: buyer.email,
 
     line_items: [
@@ -338,6 +352,10 @@ export async function createCheckoutSessionAction(bookingId: string) {
           product_data: {
             name: serviceTitle,
             description: `Call with ${providerName}`,
+            metadata: {
+              bookingId: booking.id,
+              expertId: booking.expertId,
+            },
           },
           unit_amount: pricing.clientTotalCents,
         },
@@ -350,34 +368,13 @@ export async function createCheckoutSessionAction(bookingId: string) {
       transfer_data: {
         destination: stripeAccountId,
       },
-      metadata: {
-        bookingId: booking.id,
-        buyerId: buyer.id,
-        expertId: booking.expertId,
-        servicePriceCents: String(pricing.servicePriceCents),
-        providerCommissionCents: String(pricing.providerCommissionCents),
-        platformFeeCents: String(pricing.platformFeeCents),
-        clientServiceFeeCents: String(pricing.clientServiceFeeCents),
-        providerNetCents: String(pricing.providerNetCents),
-        clientTotalCents: String(pricing.clientTotalCents),
-        platformGrossFeeCents: String(pricing.platformGrossFeeCents),
-      },
+      metadata: stripeMetadata,
     },
 
     success_url: `${appUrl}/buyer/bookings?payment=success&booking=${booking.id}`,
     cancel_url: `${appUrl}${getCheckoutHref(booking.id)}`,
 
-    metadata: {
-      bookingId: booking.id,
-      buyerId: buyer.id,
-      expertId: booking.expertId,
-      servicePriceCents: String(pricing.servicePriceCents),
-      platformFeeCents: String(pricing.platformFeeCents),
-      clientServiceFeeCents: String(pricing.clientServiceFeeCents),
-      providerNetCents: String(pricing.providerNetCents),
-      clientTotalCents: String(pricing.clientTotalCents),
-      platformGrossFeeCents: String(pricing.platformGrossFeeCents),
-    },
+    metadata: stripeMetadata,
   });
 
   if (!session.url) {
@@ -390,6 +387,7 @@ export async function createCheckoutSessionAction(bookingId: string) {
     },
     data: {
       stripeCheckoutSessionId: session.id,
+
       platformFeeCents: pricing.providerCommissionCents,
       providerNetCents: pricing.providerNetCents,
       clientServiceFeeCents: pricing.clientServiceFeeCents,

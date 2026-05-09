@@ -47,6 +47,7 @@ type ExpertPublicPageProps = {
 };
 
 const MAX_VISIBLE_SLOTS = 24;
+const MAX_BOOKING_NOTE_LENGTH = 500;
 
 export default async function ExpertPublicPage({
   params,
@@ -465,15 +466,16 @@ export default async function ExpertPublicPage({
                 />
                 <Step
                   number="2"
-                  title="Pick time"
-                  text="Select one of the provider’s open slots."
+                  title="Add context"
+                  text="Tell the provider what you need help with."
                 />
                 <Step
                   number="3"
-                  title="Pay safely"
-                  text="After payment, your call room will be prepared."
+                  title="Pick time"
+                  text="Select one of the provider’s open slots."
                 />
               </div>
+
               <p className="mt-4 text-center text-xs font-bold leading-5 text-muted">
                 Booking is protected by SkillDrop{" "}
                 <Link href="/legal/safety" className="text-[var(--primary-dark)]">
@@ -641,7 +643,8 @@ export default async function ExpertPublicPage({
                   </h2>
 
                   <p className="mt-2 max-w-2xl leading-7 text-muted">
-                    Pick one available slot for your 1:1 call.
+                    Add a short note, then pick one available slot for your 1:1
+                    call.
                   </p>
                 </div>
 
@@ -656,46 +659,70 @@ export default async function ExpertPublicPage({
 
               <div className="mt-6 grid gap-4">
                 {groupedSlots.length > 0 && selectedService && canBook ? (
-                  groupedSlots.map((group) => (
-                    <div
-                      key={group.label}
-                      className="rounded-[24px] border border-[var(--border)] bg-white/45 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
-                            {group.label}
-                          </p>
+                  <form action={createBookingAction} className="grid gap-4">
+                    <input type="hidden" name="expertId" value={expert.id} />
+                    <input
+                      type="hidden"
+                      name="serviceId"
+                      value={selectedService.id}
+                    />
 
-                          <p className="mt-1 text-xs font-bold text-muted">
-                            {group.slots.length} available
-                          </p>
+                    <div className="rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+                      <div className="flex flex-col gap-2">
+                        <label
+                          htmlFor="booking-note"
+                          className="text-sm font-black tracking-[-0.01em]"
+                        >
+                          What do you need help with?
+                        </label>
+
+                        <p className="text-sm font-semibold leading-6 text-muted">
+                          Add a short note so the provider can prepare before
+                          the call. Example: “I need a simple cake recipe”,
+                          “Please review my CV”, or “Help me fix my Wi-Fi”.
+                        </p>
+
+                        <textarea
+                          id="booking-note"
+                          name="note"
+                          maxLength={MAX_BOOKING_NOTE_LENGTH}
+                          rows={4}
+                          placeholder="Describe your problem or goal..."
+                          className="mt-2 min-h-28 resize-y rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold leading-6 outline-none transition placeholder:text-muted focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
+                        />
+
+                        <p className="text-xs font-bold text-muted">
+                          Optional. Max {MAX_BOOKING_NOTE_LENGTH} characters.
+                        </p>
+                      </div>
+                    </div>
+
+                    {groupedSlots.map((group) => (
+                      <div
+                        key={group.label}
+                        className="rounded-[24px] border border-[var(--border)] bg-white/45 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                              {group.label}
+                            </p>
+
+                            <p className="mt-1 text-xs font-bold text-muted">
+                              {group.slots.length} available
+                            </p>
+                          </div>
+
+                          <Badge>{group.slots.length}</Badge>
                         </div>
 
-                        <Badge>{group.slots.length}</Badge>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {group.slots.map((slot) => (
-                          <form key={slot.id} action={createBookingAction}>
-                            <input
-                              type="hidden"
-                              name="expertId"
-                              value={expert.id}
-                            />
-                            <input
-                              type="hidden"
-                              name="serviceId"
-                              value={selectedService.id}
-                            />
-                            <input
-                              type="hidden"
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {group.slots.map((slot) => (
+                            <button
+                              key={slot.id}
+                              type="submit"
                               name="availabilityId"
                               value={slot.id}
-                            />
-
-                            <button
-                              type="submit"
                               className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
                               title={`${formatDateTime(
                                 slot.startTime,
@@ -704,11 +731,11 @@ export default async function ExpertPublicPage({
                               <Clock3 size={14} />
                               {formatTime(slot.startTime)}
                             </button>
-                          </form>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </form>
                 ) : null}
 
                 {groupedSlots.length > 0 && selectedService && !canBook ? (
@@ -1376,6 +1403,10 @@ function formatError(error: string) {
 
   if (error === "expert-payout-not-ready") {
     return "This provider is finishing payout setup. Booking is temporarily unavailable.";
+  }
+
+  if (error === "booking-note-too-long") {
+    return "Your booking note is too long. Please keep it under 500 characters.";
   }
 
   return "Something went wrong. Please try again.";

@@ -15,6 +15,7 @@ import {
   Sparkles,
   Video,
   XCircle,
+  LucideIcon
 } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/get-current-user";
@@ -172,10 +173,13 @@ export default async function AdminLaunchChecklistPage() {
       icon: Video,
     },
     {
-      title: "Stripe connected experts",
-      text: `${stripeConnectedExpertsCount} expert${stripeConnectedExpertsCount === 1 ? "" : "s"} with Stripe account.`,
+      title: "Stripe accounts created",
+      text: `${stripeConnectedExpertsCount} expert${
+        stripeConnectedExpertsCount === 1 ? "" : "s"
+      } with a Stripe Connect account ID. Final payout readiness is checked during checkout.`,
       ready: stripeConnectedExpertsCount > 0,
       icon: CreditCard,
+
     },
   ];
 
@@ -209,6 +213,12 @@ export default async function AdminLaunchChecklistPage() {
       text: `${notificationsCount} notification${notificationsCount === 1 ? "" : "s"} created.`,
       ready: notificationsCount > 0,
       icon: Mail,
+    },
+    {
+      title: "Legal pages reviewed",
+      text: "Terms, refund policy, safety and privacy pages should be checked manually before public launch.",
+      ready: Boolean(process.env.NEXT_PUBLIC_SUPPORT_EMAIL),
+      icon: FileText,
     },
   ];
 
@@ -313,7 +323,7 @@ export default async function AdminLaunchChecklistPage() {
                   ready={databaseReady && directUrlReady}
                 />
                 <DecisionRow
-                  label="Stripe checkout"
+                  label="Stripe checkout + webhook"
                   ready={stripeSecretReady && stripeWebhookReady}
                 />
                 <DecisionRow
@@ -334,6 +344,8 @@ export default async function AdminLaunchChecklistPage() {
               <div className="mt-5 grid gap-3">
                 <LaunchTip text="Test one full paid booking with Stripe test mode." />
                 <LaunchTip text="Check Stripe webhook logs after payment." />
+                <LaunchTip text="After test payment, confirm the booking becomes CONFIRMED automatically." />
+                <LaunchTip text="After refund from admin panel, confirm the booking becomes REFUNDED and both users receive notifications." />
                 <LaunchTip text="Test buyer review after completed call." />
                 <LaunchTip text="Check legal pages: terms, privacy, refunds, safety." />
                 <LaunchTip text="Use a real support email before public users arrive." />
@@ -372,7 +384,7 @@ function ChecklistSection({
     title: string;
     text: string;
     ready: boolean;
-    icon: typeof ShieldCheck;
+    icon: LucideIcon;
   }[];
 }) {
   return (
@@ -399,7 +411,7 @@ function ChecklistRow({
     title: string;
     text: string;
     ready: boolean;
-    icon: typeof ShieldCheck;
+    icon: LucideIcon;
   };
 }) {
   const Icon = check.icon;

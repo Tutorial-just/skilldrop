@@ -12,6 +12,28 @@ type CreateAdminAuditLogInput = {
   metadata?: Prisma.InputJsonValue;
 };
 
+function normalizeText(value: string | null | undefined, fallback: string) {
+  const normalized = value?.replace(/\s+/g, " ").trim();
+
+  return normalized || fallback;
+}
+
+function normalizeOptionalText(value: string | null | undefined) {
+  const normalized = value?.replace(/\s+/g, " ").trim();
+
+  return normalized || null;
+}
+
+function normalizeEmail(email?: string | null) {
+  const normalized = email?.trim().toLowerCase();
+
+  return normalized || null;
+}
+
+function normalizeMetadata(metadata?: Prisma.InputJsonValue) {
+  return metadata ?? {};
+}
+
 export async function createAdminAuditLog({
   adminId,
   adminEmail,
@@ -21,15 +43,48 @@ export async function createAdminAuditLog({
   message,
   metadata,
 }: CreateAdminAuditLogInput) {
-  await prisma.adminAuditLog.create({
+  const auditLog = await prisma.adminAuditLog.create({
     data: {
       adminId: adminId || null,
-      adminEmail: adminEmail || null,
-      action,
-      entityType,
-      entityId: entityId || null,
-      message: message || null,
-      metadata: metadata ?? {},
+      adminEmail: normalizeEmail(adminEmail),
+      action: normalizeText(action, "UNKNOWN_ACTION"),
+      entityType: normalizeText(entityType, "UNKNOWN_ENTITY"),
+      entityId: normalizeOptionalText(entityId),
+      message: normalizeOptionalText(message),
+      metadata: normalizeMetadata(metadata),
     },
+  });
+
+  return auditLog;
+}
+
+export async function createAdminAuditLogSafe(input: CreateAdminAuditLogInput) {
+  try {
+    return await createAdminAuditLog(input);
+  } catch (error) {
+    console.error(
+      "Admin audit log failed:",
+      error instanceof Error ? error.message : "Unknown error",
+    );
+
+    return null;
+  }
+}
+
+export async function createSystemAuditLog({
+  action,
+  entityType,
+  entityId,
+  message,
+  metadata,
+}: Omit<CreateAdminAuditLogInput, "adminId" | "adminEmail">) {
+  return createAdminAuditLog({
+    adminId: null,
+    adminEmail: "system@skilldrop.local",
+    action,
+    entityType,
+    entityId,
+    message,
+    metadata,
   });
 }

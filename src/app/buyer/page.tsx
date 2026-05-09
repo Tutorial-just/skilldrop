@@ -12,6 +12,7 @@ import {
   Bell,
   HeartHandshake,
   Lightbulb,
+  MessageCircle,
   Search,
   ShieldCheck,
   Sparkles,
@@ -164,9 +165,14 @@ export default async function BuyerDashboardPage() {
     (booking) => booking.status === "COMPLETED" && !booking.review,
   );
 
+  const joinableBooking = upcomingBookings.find((booking) =>
+    canJoinBooking(booking),
+  );
+
   const nextActionBooking =
     pendingPaymentBookings[0] ??
-    upcomingBookings.find((booking) => canJoinBooking(booking)) ??
+    joinableBooking ??
+    waitingReviewBookings[0] ??
     confirmedUpcomingBookings[0] ??
     paidWaitingConfirmationBookings[0] ??
     upcomingBookings[0] ??
@@ -185,7 +191,10 @@ export default async function BuyerDashboardPage() {
         booking.status === "CONFIRMED" ||
         booking.status === "COMPLETED",
     )
-    .reduce((sum, booking) => sum + getBookingPricing(booking).clientTotalCents, 0);
+    .reduce(
+      (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
+      0,
+    );
 
   const recommendedExperts = await prisma.expertProfile.findMany({
     where: {
@@ -249,8 +258,8 @@ export default async function BuyerDashboardPage() {
     hasUpcoming: upcomingBookings.length > 0,
     hasCompleted: completedBookings.length > 0,
     hasSavedExperts: buyer.savedExperts.length > 0,
-    hasReviewWaiting: waitingReviewBookings.length > 0,
     hasExpertsAvailable: recommendedExperts.length > 0,
+    hasNoPendingPayment: pendingPaymentBookings.length === 0,
   });
 
   return (
@@ -379,6 +388,11 @@ export default async function BuyerDashboardPage() {
 
               <div className="mt-5 grid gap-2">
                 <MiniCheck
+                  done={pendingPaymentBookings.length === 0}
+                  text="No payment waiting"
+                />
+
+                <MiniCheck
                   done={upcomingBookings.length > 0}
                   text="Upcoming call scheduled"
                 />
@@ -394,10 +408,25 @@ export default async function BuyerDashboardPage() {
                 />
 
                 <MiniCheck
-                  done={waitingReviewBookings.length > 0}
-                  text="Review waiting"
+                  done={recommendedExperts.length > 0}
+                  text="Experts available now"
                 />
               </div>
+
+              {waitingReviewBookings.length > 0 ? (
+                <div className="mt-5 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4">
+                  <div className="flex gap-3">
+                    <Star
+                      size={18}
+                      className="mt-0.5 shrink-0 text-[var(--accent)]"
+                    />
+                    <p className="text-sm font-bold leading-6 text-muted">
+                      You have completed calls waiting for review. Leaving a
+                      review helps keep the marketplace trustworthy.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </Card>
           </div>
 
@@ -421,6 +450,30 @@ export default async function BuyerDashboardPage() {
 
                   <div className="mt-6 grid gap-4">
                     {pendingPaymentBookings.slice(0, 3).map((booking) => (
+                      <SmallBookingCard key={booking.id} booking={booking} />
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+
+              {waitingReviewBookings.length > 0 ? (
+                <Card className="border-[var(--accent)]/20 bg-[var(--accent-soft)] p-5 md:p-6">
+                  <Badge variant="accent">
+                    <Star size={14} />
+                    Review waiting
+                  </Badge>
+
+                  <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                    Share feedback after your calls.
+                  </h2>
+
+                  <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                    Your feedback helps good experts grow and helps other users
+                    choose safely.
+                  </p>
+
+                  <div className="mt-6 grid gap-4">
+                    {waitingReviewBookings.slice(0, 3).map((booking) => (
                       <SmallBookingCard key={booking.id} booking={booking} />
                     ))}
                   </div>
@@ -660,6 +713,8 @@ type DashboardBooking = {
   endTime: Date;
   priceCents: number;
   status: string;
+  note: string | null;
+  clientServiceFeeCents?: number | null;
   clientTotalCents?: number | null;
   platformFeeCents?: number | null;
   providerNetCents?: number | null;
@@ -687,28 +742,34 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
   const canJoin = canJoinBooking(booking);
   const pricing = getBookingPricing(booking);
   const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const bookingNote = booking.note?.trim() ?? "";
+  const canReview = booking.status === "COMPLETED" && !booking.review;
 
   const title =
     booking.status === "PENDING"
       ? "Complete payment to confirm your call."
       : canJoin
         ? "Your call room is open."
-        : booking.status === "CONFIRMED"
-          ? "Your next session is confirmed."
-          : booking.status === "PAID"
-            ? "Payment received. Confirmation is pending."
-            : "Your next session is ready.";
+        : canReview
+          ? "Leave a review for your completed call."
+          : booking.status === "CONFIRMED"
+            ? "Your next session is confirmed."
+            : booking.status === "PAID"
+              ? "Payment received. Confirmation is pending."
+              : "Your next session is ready.";
 
   const description =
     booking.status === "PENDING"
       ? "This reservation is not confirmed yet. Finish checkout to keep the selected time."
       : canJoin
         ? "Join now and make sure your microphone and camera are ready."
-        : booking.status === "CONFIRMED"
-          ? "Prepare one clear question before the call starts."
-          : booking.status === "PAID"
-            ? "The system is finishing confirmation. Check again shortly."
-            : "Open your bookings page to manage this call.";
+        : canReview
+          ? "Your feedback helps other buyers choose and helps good experts grow."
+          : booking.status === "CONFIRMED"
+            ? "Prepare one clear question before the call starts."
+            : booking.status === "PAID"
+              ? "The system is finishing confirmation. Check again shortly."
+              : "Open your bookings page to manage this call.";
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-center">
@@ -717,7 +778,7 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
           variant={
             booking.status === "PENDING"
               ? "accent"
-              : canJoin
+              : canJoin || canReview
                 ? "success"
                 : "primary"
           }
@@ -731,6 +792,11 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
             <>
               <Video size={14} />
               Join now
+            </>
+          ) : canReview ? (
+            <>
+              <Star size={14} />
+              Review waiting
             </>
           ) : (
             <>
@@ -746,6 +812,23 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
 
         <p className="mt-3 leading-7 text-muted">{description}</p>
 
+        {bookingNote ? (
+          <BookingNote note={bookingNote} className="mt-5" />
+        ) : booking.status === "CONFIRMED" ? (
+          <div className="mt-5 rounded-2xl border border-dashed border-[var(--border-strong)] bg-white/55 p-4">
+            <div className="flex gap-3">
+              <MessageCircle
+                size={18}
+                className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+              />
+              <p className="text-sm font-bold leading-6 text-muted">
+                No note was added for this booking. Prepare one clear question
+                before joining.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           {booking.status === "PENDING" ? (
             <Link
@@ -760,6 +843,16 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
             <Link href={`/calls/${booking.id}`} className="btn btn-primary">
               Join call
               <Video size={18} />
+            </Link>
+          ) : null}
+
+          {canReview ? (
+            <Link
+              href={`/buyer/reviews?bookingId=${booking.id}`}
+              className="btn btn-primary"
+            >
+              Leave review
+              <Star size={18} />
             </Link>
           ) : null}
 
@@ -871,6 +964,8 @@ function StartPanel() {
 function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
   const pricing = getBookingPricing(booking);
   const canJoin = canJoinBooking(booking);
+  const canReview = booking.status === "COMPLETED" && !booking.review;
+  const bookingNote = booking.note?.trim() ?? "";
 
   return (
     <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4">
@@ -879,10 +974,24 @@ function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
 
+            {bookingNote ? (
+              <Badge variant="primary">
+                <MessageCircle size={14} />
+                Note
+              </Badge>
+            ) : null}
+
             {canJoin ? (
               <Badge variant="success">
                 <Video size={14} />
                 Join now
+              </Badge>
+            ) : null}
+
+            {canReview ? (
+              <Badge variant="accent">
+                <Star size={14} />
+                Review waiting
               </Badge>
             ) : null}
           </div>
@@ -911,6 +1020,10 @@ function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
 
             <SmallPill icon={Euro} text={formatMoney(pricing.clientTotalCents)} />
           </div>
+
+          {bookingNote ? (
+            <BookingNote note={bookingNote} className="mt-4" compact />
+          ) : null}
         </div>
 
         <div className="flex shrink-0 flex-col gap-2 md:min-w-[150px]">
@@ -930,9 +1043,55 @@ function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
             </Link>
           ) : null}
 
+          {canReview ? (
+            <Link
+              href={`/buyer/reviews?bookingId=${booking.id}`}
+              className="btn btn-primary"
+            >
+              Review
+              <Star size={17} />
+            </Link>
+          ) : null}
+
           <Link href={`/experts/${booking.expertId}`} className="btn btn-secondary">
             Expert
           </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BookingNote({
+  note,
+  className = "",
+  compact = false,
+}: {
+  note: string;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-[var(--border)] bg-white/64 p-4 ${className}`}
+    >
+      <div className="flex gap-3">
+        <MessageCircle
+          size={18}
+          className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+        />
+
+        <div>
+          <p className="text-sm font-black">Your note</p>
+          <p
+            className={
+              compact
+                ? "mt-1 line-clamp-3 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted"
+                : "mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted"
+            }
+          >
+            {note}
+          </p>
         </div>
       </div>
     </div>
@@ -1105,16 +1264,23 @@ function ExpertCard({
   );
 }
 
-function ActivityRow({
-  booking,
-}: {
-  booking: DashboardBooking;
-}) {
+function ActivityRow({ booking }: { booking: DashboardBooking }) {
+  const bookingNote = booking.note?.trim() ?? "";
+
   return (
     <Link href="/buyer/bookings" className="group">
       <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between gap-3">
-          <StatusBadge status={booking.status} />
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge status={booking.status} />
+
+            {bookingNote ? (
+              <Badge variant="primary">
+                <MessageCircle size={14} />
+                Note
+              </Badge>
+            ) : null}
+          </div>
 
           <p className="text-xs font-bold text-muted">
             {formatDateTime(booking.startTime)}
@@ -1128,6 +1294,12 @@ function ActivityRow({
         <p className="mt-1 text-sm font-semibold text-muted">
           With {booking.expert.user.name ?? booking.expert.user.email}
         </p>
+
+        {bookingNote ? (
+          <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-muted">
+            {bookingNote}
+          </p>
+        ) : null}
       </div>
     </Link>
   );
@@ -1305,20 +1477,20 @@ function calculateBuyerReadiness({
   hasUpcoming,
   hasCompleted,
   hasSavedExperts,
-  hasReviewWaiting,
   hasExpertsAvailable,
+  hasNoPendingPayment,
 }: {
   hasUpcoming: boolean;
   hasCompleted: boolean;
   hasSavedExperts: boolean;
-  hasReviewWaiting: boolean;
   hasExpertsAvailable: boolean;
+  hasNoPendingPayment: boolean;
 }) {
   const checks = [
+    hasNoPendingPayment,
     hasUpcoming,
     hasCompleted,
     hasSavedExperts,
-    hasReviewWaiting,
     hasExpertsAvailable,
   ];
 
@@ -1421,16 +1593,16 @@ function canJoinBooking(booking: {
 
 function getBookingPricing(booking: {
   priceCents: number;
+  clientServiceFeeCents?: number | null;
   clientTotalCents?: number | null;
-  platformFeeCents?: number | null;
 }) {
   const fallback = calculatePricingBreakdown(booking.priceCents);
 
   return {
     servicePriceCents: booking.priceCents,
     clientServiceFeeCents:
-      typeof booking.platformFeeCents === "number"
-        ? Math.max(booking.platformFeeCents - fallback.providerCommissionCents, 0)
+      typeof booking.clientServiceFeeCents === "number"
+        ? booking.clientServiceFeeCents
         : fallback.clientServiceFeeCents,
     clientTotalCents:
       typeof booking.clientTotalCents === "number"

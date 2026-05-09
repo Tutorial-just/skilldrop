@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Clock3,
   Compass,
-  Euro,
   Globe2,
   HeartHandshake,
   Languages,
@@ -38,28 +37,38 @@ type ExpertsPageProps = {
 
 const quickSearches = [
   {
+    label: "Cooking help",
+    href: "/experts?q=recipe cake cooking baking",
+    icon: HeartHandshake,
+  },
+  {
     label: "CV review",
-    href: "/experts?q=CV review",
+    href: "/experts?q=CV resume review job",
     icon: WalletCards,
   },
   {
     label: "Documents",
-    href: "/experts?q=documents admin help",
+    href: "/experts?q=documents admin help paperwork",
     icon: Compass,
+  },
+  {
+    label: "Tech help",
+    href: "/experts?q=tech computer code website network",
+    icon: Sparkles,
   },
   {
     label: "Moving abroad",
-    href: "/experts?q=moving abroad relocation",
-    icon: Compass,
+    href: "/experts?q=moving abroad relocation immigration",
+    icon: Globe2,
   },
   {
     label: "Languages",
-    href: "/experts?q=translation language",
+    href: "/experts?q=translation language speaking practice",
     icon: Languages,
   },
   {
-    label: "Practical advice",
-    href: "/experts?q=practical advice guidance",
+    label: "Life advice",
+    href: "/experts?q=practical advice guidance life",
     icon: HeartHandshake,
   },
 ];
@@ -68,6 +77,53 @@ const sortLabels: Record<string, string> = {
   best: "Best match",
   cheapest: "Cheapest",
   soonest: "Soonest",
+};
+
+const synonymMap: Record<string, string[]> = {
+  cv: ["cv", "resume", "job", "career", "application", "interview"],
+  resume: ["cv", "resume", "job", "career", "application", "interview"],
+  entretien: ["interview", "job", "career", "cv", "resume"],
+  interview: ["interview", "job", "career", "cv", "resume"],
+
+  document: ["document", "documents", "admin", "paperwork", "form", "file"],
+  documents: ["document", "documents", "admin", "paperwork", "form", "file"],
+  admin: ["admin", "documents", "paperwork", "form", "file"],
+  papier: ["documents", "admin", "paperwork", "form"],
+  papiers: ["documents", "admin", "paperwork", "form"],
+
+  recette: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+  recettes: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+  recipe: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+  recipes: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+  pirog: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+  piroga: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+  cake: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+  baking: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+  cooking: ["recipe", "recipes", "cooking", "cook", "baking", "cake", "food"],
+
+  france: ["france", "french", "documents", "relocation", "moving"],
+  french: ["france", "french", "translation", "language", "documents"],
+  francais: ["france", "french", "translation", "language", "documents"],
+  français: ["france", "french", "translation", "language", "documents"],
+
+  language: ["language", "translation", "speaking", "practice", "english", "french"],
+  languages: ["language", "translation", "speaking", "practice", "english", "french"],
+  traduction: ["translation", "language", "french", "english"],
+  translation: ["translation", "language", "french", "english"],
+
+  code: ["code", "programming", "developer", "website", "debug", "tech"],
+  website: ["website", "web", "code", "developer", "programming"],
+  computer: ["computer", "tech", "it", "network", "support"],
+  network: ["network", "wifi", "router", "it", "tech", "computer"],
+  wifi: ["wifi", "network", "router", "internet", "tech"],
+
+  moving: ["moving", "relocation", "abroad", "immigration", "country"],
+  relocation: ["moving", "relocation", "abroad", "immigration", "country"],
+  abroad: ["moving", "relocation", "abroad", "immigration", "country"],
+
+  math: ["math", "mathematics", "school", "study", "homework"],
+  school: ["school", "study", "homework", "student", "math"],
+  study: ["school", "study", "homework", "student", "learning"],
 };
 
 export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
@@ -90,17 +146,52 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
   const now = new Date();
 
-  const searchTerms = query
-    .toLowerCase()
-    .split(/[,\s]+/)
-    .map((term) => term.trim())
-    .filter((term) => term.length >= 2);
+  const searchTerms = getSearchTerms(query);
+  const hasSearch = searchTerms.length > 0;
 
-  const normalizedQuery = query.toLowerCase();
-
-  const arraySearchTerms = Array.from(
-    new Set([...searchTerms, normalizedQuery].filter(Boolean)),
-  );
+  const textSearchOr = hasSearch
+    ? searchTerms.flatMap((term) => [
+        {
+          headline: {
+            contains: term,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          bio: {
+            contains: term,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          country: {
+            contains: term,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          services: {
+            some: {
+              isActive: true,
+              OR: [
+                {
+                  title: {
+                    contains: term,
+                    mode: "insensitive" as const,
+                  },
+                },
+                {
+                  description: {
+                    contains: term,
+                    mode: "insensitive" as const,
+                  },
+                },
+              ],
+            },
+          },
+        },
+      ])
+    : [];
 
   const rawExperts = await prisma.expertProfile.findMany({
     where: {
@@ -129,61 +220,23 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
         },
       },
 
-      ...(query
+      ...(hasSearch
         ? {
             OR: [
-              {
-                headline: {
-                  contains: query,
-                  mode: "insensitive" as const,
-                },
-              },
-              {
-                bio: {
-                  contains: query,
-                  mode: "insensitive" as const,
-                },
-              },
-              {
-                country: {
-                  contains: query,
-                  mode: "insensitive" as const,
-                },
-              },
+              ...textSearchOr,
               {
                 skills: {
-                  hasSome: arraySearchTerms,
+                  hasSome: searchTerms,
                 },
               },
               {
                 languages: {
-                  hasSome: arraySearchTerms,
+                  hasSome: searchTerms,
                 },
               },
               {
                 tags: {
-                  hasSome: arraySearchTerms,
-                },
-              },
-              {
-                services: {
-                  some: {
-                    isActive: true,
-                    OR: [
-                      {
-                        title: {
-                          contains: query,
-                          mode: "insensitive" as const,
-                        },
-                      },
-                      {
-                        description: {
-                          contains: query,
-                          mode: "insensitive" as const,
-                        },
-                      },
-                    ],
-                  },
+                  hasSome: searchTerms,
                 },
               },
             ],
@@ -249,7 +302,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
         totalSessions: "desc",
       },
     ],
-    take: 30,
+    take: 40,
   });
 
   let experts = rawExperts.map((expert) => ({
@@ -262,10 +315,29 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       openSlots: expert.availability.length,
       reviews: expert.reviews,
     }),
+    searchScore: calculateSearchScore({
+      query,
+      searchTerms,
+      headline: expert.headline,
+      bio: expert.bio,
+      country: expert.country,
+      skills: expert.skills,
+      tags: expert.tags,
+      languages: expert.languages,
+      services: expert.services.map((service) => ({
+        title: service.title,
+        description: service.description,
+        category: service.category?.name ?? "",
+      })),
+    }),
   }));
 
   if (sort === "best") {
     experts = experts.sort((a, b) => {
+      if (hasSearch && b.searchScore !== a.searchScore) {
+        return b.searchScore - a.searchScore;
+      }
+
       if (b.qualityScore !== a.qualityScore) {
         return b.qualityScore - a.qualityScore;
       }
@@ -324,19 +396,20 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
         <div className="relative container-page py-8 md:py-10 lg:py-14">
           <Badge variant="primary">
             <Search size={14} />
-            Find providers
+            Find help
           </Badge>
 
           <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_380px] xl:items-end">
             <div>
               <h1 className="heading-lg max-w-5xl text-balance">
-                Find the right person for a short practical call.
+                Find the right person for any practical problem.
               </h1>
 
               <p className="mt-5 max-w-3xl text-lg leading-8 text-muted">
-                Search by topic, language, skill or practical problem. Choose a
-                service, check payment readiness, pick a time and book a 1:1
-                video call.
+                Search by topic, skill, language, tag or simple problem. From
+                CV review to recipes, tech help, documents, languages, school
+                support or life advice — book a short 1:1 call with someone who
+                can help.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2">
@@ -389,7 +462,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                     name="q"
                     type="search"
                     defaultValue={query}
-                    placeholder="Search: CV review, documents, translation, moving abroad..."
+                    placeholder="Search: recipe, CV, documents, tech help, French, math..."
                     className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-muted"
                   />
                 </div>
@@ -482,13 +555,25 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <Step number="1" title="Choose provider" text="Open a profile." />
-                <Step number="2" title="Pick service" text="Select an offer." />
-                <Step number="3" title="Book time" text="Reserve a slot." />
+                <Step
+                  number="1"
+                  title="Describe your problem"
+                  text="Search with simple words, tags or a topic."
+                />
+                <Step
+                  number="2"
+                  title="Choose provider"
+                  text="Open a profile and check services."
+                />
+                <Step
+                  number="3"
+                  title="Pick time"
+                  text="Reserve an available slot."
+                />
                 <Step
                   number="4"
                   title="Pay safely"
-                  text="Confirm booking through checkout if payments are ready."
+                  text="Confirm through checkout if payments are ready."
                 />
               </div>
             </Card>
@@ -500,8 +585,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <p className="mt-4 text-sm font-bold leading-6 text-muted">
-                Try simple words like “French”, “CV”, “documents”, “moving” or
-                “translation”.
+                Try natural words like “recipe”, “wifi”, “French documents”,
+                “math”, “CV”, “interview”, “moving”, “translation” or
+                “website”.
               </p>
             </Card>
 
@@ -512,7 +598,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <TrustPoint text="Only approved experts with active services are shown." />
+                <TrustPoint text="Only approved providers with active services are shown." />
                 <TrustPoint text="Payment readiness is visible before booking." />
                 <TrustPoint text="Profiles without open slots can still be discovered." />
               </div>
@@ -527,8 +613,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 </h2>
 
                 <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                  Showing approved providers with active services, payment
-                  readiness, availability and quality-based ranking.
+                  Showing approved providers with active services, tags,
+                  payment readiness, availability and quality-based ranking.
                 </p>
               </div>
 
@@ -565,8 +651,10 @@ function ExpertSearchCard({
     country: string | null;
     languages: string[];
     skills: string[];
+    tags: string[];
     rating: number;
     qualityScore: number;
+    searchScore: number;
     totalReviews: number;
     totalSessions: number;
     isVerified: boolean;
@@ -605,6 +693,10 @@ function ExpertSearchCard({
   const startingTotal = startingPrice
     ? calculatePricingBreakdown(startingPrice).clientTotalCents
     : null;
+
+  const visibleTags = Array.from(
+    new Set([...expert.tags, ...expert.skills]),
+  ).slice(0, 8);
 
   return (
     <Link href={`/experts/${expert.id}`} className="group">
@@ -692,11 +784,11 @@ function ExpertSearchCard({
                   </Badge>
                 ))}
 
-                {expert.skills.slice(0, 6).map((skill) => (
-                  <HashTag key={skill} text={skill} />
+                {visibleTags.map((tag) => (
+                  <HashTag key={tag} text={tag} />
                 ))}
 
-                {expert.skills.length === 0 ? (
+                {visibleTags.length === 0 ? (
                   <span className="text-sm font-semibold text-muted">
                     No tags added yet.
                   </span>
@@ -722,7 +814,7 @@ function ExpertSearchCard({
                 value={expert.stripeAccountId ? "Ready" : "Not ready"}
               />
 
-              <SideRow label="Match" value={`${expert.qualityScore}/100`} />
+              <SideRow label="Quality" value={`${expert.qualityScore}/100`} />
 
               <SideRow label="Sessions" value={String(expert.totalSessions)} />
             </div>
@@ -885,6 +977,129 @@ function EmptyState({ title, text }: { title: string; text: string }) {
       </div>
     </Card>
   );
+}
+
+function getSearchTerms(query: string) {
+  const baseTerms = query
+    .toLowerCase()
+    .split(/[,\s]+/)
+    .map((term) => normalizeSearchTerm(term))
+    .filter((term) => term.length >= 2);
+
+  const normalizedQuery = normalizeSearchTerm(query.toLowerCase());
+
+  const expandedTerms = baseTerms.flatMap((term) => [
+    term,
+    ...(synonymMap[term] ?? []),
+  ]);
+
+  return Array.from(
+    new Set([...baseTerms, ...expandedTerms, normalizedQuery].filter(Boolean)),
+  );
+}
+
+function normalizeSearchTerm(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/\s+/g, " ");
+}
+
+function calculateSearchScore({
+  query,
+  searchTerms,
+  headline,
+  bio,
+  country,
+  skills,
+  tags,
+  languages,
+  services,
+}: {
+  query: string;
+  searchTerms: string[];
+  headline: string;
+  bio: string;
+  country: string | null;
+  skills: string[];
+  tags: string[];
+  languages: string[];
+  services: {
+    title: string;
+    description: string;
+    category: string;
+  }[];
+}) {
+  if (!query || searchTerms.length === 0) {
+    return 0;
+  }
+
+  const normalizedHeadline = normalizeSearchTerm(headline);
+  const normalizedBio = normalizeSearchTerm(bio);
+  const normalizedCountry = normalizeSearchTerm(country ?? "");
+
+  const normalizedSkills = skills.map(normalizeSearchTerm);
+  const normalizedTags = tags.map(normalizeSearchTerm);
+  const normalizedLanguages = languages.map(normalizeSearchTerm);
+
+  const normalizedServices = services.map((service) => ({
+    title: normalizeSearchTerm(service.title),
+    description: normalizeSearchTerm(service.description),
+    category: normalizeSearchTerm(service.category),
+  }));
+
+  let score = 0;
+
+  for (const term of searchTerms) {
+    if (!term) {
+      continue;
+    }
+
+    if (normalizedHeadline.includes(term)) {
+      score += 18;
+    }
+
+    if (normalizedBio.includes(term)) {
+      score += 10;
+    }
+
+    if (normalizedCountry.includes(term)) {
+      score += 6;
+    }
+
+    if (normalizedSkills.some((skill) => skill === term || skill.includes(term))) {
+      score += 18;
+    }
+
+    if (normalizedTags.some((tag) => tag === term || tag.includes(term))) {
+      score += 22;
+    }
+
+    if (
+      normalizedLanguages.some(
+        (language) => language === term || language.includes(term),
+      )
+    ) {
+      score += 12;
+    }
+
+    for (const service of normalizedServices) {
+      if (service.title.includes(term)) {
+        score += 24;
+      }
+
+      if (service.description.includes(term)) {
+        score += 14;
+      }
+
+      if (service.category.includes(term)) {
+        score += 8;
+      }
+    }
+  }
+
+  return score;
 }
 
 function calculateQualityScore({

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { sendNotification } from "@/server/services/notification.service";
 import { createAdminAuditLog } from "@/server/services/admin-audit.service";
+import { calculatePricingBreakdown } from "@/config/pricing";
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -58,7 +59,10 @@ function getBookingDateUpdates({
   const now = new Date();
 
   return {
-    paidAt: status === "PAID" && !booking.paidAt ? now : booking.paidAt,
+    paidAt:
+      (status === "PAID" || status === "CONFIRMED") && !booking.paidAt
+        ? now
+        : booking.paidAt,
 
     completedAt:
       status === "COMPLETED" && !booking.completedAt
@@ -82,20 +86,62 @@ function getBookingDateUpdates({
   };
 }
 
-function revalidateAdminBookingPaths(expertId?: string) {
+function revalidateAdminBookingPaths(expertId?: string, bookingId?: string) {
   revalidatePath("/admin");
   revalidatePath("/admin/bookings");
+  revalidatePath("/admin/users");
+
   revalidatePath("/buyer");
   revalidatePath("/buyer/bookings");
+  revalidatePath("/buyer/reviews");
+
   revalidatePath("/expert");
   revalidatePath("/expert/bookings");
   revalidatePath("/expert/earnings");
   revalidatePath("/expert/stats");
+  revalidatePath("/expert/availability");
+
   revalidatePath("/experts");
+  revalidatePath("/notifications");
+
+  if (bookingId) {
+    revalidatePath(`/buyer/bookings/${bookingId}/checkout`);
+    revalidatePath(`/calls/${bookingId}`);
+  }
 
   if (expertId) {
     revalidatePath(`/experts/${expertId}`);
   }
+}
+
+function getBookingPricingMetadata(booking: {
+  priceCents: number;
+  platformFeeCents: number | null;
+  providerNetCents: number | null;
+  clientServiceFeeCents: number | null;
+  clientTotalCents: number | null;
+}) {
+  const fallback = calculatePricingBreakdown(booking.priceCents);
+
+  return {
+    servicePriceCents: booking.priceCents,
+    platformFeeCents:
+      typeof booking.platformFeeCents === "number"
+        ? booking.platformFeeCents
+        : fallback.platformFeeCents,
+    providerNetCents:
+      typeof booking.providerNetCents === "number"
+        ? booking.providerNetCents
+        : fallback.providerNetCents,
+    clientServiceFeeCents:
+      typeof booking.clientServiceFeeCents === "number"
+        ? booking.clientServiceFeeCents
+        : fallback.clientServiceFeeCents,
+    clientTotalCents:
+      typeof booking.clientTotalCents === "number"
+        ? booking.clientTotalCents
+        : fallback.clientTotalCents,
+  };
 }
 
 export async function updateExpertStatusAction(formData: FormData) {
@@ -231,6 +277,7 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
     "CONFIRMED",
     "COMPLETED",
     "CANCELLED",
+    "REFUNDED",
     "DISPUTED",
   ];
 
@@ -252,12 +299,15 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
         },
       },
       service: true,
+      callRoom: true,
     },
   });
 
   if (!booking) {
     redirect("/admin/bookings?error=booking-not-found");
   }
+
+  const pricing = getBookingPricingMetadata(booking);
 
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
@@ -270,6 +320,11 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
           status: newStatus,
           booking,
         }),
+        ...(newStatus === "CANCELLED" || newStatus === "REFUNDED"
+          ? {
+              expiresAt: null,
+            }
+          : {}),
       },
     });
 
@@ -277,12 +332,29 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
       (newStatus === "CANCELLED" || newStatus === "REFUNDED") &&
       booking.availabilityId
     ) {
-      await tx.availability.update({
+      await tx.availability.updateMany({
         where: {
           id: booking.availabilityId,
         },
         data: {
           isBooked: false,
+        },
+      });
+    }
+
+    if (
+      booking.callRoom &&
+      (newStatus === "CANCELLED" ||
+        newStatus === "REFUNDED" ||
+        newStatus === "COMPLETED")
+    ) {
+      await tx.callRoom.updateMany({
+        where: {
+          bookingId: booking.id,
+        },
+        data: {
+          status: "ENDED",
+          endsAt: new Date(),
         },
       });
     }
@@ -313,13 +385,16 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
       buyerEmail: booking.buyer.email,
       expertEmail: booking.expert.user.email,
       serviceTitle: booking.service?.title ?? null,
+      note: booking.note,
       previousStatus: booking.status,
       newStatus,
-      priceCents: booking.priceCents,
+      ...pricing,
+      stripeCheckoutSessionId: booking.stripeCheckoutSessionId,
+      stripePaymentIntentId: booking.stripePaymentIntentId,
     },
   });
 
-  revalidateAdminBookingPaths(booking.expertId);
+  revalidateAdminBookingPaths(booking.expertId, booking.id);
 
   redirect("/admin/bookings?updated=1");
 }
@@ -409,6 +484,7 @@ export async function refundBookingByAdminAction(formData: FormData) {
         },
       },
       service: true,
+      callRoom: true,
     },
   });
 
@@ -445,6 +521,8 @@ export async function refundBookingByAdminAction(formData: FormData) {
       refund_application_fee: true,
       metadata: {
         bookingId: booking.id,
+        adminId: currentAdmin.id,
+        adminEmail: currentAdmin.email,
       },
     });
   } catch (error) {
@@ -468,6 +546,8 @@ export async function refundBookingByAdminAction(formData: FormData) {
     redirect("/admin/bookings?error=refund-failed");
   }
 
+  const pricing = getBookingPricingMetadata(booking);
+
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: {
@@ -476,16 +556,30 @@ export async function refundBookingByAdminAction(formData: FormData) {
       data: {
         status: "REFUNDED",
         refundedAt: new Date(),
+        expiresAt: null,
+        stripePaymentIntentId: booking.stripePaymentIntentId ?? paymentIntentId,
       },
     });
 
     if (booking.availabilityId) {
-      await tx.availability.update({
+      await tx.availability.updateMany({
         where: {
           id: booking.availabilityId,
         },
         data: {
           isBooked: false,
+        },
+      });
+    }
+
+    if (booking.callRoom) {
+      await tx.callRoom.updateMany({
+        where: {
+          bookingId: booking.id,
+        },
+        data: {
+          status: "ENDED",
+          endsAt: new Date(),
         },
       });
     }
@@ -500,6 +594,9 @@ export async function refundBookingByAdminAction(formData: FormData) {
     }" was refunded.`,
     metadata: {
       bookingId: booking.id,
+      expertId: booking.expertId,
+      paymentIntentId,
+      ...pricing,
     },
   });
 
@@ -512,6 +609,9 @@ export async function refundBookingByAdminAction(formData: FormData) {
     }" was refunded.`,
     metadata: {
       bookingId: booking.id,
+      expertId: booking.expertId,
+      paymentIntentId,
+      ...pricing,
     },
   });
 
@@ -527,15 +627,16 @@ export async function refundBookingByAdminAction(formData: FormData) {
       buyerEmail: booking.buyer.email,
       expertEmail: booking.expert.user.email,
       serviceTitle: booking.service?.title ?? null,
-      priceCents: booking.priceCents,
+      note: booking.note,
       previousStatus: booking.status,
       newStatus: "REFUNDED",
       stripeCheckoutSessionId: booking.stripeCheckoutSessionId,
       paymentIntentId,
+      ...pricing,
     },
   });
 
-  revalidateAdminBookingPaths(booking.expertId);
+  revalidateAdminBookingPaths(booking.expertId, booking.id);
 
   redirect("/admin/bookings?status=refunded&updated=1");
 }
@@ -570,6 +671,8 @@ export async function markBookingDisputedByAdminAction(formData: FormData) {
     redirect("/admin/bookings?error=booking-not-found");
   }
 
+  const pricing = getBookingPricingMetadata(booking);
+
   await prisma.booking.update({
     where: {
       id: booking.id,
@@ -579,6 +682,7 @@ export async function markBookingDisputedByAdminAction(formData: FormData) {
       disputeReason,
       disputeNote: disputeNote || null,
       disputedAt: new Date(),
+      expiresAt: null,
     },
   });
 
@@ -591,7 +695,9 @@ export async function markBookingDisputedByAdminAction(formData: FormData) {
     }" was marked for review. SkillDrop will review the case.`,
     metadata: {
       bookingId: booking.id,
+      expertId: booking.expertId,
       disputeReason,
+      disputeNote: disputeNote || null,
     },
   });
 
@@ -604,7 +710,9 @@ export async function markBookingDisputedByAdminAction(formData: FormData) {
     }" was marked for review. SkillDrop will review the case.`,
     metadata: {
       bookingId: booking.id,
+      expertId: booking.expertId,
       disputeReason,
+      disputeNote: disputeNote || null,
     },
   });
 
@@ -620,14 +728,16 @@ export async function markBookingDisputedByAdminAction(formData: FormData) {
       buyerEmail: booking.buyer.email,
       expertEmail: booking.expert.user.email,
       serviceTitle: booking.service?.title ?? null,
+      note: booking.note,
       previousStatus: booking.status,
       newStatus: "DISPUTED",
       disputeReason,
       disputeNote: disputeNote || null,
+      ...pricing,
     },
   });
 
-  revalidateAdminBookingPaths(booking.expertId);
+  revalidateAdminBookingPaths(booking.expertId, booking.id);
 
   redirect("/admin/bookings?status=disputed&updated=1");
 }
@@ -658,6 +768,7 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
         },
       },
       service: true,
+      callRoom: true,
     },
   });
 
@@ -670,6 +781,7 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
   }
 
   const now = new Date();
+  const pricing = getBookingPricingMetadata(booking);
 
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
@@ -686,6 +798,7 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
           newStatus === "CANCELLED" && !booking.cancelledAt
             ? now
             : booking.cancelledAt,
+        expiresAt: null,
         disputeNote: booking.disputeNote
           ? `${booking.disputeNote}\n\nResolved as ${newStatus}.`
           : `Resolved as ${newStatus}.`,
@@ -693,12 +806,24 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
     });
 
     if (newStatus === "CANCELLED" && booking.availabilityId) {
-      await tx.availability.update({
+      await tx.availability.updateMany({
         where: {
           id: booking.availabilityId,
         },
         data: {
           isBooked: false,
+        },
+      });
+    }
+
+    if (booking.callRoom) {
+      await tx.callRoom.updateMany({
+        where: {
+          bookingId: booking.id,
+        },
+        data: {
+          status: "ENDED",
+          endsAt: now,
         },
       });
     }
@@ -726,6 +851,7 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
     }" was resolved as ${newStatus.toLowerCase()}.`,
     metadata: {
       bookingId: booking.id,
+      expertId: booking.expertId,
       resolution: newStatus,
     },
   });
@@ -739,6 +865,7 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
     }" was resolved as ${newStatus.toLowerCase()}.`,
     metadata: {
       bookingId: booking.id,
+      expertId: booking.expertId,
       resolution: newStatus,
     },
   });
@@ -755,15 +882,17 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
       buyerEmail: booking.buyer.email,
       expertEmail: booking.expert.user.email,
       serviceTitle: booking.service?.title ?? null,
+      note: booking.note,
       previousStatus: booking.status,
       newStatus,
       disputeReason: booking.disputeReason,
       previousDisputeNote: booking.disputeNote,
       resolution: newStatus,
+      ...pricing,
     },
   });
 
-  revalidateAdminBookingPaths(booking.expertId);
+  revalidateAdminBookingPaths(booking.expertId, booking.id);
 
   redirect(`/admin/bookings?status=${newStatus.toLowerCase()}&updated=1`);
 }

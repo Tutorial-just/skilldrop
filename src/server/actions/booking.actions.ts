@@ -19,6 +19,7 @@ type BookingStatusValue =
   | "DISPUTED";
 
 const PENDING_BOOKING_EXPIRES_MINUTES = 15;
+const MAX_BOOKING_NOTE_LENGTH = 500;
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -29,6 +30,11 @@ function getStringValue(formData: FormData, key: string) {
 
   return value.trim();
 }
+
+function cleanBookingNote(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("en", {
     weekday: "short",
@@ -138,9 +144,17 @@ export async function createBookingAction(formData: FormData) {
   const expertId = getStringValue(formData, "expertId");
   const serviceId = getStringValue(formData, "serviceId");
   const availabilityId = getStringValue(formData, "availabilityId");
+  const rawNote = getStringValue(formData, "note");
+  const note = cleanBookingNote(rawNote);
 
   if (!expertId || !serviceId || !availabilityId) {
     redirect(`/experts/${expertId || ""}?error=missing-booking-data`);
+  }
+
+  if (note.length > MAX_BOOKING_NOTE_LENGTH) {
+    redirect(
+      `/experts/${expertId}?service=${serviceId}&error=booking-note-too-long`,
+    );
   }
 
   const expert = await prisma.expertProfile.findUnique({
@@ -202,6 +216,7 @@ export async function createBookingAction(formData: FormData) {
         serviceId: string;
         startTime: Date;
         endTime: Date;
+        note: string | null;
       }
     | null = null;
 
@@ -245,6 +260,7 @@ export async function createBookingAction(formData: FormData) {
           clientTotalCents: pricing.clientTotalCents,
           status: "PENDING",
           expiresAt,
+          note: note || null,
         },
       });
 
@@ -267,6 +283,7 @@ export async function createBookingAction(formData: FormData) {
         serviceId: createdBooking.serviceId,
         startTime: createdBooking.startTime,
         endTime: createdBooking.endTime,
+        note: note || null,
       };
     });
   } catch {
@@ -294,33 +311,38 @@ export async function createBookingAction(formData: FormData) {
       servicePriceCents: pricing.servicePriceCents,
       clientServiceFeeCents: pricing.clientServiceFeeCents,
       clientTotalCents: pricing.clientTotalCents,
+      note: booking.note,
     },
   });
 
   const buyerName = getDisplayName(buyer);
 
- await sendNotification({
-  to: expert.user.email,
-  type: "BOOKING_PENDING_PAYMENT",
-  subject: "A client reserved your time slot",
-  message: `${buyerName} reserved "${service.title}" for ${formatDateTime(
-    booking.startTime,
-  )}. The booking will be confirmed after payment.`,
-  metadata: {
-    bookingId: booking.id,
-    expertId,
-    serviceId,
-    buyerId: buyer.id,
-    buyerName,
-    serviceTitle: service.title,
-    startTime: booking.startTime.toISOString(),
-    endTime: booking.endTime.toISOString(),
-    expiresInMinutes: PENDING_BOOKING_EXPIRES_MINUTES,
-    servicePriceCents: pricing.servicePriceCents,
-    platformFeeCents: pricing.platformFeeCents,
-    providerNetCents: pricing.providerNetCents,
-  },
- });
+  await sendNotification({
+    to: expert.user.email,
+    type: "BOOKING_PENDING_PAYMENT",
+    subject: "A client reserved your time slot",
+    message: `${buyerName} reserved "${service.title}" for ${formatDateTime(
+      booking.startTime,
+    )}. The booking will be confirmed after payment.${
+      booking.note ? ` Note: ${booking.note}` : ""
+    }`,
+    metadata: {
+      bookingId: booking.id,
+      expertId,
+      serviceId,
+      buyerId: buyer.id,
+      buyerName,
+      serviceTitle: service.title,
+      startTime: booking.startTime.toISOString(),
+      endTime: booking.endTime.toISOString(),
+      expiresInMinutes: PENDING_BOOKING_EXPIRES_MINUTES,
+      servicePriceCents: pricing.servicePriceCents,
+      platformFeeCents: pricing.platformFeeCents,
+      providerNetCents: pricing.providerNetCents,
+      note: booking.note,
+    },
+  });
+
   revalidateBookingPaths(expertId, booking.id);
 
   redirect(`/buyer/bookings/${booking.id}/checkout`);
@@ -506,7 +528,9 @@ export async function updateBookingStatusAction(formData: FormData) {
 
   if (status === "COMPLETED") {
     if (!canCompleteBooking(booking.status)) {
-      redirect(`${getBookingsRedirectHref(currentUser.role)}?error=cannot-complete`);
+      redirect(
+        `${getBookingsRedirectHref(currentUser.role)}?error=cannot-complete`,
+      );
     }
 
     if (booking.endTime > now && !isAdmin) {

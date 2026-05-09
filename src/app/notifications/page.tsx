@@ -64,6 +64,16 @@ export default async function NotificationsPage() {
     (notification) => !notification.isRead,
   ).length;
 
+  const bookingNotifications = notifications.filter((notification) =>
+    notification.type.startsWith("BOOKING"),
+  ).length;
+
+  const paymentNotifications = notifications.filter(
+    (notification) =>
+      notification.type === "PAYMENT_CONFIRMED" ||
+      notification.type === "BOOKING_REFUNDED",
+  ).length;
+
   const backHref = getDashboardHref(currentUser.role);
 
   return (
@@ -92,14 +102,15 @@ export default async function NotificationsPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Booking updates, payment confirmations, review requests and
-                important account activity appear here.
+                Booking updates, payment confirmations, review requests, refunds,
+                disputes and important account activity appear here.
               </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
               {unreadCount > 0 ? (
                 <form action={markAllNotificationsReadAction}>
+                  <input type="hidden" name="returnTo" value="/notifications" />
                   <button type="submit" className="btn btn-primary w-full">
                     Mark all read
                     <CheckCircle2 size={18} />
@@ -113,7 +124,7 @@ export default async function NotificationsPage() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-3">
+          <div className="mt-8 grid gap-3 md:grid-cols-4">
             <MetricCard
               label="Unread"
               value={String(unreadCount)}
@@ -127,9 +138,15 @@ export default async function NotificationsPage() {
             />
 
             <MetricCard
-              label="Account"
-              value={formatRole(currentUser.role)}
-              hint="Current workspace"
+              label="Bookings"
+              value={String(bookingNotifications)}
+              hint="Booking-related"
+            />
+
+            <MetricCard
+              label="Payments"
+              value={String(paymentNotifications)}
+              hint="Payment/refund"
             />
           </div>
         </div>
@@ -153,7 +170,10 @@ export default async function NotificationsPage() {
               </p>
             </div>
 
-            <Badge>{notifications.length} shown</Badge>
+            <div className="flex flex-wrap gap-2">
+              <Badge>{notifications.length} shown</Badge>
+              <Badge>{formatRole(currentUser.role)}</Badge>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-4">
@@ -206,6 +226,14 @@ function NotificationCard({
 
   const Icon = getNotificationIcon(notification.type);
 
+  const serviceTitle = getMetadataString(notification.metadata, "serviceTitle");
+  const buyerName = getMetadataString(notification.metadata, "buyerName");
+  const note = getMetadataString(notification.metadata, "note");
+  const disputeReason = getMetadataString(notification.metadata, "disputeReason");
+  const resolution = getMetadataString(notification.metadata, "resolution");
+  const bookingId = getMetadataString(notification.metadata, "bookingId");
+  const expertId = getMetadataString(notification.metadata, "expertId");
+
   return (
     <div
       className={
@@ -243,6 +271,42 @@ function NotificationCard({
             <p className="mt-2 text-sm font-semibold leading-6 text-muted">
               {notification.message}
             </p>
+
+            {serviceTitle || buyerName || disputeReason || resolution ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {serviceTitle ? <MetaPill label="Service" value={serviceTitle} /> : null}
+                {buyerName ? <MetaPill label="Buyer" value={buyerName} /> : null}
+                {disputeReason ? (
+                  <MetaPill label="Dispute" value={disputeReason} />
+                ) : null}
+                {resolution ? <MetaPill label="Resolution" value={resolution} /> : null}
+              </div>
+            ) : null}
+
+            {note ? (
+              <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                <div className="flex gap-3">
+                  <MessageCircle
+                    size={18}
+                    className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+                  />
+
+                  <div>
+                    <p className="text-sm font-black">Booking note</p>
+                    <p className="mt-1 line-clamp-5 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
+                      {note}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {bookingId || expertId ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {bookingId ? <TinyId label="Booking" value={bookingId} /> : null}
+                {expertId ? <TinyId label="Expert" value={expertId} /> : null}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -363,7 +427,7 @@ function getNotificationIcon(type: string) {
     return Clock3;
   }
 
-  if (type === "BOOKING_CANCELLED") {
+  if (type === "BOOKING_CANCELLED" || type === "BOOKING_REFUNDED") {
     return XCircle;
   }
 
@@ -380,6 +444,26 @@ function getNotificationIcon(type: string) {
   }
 
   return MessageCircle;
+}
+
+function MetaPill({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]">
+      <span className="text-muted">{label}:</span>
+      <span className="truncate">{value}</span>
+    </span>
+  );
+}
+
+function TinyId({ label, value }: { label: string; value: string }) {
+  return (
+    <span
+      title={value}
+      className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-[10px] font-black text-muted"
+    >
+      {label}: <span className="max-w-[160px] truncate">{value}</span>
+    </span>
+  );
 }
 
 function EmptyState() {
@@ -413,12 +497,16 @@ function getNotificationActionHref({
   const bookingId = getMetadataString(metadata, "bookingId");
   const expertId = getMetadataString(metadata, "expertId");
 
+  if (role === "ADMIN" && bookingId) {
+    return `/admin/bookings?q=${encodeURIComponent(bookingId)}`;
+  }
+
   if (type === "REVIEW_REQUESTED" && bookingId) {
     return `/buyer/reviews?bookingId=${bookingId}`;
   }
 
   if (type === "REVIEW_RECEIVED") {
-    return "/expert/stats";
+    return role === "ADMIN" ? "/admin/bookings" : "/expert/stats";
   }
 
   if (type === "BOOKING_CREATED" && bookingId) {
@@ -437,7 +525,9 @@ function getNotificationActionHref({
     type === "BOOKING_REFUNDED" ||
     type === "BOOKING_DISPUTED"
   ) {
-    return getBookingsHref(role);
+    return bookingId
+      ? `${getBookingsHref(role)}?booking=${encodeURIComponent(bookingId)}`
+      : getBookingsHref(role);
   }
 
   return getDashboardHref(role);
@@ -452,6 +542,10 @@ function getMetadataString(metadata: unknown, key: string) {
 
   if (typeof value === "string") {
     return value;
+  }
+
+  if (typeof value === "number") {
+    return String(value);
   }
 
   return "";

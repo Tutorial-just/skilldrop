@@ -11,5 +11,6 @@ export const stripe = new Stripe(stripeSecretKey, {
   appInfo: {
     name: "SkillDrop",
     version: "0.1.0",
+    url: process.env.NEXT_PUBLIC_APP_URL,
   },
 });

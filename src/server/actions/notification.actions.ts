@@ -16,6 +16,54 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function getDashboardHref(role: string) {
+  if (role === "ADMIN") {
+    return "/admin";
+  }
+
+  if (role === "EXPERT") {
+    return "/expert";
+  }
+
+  return "/buyer";
+}
+
+function getSafeReturnTo(value: string) {
+  if (!value) {
+    return "/notifications";
+  }
+
+  if (!value.startsWith("/")) {
+    return "/notifications";
+  }
+
+  if (value.startsWith("//")) {
+    return "/notifications";
+  }
+
+  return value;
+}
+
+function revalidateNotificationPaths(role: string) {
+  revalidatePath("/notifications");
+  revalidatePath(getDashboardHref(role));
+
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/bookings");
+  revalidatePath("/buyer/reviews");
+
+  revalidatePath("/expert");
+  revalidatePath("/expert/bookings");
+  revalidatePath("/expert/stats");
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/bookings");
+}
+
 async function getCurrentUserRecord() {
   const { user } = await requireRole(["buyer", "expert", "admin"]);
 
@@ -27,7 +75,7 @@ async function getCurrentUserRecord() {
 
   const currentUser = await prisma.user.findUnique({
     where: {
-      email,
+      email: normalizeEmail(email),
     },
   });
 
@@ -42,9 +90,10 @@ export async function markNotificationReadAction(formData: FormData) {
   const currentUser = await getCurrentUserRecord();
 
   const notificationId = getStringValue(formData, "notificationId");
+  const returnTo = getSafeReturnTo(getStringValue(formData, "returnTo"));
 
   if (!notificationId) {
-    redirect("/notifications");
+    redirect(returnTo);
   }
 
   const notification = await prisma.notification.findFirst({
@@ -55,36 +104,39 @@ export async function markNotificationReadAction(formData: FormData) {
           userId: currentUser.id,
         },
         {
-          email: currentUser.email,
+          email: normalizeEmail(currentUser.email),
         },
       ],
     },
   });
 
   if (!notification) {
-    redirect("/notifications");
+    redirect(returnTo);
   }
 
-  await prisma.notification.update({
-    where: {
-      id: notification.id,
-    },
-    data: {
-      isRead: true,
-      readAt: notification.readAt ?? new Date(),
-    },
-  });
+  if (!notification.isRead) {
+    await prisma.notification.update({
+      where: {
+        id: notification.id,
+      },
+      data: {
+        isRead: true,
+        readAt: notification.readAt ?? new Date(),
+      },
+    });
+  }
 
-  revalidatePath("/notifications");
-  revalidatePath("/buyer");
-  revalidatePath("/expert");
-  revalidatePath("/admin");
+  revalidateNotificationPaths(currentUser.role);
 
-  redirect("/notifications");
+  redirect(returnTo);
 }
 
-export async function markAllNotificationsReadAction() {
+export async function markAllNotificationsReadAction(formData?: FormData) {
   const currentUser = await getCurrentUserRecord();
+
+  const returnTo = formData
+    ? getSafeReturnTo(getStringValue(formData, "returnTo"))
+    : "/notifications";
 
   await prisma.notification.updateMany({
     where: {
@@ -94,7 +146,7 @@ export async function markAllNotificationsReadAction() {
           userId: currentUser.id,
         },
         {
-          email: currentUser.email,
+          email: normalizeEmail(currentUser.email),
         },
       ],
     },
@@ -104,10 +156,7 @@ export async function markAllNotificationsReadAction() {
     },
   });
 
-  revalidatePath("/notifications");
-  revalidatePath("/buyer");
-  revalidatePath("/expert");
-  revalidatePath("/admin");
+  revalidateNotificationPaths(currentUser.role);
 
-  redirect("/notifications");
+  redirect(returnTo);
 }

@@ -12,8 +12,10 @@ import {
   Bell,
   Lightbulb,
   ListChecks,
+  MessageCircle,
   Plus,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Star,
@@ -208,6 +210,10 @@ export default async function ExpertDashboardPage({
     (booking) => booking.status === "COMPLETED",
   );
 
+  const disputedBookings = expert.bookings.filter(
+    (booking) => booking.status === "DISPUTED",
+  );
+
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
 
@@ -226,12 +232,12 @@ export default async function ExpertDashboardPage({
   const nextTodayOpenSlot = todaysOpenSlots[0] ?? null;
 
   const upcomingRevenueCents = confirmedBookings.reduce(
-    (sum, booking) => sum + booking.priceCents,
+    (sum, booking) => sum + getProviderNetCents(booking),
     0,
   );
 
   const completedRevenueCents = completedBookings.reduce(
-    (sum, booking) => sum + booking.priceCents,
+    (sum, booking) => sum + getProviderNetCents(booking),
     0,
   );
 
@@ -296,7 +302,9 @@ export default async function ExpertDashboardPage({
   ];
 
   const completedChecklist = checklist.filter((item) => item.done).length;
-  const checklistProgress = Math.round((completedChecklist / checklist.length) * 100);
+  const checklistProgress = Math.round(
+    (completedChecklist / checklist.length) * 100,
+  );
 
   const providerName = expert.user.name ?? "Provider";
   const avatarLetter = (
@@ -347,6 +355,13 @@ export default async function ExpertDashboardPage({
                     </>
                   )}
                 </Badge>
+
+                {disputedBookings.length > 0 ? (
+                  <Badge variant="danger">
+                    <ShieldAlert size={14} />
+                    {disputedBookings.length} disputed
+                  </Badge>
+                ) : null}
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
@@ -391,9 +406,9 @@ export default async function ExpertDashboardPage({
 
             <MetricCard
               icon={CircleDollarSign}
-              label="Confirmed value"
+              label="Confirmed net"
               value={formatMoney(upcomingRevenueCents)}
-              hint="Before commission"
+              hint="Estimated provider net"
             />
 
             <MetricCard
@@ -490,6 +505,24 @@ export default async function ExpertDashboardPage({
                         : "You have no booked calls today, but a future call is already scheduled."}
                     </p>
 
+                    {nextBooking.note ? (
+                      <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                        <div className="flex gap-3">
+                          <MessageCircle
+                            size={18}
+                            className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+                          />
+
+                          <div>
+                            <p className="text-sm font-black">Client note</p>
+                            <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
+                              {nextBooking.note}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                       <ButtonLink href="/expert/bookings">
                         View bookings
@@ -521,6 +554,18 @@ export default async function ExpertDashboardPage({
                       {formatDateTime(nextBooking.startTime)}
                     </p>
 
+                    <div className="mt-5 grid gap-3">
+                      <SmallInfoRow
+                        label="Status"
+                        value={formatStatus(nextBooking.status)}
+                      />
+
+                      <SmallInfoRow
+                        label="Provider net"
+                        value={formatMoney(getProviderNetCents(nextBooking))}
+                      />
+                    </div>
+
                     <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                       {canJoinBooking(nextBooking) ? (
                         <Link
@@ -545,7 +590,7 @@ export default async function ExpertDashboardPage({
 
                     {nextBooking.status === "PAID" ? (
                       <p className="mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]">
-                        Payment received. Confirm this booking from your bookings page.
+                        Payment received. Confirmation may still be processing.
                       </p>
                     ) : null}
 
@@ -629,6 +674,43 @@ export default async function ExpertDashboardPage({
               </div>
             </Card>
           </div>
+
+          {pendingBookings.length > 0 || paidBookings.length > 0 || disputedBookings.length > 0 ? (
+            <div className="grid gap-5 lg:grid-cols-3">
+              {pendingBookings.length > 0 ? (
+                <AttentionCard
+                  icon={Clock3}
+                  title="Waiting for payment"
+                  value={String(pendingBookings.length)}
+                  text="Clients reserved these slots but payment is not completed yet."
+                  href="/expert/bookings"
+                  variant="warning"
+                />
+              ) : null}
+
+              {paidBookings.length > 0 ? (
+                <AttentionCard
+                  icon={WalletCards}
+                  title="Payment received"
+                  value={String(paidBookings.length)}
+                  text="These bookings are paid and may need confirmation or webhook review."
+                  href="/expert/bookings"
+                  variant="primary"
+                />
+              ) : null}
+
+              {disputedBookings.length > 0 ? (
+                <AttentionCard
+                  icon={ShieldAlert}
+                  title="Disputed bookings"
+                  value={String(disputedBookings.length)}
+                  text="These bookings are under SkillDrop admin review."
+                  href="/expert/bookings"
+                  variant="danger"
+                />
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
             <div className="grid gap-5">
@@ -826,12 +908,12 @@ export default async function ExpertDashboardPage({
 
                   <div className="mt-5 grid gap-3">
                     <MoneyRow
-                      label="Confirmed value"
+                      label="Confirmed net"
                       value={formatMoney(upcomingRevenueCents)}
                     />
 
                     <MoneyRow
-                      label="Completed revenue"
+                      label="Completed net"
                       value={formatMoney(completedRevenueCents)}
                     />
 
@@ -848,6 +930,11 @@ export default async function ExpertDashboardPage({
                     <MoneyRow
                       label="Paid pending confirmation"
                       value={String(paidBookings.length)}
+                    />
+
+                    <MoneyRow
+                      label="Disputed"
+                      value={String(disputedBookings.length)}
                     />
 
                     <MoneyRow
@@ -926,6 +1013,8 @@ export default async function ExpertDashboardPage({
                     hasReviews: expert.reviews.length > 0,
                     hasStrongBio: expert.bio.length >= 120,
                     hasStripePayouts,
+                    hasPendingPayment: pendingBookings.length > 0,
+                    hasDisputes: disputedBookings.length > 0,
                   })}
                 </p>
               </div>
@@ -937,9 +1026,11 @@ export default async function ExpertDashboardPage({
                   hasReviews: expert.reviews.length > 0,
                   hasStrongBio: expert.bio.length >= 120,
                   hasStripePayouts,
+                  hasPendingPayment: pendingBookings.length > 0,
+                  hasDisputes: disputedBookings.length > 0,
                 })}
               >
-                Fix now
+                Open
                 <ArrowRight size={18} />
               </ButtonLink>
             </div>
@@ -947,6 +1038,54 @@ export default async function ExpertDashboardPage({
         </div>
       </section>
     </main>
+  );
+}
+
+function AttentionCard({
+  icon: Icon,
+  title,
+  value,
+  text,
+  href,
+  variant,
+}: {
+  icon: typeof Clock3;
+  title: string;
+  value: string;
+  text: string;
+  href: string;
+  variant: "warning" | "primary" | "danger";
+}) {
+  const className =
+    variant === "warning"
+      ? "border-[var(--warning)]/20 bg-[var(--warning-soft)]"
+      : variant === "danger"
+        ? "border-[var(--danger)]/20 bg-[var(--danger-soft)]"
+        : "border-[var(--primary)]/20 bg-[var(--primary-soft)]";
+
+  return (
+    <Link href={href} className="group">
+      <Card
+        className={`h-full p-5 transition group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)] ${className}`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/70 text-[var(--primary-dark)]">
+            <Icon size={21} />
+          </div>
+
+          <p className="text-3xl font-black tracking-[-0.05em]">{value}</p>
+        </div>
+
+        <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
+
+        <p className="mt-2 text-sm font-bold leading-6 text-muted">{text}</p>
+
+        <div className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]">
+          Open bookings
+          <ArrowRight size={16} />
+        </div>
+      </Card>
+    </Link>
   );
 }
 
@@ -1083,6 +1222,15 @@ function MoneyRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SmallInfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="text-right text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
 function canJoinBooking(booking: {
   startTime: Date;
   endTime: Date;
@@ -1157,19 +1305,47 @@ function calculateVerificationProgress({
   return Math.round(callProgress + ratingProgress);
 }
 
+function getProviderNetCents(booking: {
+  priceCents: number;
+  providerNetCents?: number | null;
+  platformFeeCents?: number | null;
+}) {
+  if (typeof booking.providerNetCents === "number") {
+    return booking.providerNetCents;
+  }
+
+  if (typeof booking.platformFeeCents === "number") {
+    return Math.max(booking.priceCents - booking.platformFeeCents, 0);
+  }
+
+  return Math.max(booking.priceCents - Math.round(booking.priceCents * 0.1), 0);
+}
+
 function getSmartTip({
   hasServices,
   hasAvailability,
   hasReviews,
   hasStrongBio,
   hasStripePayouts,
+  hasPendingPayment,
+  hasDisputes,
 }: {
   hasServices: boolean;
   hasAvailability: boolean;
   hasReviews: boolean;
   hasStrongBio: boolean;
   hasStripePayouts: boolean;
+  hasPendingPayment: boolean;
+  hasDisputes: boolean;
 }) {
+  if (hasDisputes) {
+    return "You have disputed bookings under admin review. Open bookings and check the affected sessions.";
+  }
+
+  if (hasPendingPayment) {
+    return "Some clients reserved time but have not paid yet. Keep your availability fresh and wait for payment confirmation.";
+  }
+
   if (!hasStrongBio) {
     return "Strengthen your biography so clients understand who you help, why they can trust you, and what they will get from a call.";
   }
@@ -1199,13 +1375,21 @@ function getSmartTipHref({
   hasReviews,
   hasStrongBio,
   hasStripePayouts,
+  hasPendingPayment,
+  hasDisputes,
 }: {
   hasServices: boolean;
   hasAvailability: boolean;
   hasReviews: boolean;
   hasStrongBio: boolean;
   hasStripePayouts: boolean;
+  hasPendingPayment: boolean;
+  hasDisputes: boolean;
 }) {
+  if (hasDisputes || hasPendingPayment) {
+    return "/expert/bookings";
+  }
+
   if (!hasStrongBio) {
     return "/expert/profile";
   }
@@ -1255,4 +1439,36 @@ function formatTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatStatus(status: string) {
+  if (status === "PENDING") {
+    return "Pending payment";
+  }
+
+  if (status === "PAID") {
+    return "Paid";
+  }
+
+  if (status === "CONFIRMED") {
+    return "Confirmed";
+  }
+
+  if (status === "COMPLETED") {
+    return "Completed";
+  }
+
+  if (status === "CANCELLED") {
+    return "Cancelled";
+  }
+
+  if (status === "REFUNDED") {
+    return "Refunded";
+  }
+
+  if (status === "DISPUTED") {
+    return "Disputed";
+  }
+
+  return status.toLowerCase();
 }

@@ -6,10 +6,12 @@ import {
   CheckCircle2,
   Clock3,
   ExternalLink,
+  MessageCircle,
   ShieldCheck,
   UserRound,
   Video,
 } from "lucide-react";
+
 import { markCallCompletedAction } from "@/server/actions/call.actions";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
@@ -74,6 +76,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
   }
 
   const backHref = getBookingsHref(currentUser.role);
+  const bookingNote = booking.note?.trim() || "";
 
   if (booking.status !== "CONFIRMED") {
     return (
@@ -119,33 +122,32 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     );
   }
 
- if (now > joinClosesAt && !isAdmin) {
-  if (booking.callRoom.status !== "ENDED") {
-    await prisma.callRoom.updateMany({
-      where: {
-        bookingId: booking.id,
-        status: {
-          not: "ENDED",
+  if (now > joinClosesAt && !isAdmin) {
+    if (booking.callRoom.status !== "ENDED") {
+      await prisma.callRoom.updateMany({
+        where: {
+          bookingId: booking.id,
+          status: {
+            not: "ENDED",
+          },
         },
-      },
-      data: {
-        status: "ENDED",
-        endsAt: booking.endTime,
-      },
-    });
+        data: {
+          status: "ENDED",
+          endsAt: booking.endTime,
+        },
+      });
+    }
+
+    return (
+      <CallBlockedPage
+        title="This call room is closed."
+        text="The video room is no longer available for this booking."
+        backHref={backHref}
+        timeLabel="Call ended"
+        timeValue={formatDateTime(booking.endTime)}
+      />
+    );
   }
-
-  return (
-    <CallBlockedPage
-      title="This call room is closed."
-      text="The video room is no longer available for this booking."
-      backHref={backHref}
-      timeLabel="Call ended"
-      timeValue={formatDateTime(booking.endTime)}
-    />
-   );
- }
-
 
   if (booking.callRoom.status !== "LIVE") {
     await prisma.callRoom.updateMany({
@@ -172,13 +174,14 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
       </Link>
 
       {isExpert || isAdmin ? (
-         <form action={markCallCompletedAction}>
-         <input type="hidden" name="bookingId" value={booking.id} />
+        <form action={markCallCompletedAction} className="mt-5 max-w-xs">
+          <input type="hidden" name="bookingId" value={booking.id} />
+
           <button type="submit" className="btn btn-primary w-full">
             <CheckCircle2 size={17} />
             Mark call completed
           </button>
-         </form>
+        </form>
       ) : null}
 
       <div className="mx-auto mt-8 max-w-5xl">
@@ -194,8 +197,8 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
             </h1>
 
             <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-              Your booking is confirmed. Check the details below, then open the
-              protected video room.
+              Your booking is confirmed. Check the details and context below,
+              then open the protected video room.
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -222,6 +225,33 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
                 label="Provider"
                 value={booking.expert.user.name ?? booking.expert.user.email}
               />
+            </div>
+
+            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+              <Badge variant="primary">
+                <MessageCircle size={14} />
+                Call context
+              </Badge>
+
+              <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                What this call is about
+              </h2>
+
+              {bookingNote ? (
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/70 p-4">
+                  <p className="whitespace-pre-wrap text-sm font-semibold leading-7 text-muted">
+                    {bookingNote}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-dashed border-[var(--border-strong)] bg-white/55 p-4">
+                  <p className="text-sm font-semibold leading-7 text-muted">
+                    No note was added for this booking. Start the call by
+                    clarifying the main question, expected result and available
+                    context.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
@@ -282,6 +312,24 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
                 )} minutes`}
               />
             </div>
+
+            {bookingNote ? (
+              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                <div className="flex gap-3">
+                  <MessageCircle
+                    size={18}
+                    className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+                  />
+
+                  <div>
+                    <p className="text-sm font-black">Client note</p>
+                    <p className="mt-1 line-clamp-5 text-sm font-semibold leading-6 text-muted">
+                      {bookingNote}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </Card>
         </div>
       </div>
@@ -414,7 +462,6 @@ function getBlockedStatusText(status: string) {
     return "The video room opens only after payment is confirmed.";
   }
 
-
   if (status === "COMPLETED") {
     return "This call has already been marked as completed.";
   }
@@ -456,7 +503,9 @@ function formatStatus(status: string) {
     return "Pending payment";
   }
 
- 
+  if (status === "PAID") {
+    return "Paid";
+  }
 
   if (status === "CONFIRMED") {
     return "Confirmed";

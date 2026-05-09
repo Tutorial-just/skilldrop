@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   Euro,
+  MessageCircle,
   RefreshCcw,
   Search,
   ShieldAlert,
@@ -22,6 +23,7 @@ import {
   resolveDisputeByAdminAction,
   updateBookingStatusByAdminAction,
 } from "@/server/actions/admin.actions";
+import { calculatePricingBreakdown } from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -111,6 +113,12 @@ export default async function AdminBookingsPage({
               },
             },
             {
+              note: {
+                contains: query,
+                mode: "insensitive" as const,
+              },
+            },
+            {
               buyer: {
                 is: {
                   OR: [
@@ -190,6 +198,7 @@ export default async function AdminBookingsPage({
         }
       : {}),
   };
+
   const [
     bookings,
     totalBookings,
@@ -272,7 +281,10 @@ export default async function AdminBookingsPage({
         booking.status === "CONFIRMED" ||
         booking.status === "COMPLETED",
     )
-    .reduce((sum, booking) => sum + booking.priceCents, 0);
+    .reduce(
+      (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
+      0,
+    );
 
   const shownDisputed = bookings.filter(
     (booking) => booking.status === "DISPUTED",
@@ -324,8 +336,8 @@ export default async function AdminBookingsPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Track payment state, confirmed calls, disputes, refunds and
-                completed sessions across SkillDrop.
+                Track payment state, confirmed calls, disputes, refunds, client
+                notes and completed sessions across SkillDrop.
               </p>
             </div>
 
@@ -422,7 +434,7 @@ export default async function AdminBookingsPage({
                   name="q"
                   type="search"
                   defaultValue={query}
-                  placeholder="Search buyer, expert, service, Stripe session or payment intent..."
+                  placeholder="Search buyer, expert, service, note, Stripe session or payment intent..."
                   className="input min-h-12 w-full pl-11"
                 />
               </div>
@@ -439,6 +451,7 @@ export default async function AdminBookingsPage({
                 <option value="confirmed">Confirmed</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
+                <option value="refunded">Refunded</option>
                 <option value="disputed">Disputed</option>
               </select>
 
@@ -555,16 +568,27 @@ function BookingAdminCard({
     status: BookingStatus;
     priceCents: number;
     currency: string;
+
+    note: string | null;
+
+    platformFeeCents: number | null;
+    providerNetCents: number | null;
+    clientServiceFeeCents: number | null;
+    clientTotalCents: number | null;
+
     stripeCheckoutSessionId: string | null;
     stripePaymentIntentId: string | null;
+
     disputeReason: string | null;
     disputeNote: string | null;
     disputedAt: Date | null;
+
     paidAt: Date | null;
     cancelledAt: Date | null;
     completedAt: Date | null;
     refundedAt: Date | null;
     createdAt: Date;
+
     buyer: {
       name: string | null;
       email: string;
@@ -601,6 +625,7 @@ function BookingAdminCard({
     booking.status === "COMPLETED";
 
   const canResolveDispute = booking.status === "DISPUTED";
+  const pricing = getBookingPricing(booking);
 
   return (
     <Card className="p-5 md:p-6 hover-lift">
@@ -608,6 +633,13 @@ function BookingAdminCard({
         <div>
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
+
+            {booking.note ? (
+              <Badge variant="primary">
+                <MessageCircle size={14} />
+                Client note
+              </Badge>
+            ) : null}
 
             {booking.review ? (
               <Badge variant="success">
@@ -661,14 +693,46 @@ function BookingAdminCard({
 
             <SmallFact
               icon={Euro}
-              label="Price"
-              value={formatMoney(booking.priceCents)}
+              label="Buyer total"
+              value={formatMoney(pricing.clientTotalCents)}
             />
 
             <SmallFact
               icon={Video}
               label="Duration"
               value={`${booking.service.durationMinutes} min`}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
+            <SmallFact
+              icon={Euro}
+              label="Service"
+              value={formatMoney(pricing.servicePriceCents)}
+            />
+
+            <SmallFact
+              icon={Euro}
+              label="Buyer fee"
+              value={formatMoney(pricing.clientServiceFeeCents)}
+            />
+
+            <SmallFact
+              icon={Euro}
+              label="Buyer total"
+              value={formatMoney(pricing.clientTotalCents)}
+            />
+
+            <SmallFact
+              icon={Euro}
+              label="Provider net"
+              value={formatMoney(pricing.providerNetCents)}
+            />
+
+            <SmallFact
+              icon={Euro}
+              label="Platform fee"
+              value={formatMoney(pricing.platformFeeCents)}
             />
           </div>
 
@@ -689,6 +753,24 @@ function BookingAdminCard({
             <IdBox label="Expert ID" value={booking.expertId} />
             <IdBox label="Slot" value={booking.availabilityId ?? "—"} />
           </div>
+
+          {booking.note ? (
+            <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+              <div className="flex gap-3">
+                <MessageCircle
+                  size={18}
+                  className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+                />
+
+                <div>
+                  <p className="text-sm font-black">Client note</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
+                    {booking.note}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-4 grid gap-3 md:grid-cols-5">
             <TimelineFact label="Paid" value={booking.paidAt} />
@@ -723,7 +805,12 @@ function BookingAdminCard({
 
           {booking.callRoom?.roomUrl ? (
             <div className="mt-4">
-              <Link href={booking.callRoom.roomUrl} className="btn btn-secondary">
+              <Link
+                href={booking.callRoom.roomUrl}
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Open call room
               </Link>
             </div>
@@ -740,6 +827,7 @@ function BookingAdminCard({
               <option value="CONFIRMED">Confirmed</option>
               <option value="COMPLETED">Completed</option>
               <option value="CANCELLED">Cancelled</option>
+              <option value="REFUNDED">Refunded</option>
               <option value="DISPUTED">Disputed</option>
             </select>
 
@@ -999,6 +1087,36 @@ function FilterLink({
       {label}
     </Link>
   );
+}
+
+function getBookingPricing(booking: {
+  priceCents: number;
+  platformFeeCents: number | null;
+  providerNetCents: number | null;
+  clientServiceFeeCents: number | null;
+  clientTotalCents: number | null;
+}) {
+  const fallback = calculatePricingBreakdown(booking.priceCents);
+
+  return {
+    servicePriceCents: booking.priceCents,
+    platformFeeCents:
+      typeof booking.platformFeeCents === "number"
+        ? booking.platformFeeCents
+        : fallback.platformFeeCents,
+    providerNetCents:
+      typeof booking.providerNetCents === "number"
+        ? booking.providerNetCents
+        : fallback.providerNetCents,
+    clientServiceFeeCents:
+      typeof booking.clientServiceFeeCents === "number"
+        ? booking.clientServiceFeeCents
+        : fallback.clientServiceFeeCents,
+    clientTotalCents:
+      typeof booking.clientTotalCents === "number"
+        ? booking.clientTotalCents
+        : fallback.clientTotalCents,
+  };
 }
 
 function formatMoney(cents: number) {

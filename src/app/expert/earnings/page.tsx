@@ -16,13 +16,17 @@ import {
   createStripeConnectAccountAction,
   openStripeDashboardAction,
 } from "@/server/actions/stripe-connect.actions";
-import { calculatePricingBreakdown } from "@/config/pricing";
+import {
+  calculatePricingBreakdown,
+  formatMoneyFromCents,
+} from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
 type ExpertEarningsPageProps = {
   searchParams?: Promise<{
     stripe?: string;
+    error?: string;
   }>;
 };
 
@@ -131,15 +135,31 @@ export default async function ExpertEarningsPage({
             Back to dashboard
           </Link>
 
-          {resolvedSearchParams.stripe === "connected" ? (
+          {resolvedSearchParams.stripe === "connected" ||
+          resolvedSearchParams.stripe === "return" ? (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Stripe onboarding completed. Your payout account is connected.
+              Stripe onboarding returned. If Stripe still asks for information,
+              continue setup to finish payout activation.
             </div>
           ) : null}
 
           {resolvedSearchParams.stripe === "refresh" ? (
             <div className="mt-6 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4 text-sm font-black text-[var(--accent)]">
-              Stripe onboarding was refreshed. Please continue setup.
+              Stripe onboarding was refreshed. Please continue setup to complete
+              your payout account.
+            </div>
+          ) : null}
+
+          {resolvedSearchParams.stripe === "checked" ? (
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+              Stripe account checked. If payout setup is incomplete, continue
+              onboarding.
+            </div>
+          ) : null}
+
+          {resolvedSearchParams.error ? (
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+              {formatStripeError(resolvedSearchParams.error)}
             </div>
           ) : null}
 
@@ -229,21 +249,22 @@ export default async function ExpertEarningsPage({
 
               <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
                 {hasStripeAccount
-                  ? "Stripe account connected."
+                  ? "Stripe account created."
                   : "Connect your Stripe account."}
               </h2>
 
               <p className="mt-3 text-sm font-semibold leading-6 text-muted">
                 Connect Stripe to prepare for real payouts. Stripe handles
-                onboarding, identity verification and payout setup.
+                onboarding, identity verification and payout setup. Final payout
+                readiness is checked during checkout.
               </p>
 
               <div className="mt-5 grid gap-3">
                 <InfoRow label="Provider commission" value="10%" />
                 <InfoRow label="Payout provider" value="Stripe Connect" />
                 <InfoRow
-                  label="Payout status"
-                  value={hasStripeAccount ? "Connected" : "Not connected"}
+                  label="Stripe account"
+                  value={hasStripeAccount ? "Created" : "Not connected"}
                 />
               </div>
 
@@ -261,11 +282,13 @@ export default async function ExpertEarningsPage({
                 </button>
               </form>
 
-              <form action={openStripeDashboardAction}>
-                <button type="submit" className="btn btn-secondary w-full">
-                   Open Stripe dashboard
-                </button>
-              </form>
+              {hasStripeAccount ? (
+                <form action={openStripeDashboardAction} className="mt-3">
+                  <button type="submit" className="btn btn-secondary w-full">
+                    Open Stripe dashboard
+                  </button>
+                </form>
+              ) : null}
             </Card>
 
             <Card soft className="p-5 md:p-6">
@@ -283,6 +306,12 @@ export default async function ExpertEarningsPage({
                 Earnings become payout-ready only after a call is completed.
                 Cancelled, refunded or disputed bookings do not count as
                 payout-ready.
+              </p>
+
+              <p className="mt-3 text-sm font-bold leading-6 text-muted">
+                Stripe account creation does not always mean payouts are fully
+                enabled. If Stripe asks for more information, continue setup
+                before accepting real paid bookings.
               </p>
             </Card>
           </div>
@@ -461,7 +490,7 @@ function maskStripeAccountId(accountId: string) {
 }
 
 function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+  return formatMoneyFromCents(cents);
 }
 
 function formatDateTime(date: Date) {
@@ -472,4 +501,24 @@ function formatDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatStripeError(error: string) {
+  if (error === "stripe-account-missing") {
+    return "Stripe account is missing. Please connect Stripe first.";
+  }
+
+  if (error === "stripe-account-invalid") {
+    return "Stripe account is invalid or unavailable. Please reconnect Stripe.";
+  }
+
+  if (error === "stripe-dashboard-unavailable") {
+    return "Stripe dashboard is unavailable right now. Please continue setup or try again later.";
+  }
+
+  if (error === "stripe-not-configured") {
+    return "Stripe is not configured yet. Please check environment variables.";
+  }
+
+  return "Something went wrong with Stripe. Please try again.";
 }

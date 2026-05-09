@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   Euro,
+  MessageCircle,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -143,7 +144,10 @@ export default async function BuyerBookingsPage({
         booking.status === "CONFIRMED" ||
         booking.status === "COMPLETED",
     )
-    .reduce((sum, booking) => sum + getBookingPricing(booking).clientTotalCents, 0);
+    .reduce(
+      (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
+      0,
+    );
 
   return (
     <main>
@@ -346,6 +350,11 @@ export default async function BuyerBookingsPage({
                   text="Open checkout and complete payment before the reservation expires."
                 />
                 <Tip
+                  icon={MessageCircle}
+                  title="Booking note"
+                  text="Your note helps the provider understand your problem before the call."
+                />
+                <Tip
                   icon={Video}
                   title="Confirmed call"
                   text="The call button appears when the join window opens around the scheduled time."
@@ -432,11 +441,7 @@ export default async function BuyerBookingsPage({
   );
 }
 
-function NextBookingPanel({
-  booking,
-}: {
-  booking: BookingCardBooking;
-}) {
+function NextBookingPanel({ booking }: { booking: BookingCardBooking }) {
   const pricing = getBookingPricing(booking);
   const providerName = booking.expert.user.name ?? booking.expert.user.email;
   const canJoin = canJoinBooking(booking);
@@ -459,7 +464,10 @@ function NextBookingPanel({
 
         <InfoRow
           label="Duration"
-          value={`${getDurationMinutes(booking.startTime, booking.endTime)} minutes`}
+          value={`${getDurationMinutes(
+            booking.startTime,
+            booking.endTime,
+          )} minutes`}
         />
 
         <InfoRow
@@ -470,6 +478,8 @@ function NextBookingPanel({
 
         <InfoRow label="Status" value={formatStatus(booking.status)} />
       </div>
+
+      {booking.note ? <BookingNote note={booking.note} className="mt-5" /> : null}
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         {booking.status === "PENDING" ? (
@@ -540,6 +550,7 @@ type BookingCardBooking = {
   endTime: Date;
   priceCents: number;
   status: string;
+  note: string | null;
   clientServiceFeeCents?: number | null;
   clientTotalCents?: number | null;
   platformFeeCents?: number | null;
@@ -608,6 +619,13 @@ function BookingCard({
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
 
+            {booking.note ? (
+              <Badge variant="primary">
+                <MessageCircle size={14} />
+                Note added
+              </Badge>
+            ) : null}
+
             {highlighted ? <Badge variant="success">Selected booking</Badge> : null}
 
             {canJoin ? (
@@ -673,6 +691,10 @@ function BookingCard({
             />
           </div>
 
+          {booking.note ? (
+            <BookingNote note={booking.note} className="mt-4" />
+          ) : null}
+
           {isPending ? (
             <StatusExplanation
               variant="warning"
@@ -706,10 +728,7 @@ function BookingCard({
           ) : null}
 
           {!isUpcoming && !isCompleted && !isCancelled && !isDisputed ? (
-            <StatusExplanation
-              variant="muted"
-              text="This call time has passed."
-            />
+            <StatusExplanation variant="muted" text="This call time has passed." />
           ) : null}
         </div>
 
@@ -762,6 +781,34 @@ function BookingCard({
               </button>
             </form>
           ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BookingNote({
+  note,
+  className = "",
+}: {
+  note: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-[var(--border)] bg-white/64 p-4 ${className}`}
+    >
+      <div className="flex gap-3">
+        <MessageCircle
+          size={18}
+          className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+        />
+
+        <div>
+          <p className="text-sm font-black">Your note</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
+            {note}
+          </p>
         </div>
       </div>
     </div>

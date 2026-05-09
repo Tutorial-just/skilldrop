@@ -43,6 +43,16 @@ function parseBooleanValue(value: string) {
   return null;
 }
 
+function normalizeComment(comment: string) {
+  const normalized = comment.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized.slice(0, 1500);
+}
+
 function revalidateReviewPaths(expertId: string, bookingId: string) {
   revalidatePath("/");
   revalidatePath("/experts");
@@ -66,69 +76,7 @@ function revalidateReviewPaths(expertId: string, bookingId: string) {
   revalidatePath("/notifications");
 }
 
-async function recalculateExpertReviewStats(expertId: string) {
-  const reviews = await prisma.review.findMany({
-    where: {
-      expertId,
-    },
-    select: {
-      rating: true,
-    },
-  });
-
-  const totalReviews = reviews.length;
-
-  const rating =
-    totalReviews > 0
-      ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
-      : 0;
-
-  const expert = await prisma.expertProfile.findUnique({
-    where: {
-      id: expertId,
-    },
-    select: {
-      totalSessions: true,
-      isVerified: true,
-    },
-  });
-
-  if (!expert) {
-    return {
-      rating,
-      totalReviews,
-      wasAutoVerified: false,
-    };
-  }
-
-  const shouldVerify = expert.totalSessions >= 3 && rating >= 3.8;
-
-  await prisma.expertProfile.update({
-    where: {
-      id: expertId,
-    },
-    data: {
-      rating,
-      totalReviews,
-      ...(shouldVerify && !expert.isVerified
-        ? {
-            isVerified: true,
-            verifiedAt: new Date(),
-            verificationNote:
-              "Automatically verified after 3 completed sessions and 3.8+ rating.",
-          }
-        : {}),
-    },
-  });
-
-  return {
-    rating,
-    totalReviews,
-    wasAutoVerified: shouldVerify && !expert.isVerified,
-  };
-}
-
-export async function createReviewAction(formData: FormData) {
+async function getCurrentBuyerOrAdmin() {
   const { user } = await requireRole(["buyer", "admin"]);
 
   const email = user.email?.toLowerCase();
@@ -136,6 +84,22 @@ export async function createReviewAction(formData: FormData) {
   if (!email) {
     redirect("/sign-in");
   }
+
+  const currentUser = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+
+  if (!currentUser) {
+    redirect("/sign-in");
+  }
+
+  return currentUser;
+}
+
+export async function createReviewAction(formData: FormData) {
+  const currentUser = await getCurrentBuyerOrAdmin();
 
   const bookingId = getStringValue(formData, "bookingId");
 
@@ -150,121 +114,199 @@ export async function createReviewAction(formData: FormData) {
     getStringValue(formData, "wouldRecommend"),
   );
 
-  const comment = getStringValue(formData, "comment");
+  const comment = normalizeComment(getStringValue(formData, "comment"));
 
   if (!bookingId || rating === null || rating === undefined) {
     redirect("/buyer/reviews?error=invalid-review");
   }
 
-  if (
-    helpfulness === null ||
-    clarity === null ||
-    professionalism === null
-  ) {
+  if (helpfulness === null || clarity === null || professionalism === null) {
     redirect(`/buyer/reviews?bookingId=${bookingId}&error=invalid-review`);
   }
 
   const finalRating: number = rating;
 
-  const buyer = await prisma.user.findUnique({
-    where: {
-      email,
-    },
-  });
-
-  if (!buyer) {
-    redirect("/sign-in");
-  }
-
-  const booking = await prisma.booking.findUnique({
-    where: {
-      id: bookingId,
-    },
-    include: {
-      buyer: true,
-      expert: {
-        include: {
-          user: true,
-        },
+  const result = await prisma.$transaction(async (tx) => {
+    const booking = await tx.booking.findUnique({
+      where: {
+        id: bookingId,
       },
-      service: true,
-      review: true,
-    },
+      include: {
+        buyer: true,
+        expert: {
+          include: {
+            user: true,
+          },
+        },
+        service: true,
+        review: true,
+      },
+    });
+
+    if (!booking) {
+      return {
+        status: "BOOKING_NOT_FOUND" as const,
+      };
+    }
+
+    const isOwner = booking.buyerId === currentUser.id;
+    const isAdmin = currentUser.role === "ADMIN";
+
+    if (!isOwner && !isAdmin) {
+      return {
+        status: "NOT_ALLOWED" as const,
+      };
+    }
+
+    if (booking.status !== "COMPLETED") {
+      return {
+        status: "NOT_COMPLETED" as const,
+        bookingId: booking.id,
+      };
+    }
+
+    if (booking.review) {
+      return {
+        status: "ALREADY_REVIEWED" as const,
+        bookingId: booking.id,
+      };
+    }
+
+    const createdReview = await tx.review.create({
+      data: {
+        bookingId: booking.id,
+        buyerId: booking.buyerId,
+        expertId: booking.expertId,
+        rating: finalRating,
+        helpfulness: helpfulness ?? null,
+        clarity: clarity ?? null,
+        professionalism: professionalism ?? null,
+        wouldRecommend,
+        comment,
+      },
+    });
+
+    const reviewStats = await tx.review.aggregate({
+      where: {
+        expertId: booking.expertId,
+      },
+      _avg: {
+        rating: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    const totalReviews = reviewStats._count.id;
+    const newRating = reviewStats._avg.rating ?? 0;
+
+    const expert = await tx.expertProfile.findUnique({
+      where: {
+        id: booking.expertId,
+      },
+      select: {
+        id: true,
+        totalSessions: true,
+        isVerified: true,
+      },
+    });
+
+    const shouldAutoVerify =
+      Boolean(expert) &&
+      !expert?.isVerified &&
+      expert.totalSessions >= 3 &&
+      newRating >= 3.8;
+
+    await tx.expertProfile.update({
+      where: {
+        id: booking.expertId,
+      },
+      data: {
+        rating: newRating,
+        totalReviews,
+        ...(shouldAutoVerify
+          ? {
+              isVerified: true,
+              verifiedAt: new Date(),
+              verificationNote:
+                "Automatically verified after 3 completed sessions and 3.8+ rating.",
+            }
+          : {}),
+      },
+    });
+
+    return {
+      status: "SUCCESS" as const,
+      booking,
+      review: createdReview,
+      totalReviews,
+      newRating,
+      wasAutoVerified: shouldAutoVerify,
+    };
   });
 
-  if (!booking) {
+  if (result.status === "BOOKING_NOT_FOUND") {
     redirect("/buyer/reviews?error=booking-not-found");
   }
 
-  const isOwner = booking.buyerId === buyer.id;
-  const isAdmin = buyer.role === "ADMIN";
-
-  if (!isOwner && !isAdmin) {
+  if (result.status === "NOT_ALLOWED") {
     redirect("/buyer/reviews?error=not-allowed");
   }
 
-  if (booking.status !== "COMPLETED") {
-    redirect(`/buyer/reviews?bookingId=${booking.id}&error=not-completed`);
+  if (result.status === "NOT_COMPLETED") {
+    redirect(`/buyer/reviews?bookingId=${result.bookingId}&error=not-completed`);
   }
 
-  if (booking.review) {
-    redirect(`/buyer/reviews?bookingId=${booking.id}&error=already-reviewed`);
+  if (result.status === "ALREADY_REVIEWED") {
+    redirect(
+      `/buyer/reviews?bookingId=${result.bookingId}&error=already-reviewed`,
+    );
   }
 
-  await prisma.review.create({
-    data: {
-      bookingId: booking.id,
-      buyerId: booking.buyerId,
-      expertId: booking.expertId,
-      rating: finalRating,
-      helpfulness: helpfulness ?? null,
-      clarity: clarity ?? null,
-      professionalism: professionalism ?? null,
-      wouldRecommend,
-      comment: comment || null,
-    },
-  });
-
-  const stats = await recalculateExpertReviewStats(booking.expertId);
+  if (result.status !== "SUCCESS") {
+    redirect("/buyer/reviews?error=invalid-review");
+  }
 
   await sendNotification({
-    to: booking.expert.user.email,
+    to: result.booking.expert.user.email,
     type: "REVIEW_RECEIVED",
     subject: "You received a new review",
     message: `You received a ${finalRating}/5 review for "${
-      booking.service?.title ?? "Booked call"
+      result.booking.service?.title ?? "Booked call"
     }".`,
     metadata: {
-      bookingId: booking.id,
-      expertId: booking.expertId,
+      bookingId: result.booking.id,
+      expertId: result.booking.expertId,
+      reviewId: result.review.id,
       rating: finalRating,
       helpfulness: helpfulness ?? null,
       clarity: clarity ?? null,
       professionalism: professionalism ?? null,
       wouldRecommend,
-      totalReviews: stats.totalReviews,
-      newRating: stats.rating,
+      totalReviews: result.totalReviews,
+      newRating: result.newRating,
     },
   });
 
-  if (stats.wasAutoVerified) {
+  if (result.wasAutoVerified) {
     await sendNotification({
-      to: booking.expert.user.email,
+      to: result.booking.expert.user.email,
       type: "REVIEW_RECEIVED",
       subject: "Your SkillDrop profile is now verified",
       message:
         "Congratulations. Your profile was automatically verified after reaching 3 completed sessions and a rating of at least 3.8.",
       metadata: {
-        expertId: booking.expertId,
-        totalReviews: stats.totalReviews,
-        rating: stats.rating,
+        expertId: result.booking.expertId,
+        totalReviews: result.totalReviews,
+        rating: result.newRating,
         totalSessionsRequired: 3,
         minimumRatingRequired: 3.8,
       },
     });
   }
 
-  revalidateReviewPaths(booking.expertId, booking.id);
+  revalidateReviewPaths(result.booking.expertId, result.booking.id);
 
-  redirect(`/buyer/reviews?reviewed=${booking.id}`);
+  redirect(`/buyer/reviews?reviewed=${result.booking.id}`);
 }

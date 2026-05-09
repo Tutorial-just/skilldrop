@@ -47,6 +47,23 @@ function normalizeMetadata(metadata?: Prisma.InputJsonValue) {
   return metadata ?? {};
 }
 
+async function findUserIdByEmail(email: string | null) {
+  if (!email) {
+    return null;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return user?.id ?? null;
+}
+
 export async function sendNotification({
   to,
   type,
@@ -56,22 +73,13 @@ export async function sendNotification({
 }: NotificationPayload) {
   const email = normalizeEmail(to);
 
-  let userId: string | null = null;
-
-  if (email) {
-    const user = await prisma.user.findUnique({
-      where: {
-        email,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    userId = user?.id ?? null;
+  if (!email) {
+    return null;
   }
 
-  await prisma.notification.create({
+  const userId = await findUserIdByEmail(email);
+
+  const notification = await prisma.notification.create({
     data: {
       userId,
       email,
@@ -82,8 +90,15 @@ export async function sendNotification({
     },
   });
 
-  // Later we can connect Resend / SendGrid here.
-  // For now this stores the notification inside SkillDrop.
+  return notification;
+}
+
+export async function sendNotifications(payloads: NotificationPayload[]) {
+  const results = await Promise.allSettled(
+    payloads.map((payload) => sendNotification(payload)),
+  );
+
+  return results;
 }
 
 export async function createNotificationForUser({
@@ -94,14 +109,18 @@ export async function createNotificationForUser({
   message,
   metadata,
 }: UserNotificationPayload) {
-  await prisma.notification.create({
+  const normalizedEmail = normalizeEmail(email);
+
+  const notification = await prisma.notification.create({
     data: {
       userId,
-      email: normalizeEmail(email),
+      email: normalizedEmail,
       type,
       subject: normalizeText(subject, "SkillDrop notification"),
       message: normalizeText(message, "You have a new SkillDrop update."),
       metadata: normalizeMetadata(metadata),
     },
   });
+
+  return notification;
 }

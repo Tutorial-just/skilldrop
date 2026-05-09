@@ -31,6 +31,7 @@ type AdminExpertsPageProps = {
     q?: string;
     status?: string;
     verified?: string;
+    risk?: string;
   }>;
 };
 
@@ -44,15 +45,18 @@ export default async function AdminExpertsPage({
   const query = resolvedSearchParams.q?.trim() ?? "";
   const statusFilter = resolvedSearchParams.status ?? "all";
   const verifiedFilter = resolvedSearchParams.verified ?? "all";
+  const riskFilter = resolvedSearchParams.risk ?? "all";
 
   const now = new Date();
 
   const expertWhere: Prisma.ExpertProfileWhereInput = {
     ...(statusFilter === "all"
       ? {}
-      : {
-          status: statusFilter.toUpperCase() as ExpertStatus,
-        }),
+      : isExpertStatus(statusFilter)
+        ? {
+            status: statusFilter.toUpperCase() as ExpertStatus,
+          }
+        : {}),
 
     ...(verifiedFilter === "all"
       ? {}
@@ -217,6 +221,13 @@ export default async function AdminExpertsPage({
         }),
       };
     })
+    .filter((expert) => {
+      if (riskFilter === "all") {
+        return true;
+      }
+
+      return expert.riskLevel.toLowerCase() === riskFilter.toLowerCase();
+    })
     .sort((a, b) => {
       const statusPriority = {
         PENDING: 0,
@@ -260,6 +271,12 @@ export default async function AdminExpertsPage({
   const payoutReadyExperts = experts.filter((expert) =>
     Boolean(expert.stripeAccountId),
   );
+
+  const hasActiveFilters =
+    query ||
+    statusFilter !== "all" ||
+    verifiedFilter !== "all" ||
+    riskFilter !== "all";
 
   return (
     <main>
@@ -382,11 +399,15 @@ export default async function AdminExpertsPage({
                 <option value="false">Not verified</option>
               </select>
 
+              {riskFilter !== "all" ? (
+                <input type="hidden" name="risk" value={riskFilter} />
+              ) : null}
+
               <button type="submit" className="btn btn-primary">
                 Search
               </button>
 
-              {query || statusFilter !== "all" || verifiedFilter !== "all" ? (
+              {hasActiveFilters ? (
                 <Link href="/admin/experts" className="btn btn-secondary">
                   Clear
                 </Link>
@@ -399,6 +420,7 @@ export default async function AdminExpertsPage({
               q={query}
               status="all"
               verified={verifiedFilter}
+              risk={riskFilter}
               current={statusFilter}
               label="All"
             />
@@ -406,6 +428,7 @@ export default async function AdminExpertsPage({
               q={query}
               status="pending"
               verified={verifiedFilter}
+              risk={riskFilter}
               current={statusFilter}
               label="Pending"
             />
@@ -413,6 +436,7 @@ export default async function AdminExpertsPage({
               q={query}
               status="approved"
               verified={verifiedFilter}
+              risk={riskFilter}
               current={statusFilter}
               label="Approved"
             />
@@ -420,6 +444,7 @@ export default async function AdminExpertsPage({
               q={query}
               status="rejected"
               verified={verifiedFilter}
+              risk={riskFilter}
               current={statusFilter}
               label="Rejected"
             />
@@ -427,8 +452,47 @@ export default async function AdminExpertsPage({
               q={query}
               status="suspended"
               verified={verifiedFilter}
+              risk={riskFilter}
               current={statusFilter}
               label="Suspended"
+            />
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <RiskFilterLink
+              q={query}
+              status={statusFilter}
+              verified={verifiedFilter}
+              risk="all"
+              current={riskFilter}
+              label="All risk"
+            />
+
+            <RiskFilterLink
+              q={query}
+              status={statusFilter}
+              verified={verifiedFilter}
+              risk="high"
+              current={riskFilter}
+              label="High risk"
+            />
+
+            <RiskFilterLink
+              q={query}
+              status={statusFilter}
+              verified={verifiedFilter}
+              risk="medium"
+              current={riskFilter}
+              label="Medium risk"
+            />
+
+            <RiskFilterLink
+              q={query}
+              status={statusFilter}
+              verified={verifiedFilter}
+              risk="low"
+              current={riskFilter}
+              label="Low risk"
             />
           </div>
         </div>
@@ -444,6 +508,7 @@ export default async function AdminExpertsPage({
             <Badge>Search: {query || "none"}</Badge>
             <Badge>Status: {statusFilter}</Badge>
             <Badge>Verified: {verifiedFilter}</Badge>
+            <Badge>Risk: {riskFilter}</Badge>
           </div>
         </div>
 
@@ -459,7 +524,7 @@ export default async function AdminExpertsPage({
               </h2>
 
               <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
-                Try another search query, status or verification filter.
+                Try another search query, status, risk or verification filter.
               </p>
 
               <div className="mt-5">
@@ -617,16 +682,24 @@ function ExpertAdminCard({
               <SmallFact label="Reviews" value={String(expert.totalReviews)} />
               <SmallFact
                 label="Helpful"
-                value={helpfulnessAvg ? `${helpfulnessAvg.toFixed(1)}/5` : "—"}
+                value={
+                  typeof helpfulnessAvg === "number"
+                    ? `${helpfulnessAvg.toFixed(1)}/5`
+                    : "—"
+                }
               />
               <SmallFact
                 label="Clarity"
-                value={clarityAvg ? `${clarityAvg.toFixed(1)}/5` : "—"}
+                value={
+                  typeof clarityAvg === "number"
+                    ? `${clarityAvg.toFixed(1)}/5`
+                    : "—"
+                }
               />
               <SmallFact
                 label="Pro"
                 value={
-                  professionalismAvg
+                  typeof professionalismAvg === "number"
                     ? `${professionalismAvg.toFixed(1)}/5`
                     : "—"
                 }
@@ -682,6 +755,20 @@ function ExpertAdminCard({
             <div className="mt-4 flex flex-wrap gap-2">
               <Link href={`/experts/${expert.id}`} className="btn btn-secondary">
                 View public profile
+              </Link>
+
+              <Link
+                href={`/admin/bookings?q=${encodeURIComponent(expert.user.email)}`}
+                className="btn btn-secondary"
+              >
+                Related bookings
+              </Link>
+
+              <Link
+                href={`/admin/reviews?q=${encodeURIComponent(expert.user.email)}`}
+                className="btn btn-secondary"
+              >
+                Related reviews
               </Link>
             </div>
           </div>
@@ -757,12 +844,14 @@ function FilterLink({
   q,
   status,
   verified,
+  risk,
   current,
   label,
 }: {
   q: string;
   status: string;
   verified: string;
+  risk: string;
   current: string;
   label: string;
 }) {
@@ -780,6 +869,63 @@ function FilterLink({
 
   if (verified !== "all") {
     params.set("verified", verified);
+  }
+
+  if (risk !== "all") {
+    params.set("risk", risk);
+  }
+
+  const href = params.toString()
+    ? `/admin/experts?${params.toString()}`
+    : "/admin/experts";
+
+  return (
+    <Link
+      href={href}
+      className={
+        isActive
+          ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
+          : "hover-scale rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] hover:bg-white hover:text-[var(--primary-dark)]"
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function RiskFilterLink({
+  q,
+  status,
+  verified,
+  risk,
+  current,
+  label,
+}: {
+  q: string;
+  status: string;
+  verified: string;
+  risk: string;
+  current: string;
+  label: string;
+}) {
+  const isActive = current === risk;
+
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (status !== "all") {
+    params.set("status", status);
+  }
+
+  if (verified !== "all") {
+    params.set("verified", verified);
+  }
+
+  if (risk !== "all") {
+    params.set("risk", risk);
   }
 
   const href = params.toString()
@@ -849,7 +995,9 @@ function SmallFact({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
-      <p className="mt-1 break-words text-sm font-black">{value}</p>
+      <p className="mt-1 line-clamp-2 break-words text-sm font-black" title={value}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -860,6 +1008,12 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <p className="text-sm font-bold text-muted">{label}</p>
       <p className="text-sm font-black">{value}</p>
     </div>
+  );
+}
+
+function isExpertStatus(status: string) {
+  return ["pending", "approved", "rejected", "suspended"].includes(
+    status.toLowerCase(),
   );
 }
 

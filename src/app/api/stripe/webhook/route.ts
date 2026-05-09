@@ -18,6 +18,7 @@ type ConfirmedBookingData = {
   serviceTitle: string;
   startTime: Date;
   endTime: Date;
+  note: string | null;
   servicePriceCents: number;
   providerCommissionCents: number;
   providerNetCents: number;
@@ -38,6 +39,15 @@ type FailedBookingData = {
 };
 
 type RefundedBookingData = {
+  id: string;
+  expertId: string;
+  availabilityId: string | null;
+  buyerEmail: string | null;
+  expertEmail: string | null;
+  serviceTitle: string;
+};
+
+type ExpiredBookingData = {
   id: string;
   expertId: string;
   availabilityId: string | null;
@@ -96,6 +106,9 @@ function revalidateWebhookPaths(expertId: string, bookingId: string) {
   revalidatePath("/expert/earnings");
   revalidatePath("/expert/stats");
 
+  revalidatePath("/admin");
+  revalidatePath("/admin/bookings");
+
   revalidatePath("/notifications");
 }
 
@@ -124,7 +137,7 @@ function getDisplayName(user: { name: string | null; email: string }) {
   return user.name?.trim() || user.email.split("@")[0] || "Client";
 }
 
-async function handleCheckoutSessionCompleted({
+async function handleCheckoutSessionPaid({
   eventId,
   session,
 }: {
@@ -135,17 +148,16 @@ async function handleCheckoutSessionCompleted({
 
   if (!bookingId) {
     await markStripeEventProcessed(eventId);
-
     return null;
   }
 
   if (session.payment_status !== "paid") {
     await markStripeEventProcessed(eventId);
-
     return null;
   }
 
   const paymentIntentId = getPaymentIntentId(session);
+  const stripeAmountTotal = session.amount_total;
 
   const confirmedBooking = await prisma.$transaction(
     async (tx): Promise<ConfirmedBookingData | null> => {
@@ -178,7 +190,27 @@ async function handleCheckoutSessionCompleted({
         return null;
       }
 
-      if (booking.status === "CONFIRMED") {
+      const pricing = calculatePricingBreakdown(booking.priceCents);
+
+      if (
+        typeof stripeAmountTotal === "number" &&
+        stripeAmountTotal !== pricing.clientTotalCents
+      ) {
+        await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+          data: {
+            status: "DISPUTED",
+            disputedAt: new Date(),
+            disputeReason: "PAYMENT_AMOUNT_MISMATCH",
+            disputeNote: `Stripe amount_total ${stripeAmountTotal} does not match expected clientTotalCents ${pricing.clientTotalCents}.`,
+            stripeCheckoutSessionId: session.id,
+            stripePaymentIntentId: paymentIntentId,
+            expiresAt: null,
+          },
+        });
+
         await tx.stripeEvent.update({
           where: {
             id: eventId,
@@ -191,7 +223,34 @@ async function handleCheckoutSessionCompleted({
         return null;
       }
 
-      if (booking.status !== "PENDING") {
+      if (booking.status === "CONFIRMED") {
+        await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+          data: {
+            stripeCheckoutSessionId: session.id,
+            stripePaymentIntentId: paymentIntentId,
+            clientServiceFeeCents: pricing.clientServiceFeeCents,
+            clientTotalCents: pricing.clientTotalCents,
+            platformFeeCents: pricing.providerCommissionCents,
+            providerNetCents: pricing.providerNetCents,
+          },
+        });
+
+        await tx.stripeEvent.update({
+          where: {
+            id: eventId,
+          },
+          data: {
+            processed: true,
+          },
+        });
+
+        return null;
+      }
+
+      if (booking.status !== "PENDING" && booking.status !== "PAID") {
         await tx.stripeEvent.update({
           where: {
             id: eventId,
@@ -205,16 +264,17 @@ async function handleCheckoutSessionCompleted({
       }
 
       const now = new Date();
-      const pricing = calculatePricingBreakdown(booking.priceCents);
 
       const updatedBooking = await tx.booking.updateMany({
         where: {
           id: booking.id,
-          status: "PENDING",
+          status: {
+            in: ["PENDING", "PAID"],
+          },
         },
         data: {
           status: "CONFIRMED",
-          paidAt: now,
+          paidAt: booking.paidAt ?? now,
           stripeCheckoutSessionId: session.id,
           stripePaymentIntentId: paymentIntentId,
           platformFeeCents: pricing.providerCommissionCents,
@@ -271,6 +331,7 @@ async function handleCheckoutSessionCompleted({
         serviceTitle: booking.service?.title ?? "Booked call",
         startTime: booking.startTime,
         endTime: booking.endTime,
+        note: booking.note,
         servicePriceCents: pricing.servicePriceCents,
         providerCommissionCents: pricing.providerCommissionCents,
         providerNetCents: pricing.providerNetCents,
@@ -298,6 +359,7 @@ async function handleCheckoutSessionCompleted({
       serviceTitle: confirmedBooking.serviceTitle,
       startTime: confirmedBooking.startTime.toISOString(),
       endTime: confirmedBooking.endTime.toISOString(),
+      note: confirmedBooking.note,
       servicePriceCents: confirmedBooking.servicePriceCents,
       clientServiceFeeCents: confirmedBooking.clientServiceFeeCents,
       clientTotalCents: confirmedBooking.clientTotalCents,
@@ -314,7 +376,9 @@ async function handleCheckoutSessionCompleted({
       confirmedBooking.serviceTitle
     }" for ${formatDateTime(
       confirmedBooking.startTime,
-    )}. You can join the call 10 minutes before start.`,
+    )}. You can join the call 10 minutes before start.${
+      confirmedBooking.note ? ` Note: ${confirmedBooking.note}` : ""
+    }`,
     metadata: {
       bookingId: confirmedBooking.id,
       expertId: confirmedBooking.expertId,
@@ -322,6 +386,7 @@ async function handleCheckoutSessionCompleted({
       serviceTitle: confirmedBooking.serviceTitle,
       startTime: confirmedBooking.startTime.toISOString(),
       endTime: confirmedBooking.endTime.toISOString(),
+      note: confirmedBooking.note,
       servicePriceCents: confirmedBooking.servicePriceCents,
       providerCommissionCents: confirmedBooking.providerCommissionCents,
       providerNetCents: confirmedBooking.providerNetCents,
@@ -394,7 +459,7 @@ async function handlePaymentIntentFailed({
         });
 
         if (booking.availabilityId) {
-          await tx.availability.update({
+          await tx.availability.updateMany({
             where: {
               id: booking.availabilityId,
             },
@@ -403,6 +468,16 @@ async function handlePaymentIntentFailed({
             },
           });
         }
+
+        await tx.callRoom.updateMany({
+          where: {
+            bookingId: booking.id,
+          },
+          data: {
+            status: "ENDED",
+            endsAt: new Date(),
+          },
+        });
       }
 
       await tx.stripeEvent.update({
@@ -444,6 +519,130 @@ async function handlePaymentIntentFailed({
   revalidateWebhookPaths(failedBooking.expertId, failedBooking.id);
 
   return failedBooking;
+}
+
+async function handleCheckoutSessionExpired({
+  eventId,
+  session,
+}: {
+  eventId: string;
+  session: Stripe.Checkout.Session;
+}) {
+  const bookingId = session.metadata?.bookingId;
+
+  if (!bookingId) {
+    await markStripeEventProcessed(eventId);
+    return null;
+  }
+
+  const expiredBooking = await prisma.$transaction(
+    async (tx): Promise<ExpiredBookingData | null> => {
+      const booking = await tx.booking.findUnique({
+        where: {
+          id: bookingId,
+        },
+        include: {
+          buyer: true,
+          expert: {
+            include: {
+              user: true,
+            },
+          },
+          service: true,
+          callRoom: true,
+        },
+      });
+
+      if (!booking) {
+        await tx.stripeEvent.update({
+          where: {
+            id: eventId,
+          },
+          data: {
+            processed: true,
+          },
+        });
+
+        return null;
+      }
+
+      if (booking.status === "PENDING") {
+        await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: new Date(),
+            expiresAt: null,
+            stripeCheckoutSessionId: session.id,
+          },
+        });
+
+        if (booking.availabilityId) {
+          await tx.availability.updateMany({
+            where: {
+              id: booking.availabilityId,
+            },
+            data: {
+              isBooked: false,
+            },
+          });
+        }
+
+        if (booking.callRoom) {
+          await tx.callRoom.updateMany({
+            where: {
+              bookingId: booking.id,
+            },
+            data: {
+              status: "ENDED",
+              endsAt: new Date(),
+            },
+          });
+        }
+      }
+
+      await tx.stripeEvent.update({
+        where: {
+          id: eventId,
+        },
+        data: {
+          processed: true,
+        },
+      });
+
+      return {
+        id: booking.id,
+        expertId: booking.expertId,
+        availabilityId: booking.availabilityId,
+        buyerEmail: booking.buyer.email,
+        expertEmail: booking.expert.user.email,
+        serviceTitle: booking.service?.title ?? "Booked call",
+      };
+    },
+  );
+
+  if (!expiredBooking) {
+    return null;
+  }
+
+  await sendNotification({
+    to: expiredBooking.buyerEmail,
+    type: "BOOKING_EXPIRED",
+    subject: "Booking expired",
+    message: `Your booking "${expiredBooking.serviceTitle}" expired because checkout was not completed in time.`,
+    metadata: {
+      bookingId: expiredBooking.id,
+      expertId: expiredBooking.expertId,
+      stripeCheckoutSessionId: session.id,
+      reason: "stripe-checkout-expired",
+    },
+  });
+
+  revalidateWebhookPaths(expiredBooking.expertId, expiredBooking.id);
+
+  return expiredBooking;
 }
 
 async function handleChargeRefunded({
@@ -498,11 +697,12 @@ async function handleChargeRefunded({
           data: {
             status: "REFUNDED",
             refundedAt: new Date(),
+            expiresAt: null,
           },
         });
 
         if (booking.availabilityId) {
-          await tx.availability.update({
+          await tx.availability.updateMany({
             where: {
               id: booking.availabilityId,
             },
@@ -511,6 +711,16 @@ async function handleChargeRefunded({
             },
           });
         }
+
+        await tx.callRoom.updateMany({
+          where: {
+            bookingId: booking.id,
+          },
+          data: {
+            status: "ENDED",
+            endsAt: new Date(),
+          },
+        });
       }
 
       await tx.stripeEvent.update({
@@ -626,10 +836,24 @@ export async function POST(request: Request) {
   });
 
   try {
-    if (event.type === "checkout.session.completed") {
+    if (
+      event.type === "checkout.session.completed" ||
+      event.type === "checkout.session.async_payment_succeeded"
+    ) {
       const session = event.data.object as Stripe.Checkout.Session;
 
-      await handleCheckoutSessionCompleted({
+      await handleCheckoutSessionPaid({
+        eventId: event.id,
+        session,
+      });
+
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "checkout.session.expired") {
+      const session = event.data.object as Stripe.Checkout.Session;
+
+      await handleCheckoutSessionExpired({
         eventId: event.id,
         session,
       });

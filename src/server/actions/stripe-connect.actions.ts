@@ -11,7 +11,7 @@ function getAppUrl() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
   if (!appUrl) {
-    throw new Error("NEXT_PUBLIC_APP_URL is missing.");
+    return null;
   }
 
   return appUrl.replace(/\/$/, "");
@@ -19,11 +19,13 @@ function getAppUrl() {
 
 function revalidateStripeConnectPaths(expertId: string) {
   revalidatePath("/");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
+
   revalidatePath("/expert");
   revalidatePath("/expert/earnings");
   revalidatePath("/expert/settings");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expertId}`);
+  revalidatePath("/expert/stats");
 }
 
 async function getCurrentExpert() {
@@ -58,7 +60,13 @@ async function getCurrentExpert() {
   };
 }
 
-async function getValidStripeAccountId(stripeAccountId: string | null) {
+async function getValidStripeAccountId({
+  expertId,
+  stripeAccountId,
+}: {
+  expertId: string;
+  stripeAccountId: string | null;
+}) {
   if (!stripeAccountId) {
     return null;
   }
@@ -67,24 +75,51 @@ async function getValidStripeAccountId(stripeAccountId: string | null) {
     const account = await stripe.accounts.retrieve(stripeAccountId);
 
     if (account.deleted) {
+      await prisma.expertProfile.update({
+        where: {
+          id: expertId,
+        },
+        data: {
+          stripeAccountId: null,
+        },
+      });
+
       return null;
     }
 
     return account.id;
   } catch {
+    await prisma.expertProfile.update({
+      where: {
+        id: expertId,
+      },
+      data: {
+        stripeAccountId: null,
+      },
+    });
+
     return null;
   }
 }
 
 export async function createStripeConnectAccountAction() {
   const { user, expert } = await getCurrentExpert();
+
   const appUrl = getAppUrl();
 
-  let stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
+  if (!appUrl) {
+    redirect("/expert/earnings?error=stripe-not-configured");
+  }
+
+  let stripeAccountId = await getValidStripeAccountId({
+    expertId: expert.id,
+    stripeAccountId: expert.stripeAccountId,
+  });
 
   if (!stripeAccountId) {
     const account = await stripe.accounts.create({
       type: "express",
+      country: "FR",
       email: user.email,
       business_type: "individual",
       capabilities: {
@@ -103,6 +138,7 @@ export async function createStripeConnectAccountAction() {
       metadata: {
         userId: user.id,
         expertProfileId: expert.id,
+        userEmail: user.email,
       },
     });
 
@@ -121,7 +157,7 @@ export async function createStripeConnectAccountAction() {
   const accountLink = await stripe.accountLinks.create({
     account: stripeAccountId,
     refresh_url: `${appUrl}/expert/earnings?stripe=refresh`,
-    return_url: `${appUrl}/expert/earnings?stripe=connected`,
+    return_url: `${appUrl}/expert/earnings?stripe=return`,
     type: "account_onboarding",
   });
 
@@ -133,13 +169,24 @@ export async function createStripeConnectAccountAction() {
 export async function openStripeDashboardAction() {
   const { expert } = await getCurrentExpert();
 
-  const stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
+  const stripeAccountId = await getValidStripeAccountId({
+    expertId: expert.id,
+    stripeAccountId: expert.stripeAccountId,
+  });
 
   if (!stripeAccountId) {
-    redirect("/expert/earnings?stripe=refresh");
+    revalidateStripeConnectPaths(expert.id);
+
+    redirect("/expert/earnings?error=stripe-account-missing");
   }
 
-  const loginLink = await stripe.accounts.createLoginLink(stripeAccountId);
+  try {
+    const loginLink = await stripe.accounts.createLoginLink(stripeAccountId);
 
-  redirect(loginLink.url);
+    revalidateStripeConnectPaths(expert.id);
+
+    redirect(loginLink.url);
+  } catch {
+    redirect("/expert/earnings?error=stripe-dashboard-unavailable");
+  }
 }
