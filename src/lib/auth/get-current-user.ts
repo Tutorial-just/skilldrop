@@ -139,9 +139,22 @@ export async function getCurrentUser() {
     user_metadata: authUser.user_metadata,
   });
 
-  let user = await prisma.user.findUnique({
+  let user = await prisma.user.upsert({
     where: {
       email,
+    },
+    create: {
+      email,
+      name: displayName,
+      avatarUrl,
+      role: toPrismaRole(authUser.user_metadata?.role),
+      buyerSettings: {
+        create: {},
+      },
+    },
+    update: {
+      ...(displayName ? { name: displayName } : {}),
+      ...(avatarUrl ? { avatarUrl } : {}),
     },
     include: {
       expertProfile: true,
@@ -149,13 +162,12 @@ export async function getCurrentUser() {
     },
   });
 
-  if (!user) {
-    user = await prisma.user.create({
+  if (!user.buyerSettings) {
+    user = await prisma.user.update({
+      where: {
+        id: user.id,
+      },
       data: {
-        email,
-        name: displayName,
-        avatarUrl,
-        role: toPrismaRole(authUser.user_metadata?.role),
         buyerSettings: {
           create: {},
         },
@@ -165,25 +177,6 @@ export async function getCurrentUser() {
         buyerSettings: true,
       },
     });
-  } else {
-    const shouldUpdateName = !user.name && displayName;
-    const shouldUpdateAvatar = !user.avatarUrl && avatarUrl;
-
-    if (shouldUpdateName || shouldUpdateAvatar) {
-      user = await prisma.user.update({
-        where: {
-          id: user.id,
-        },
-        data: {
-          ...(shouldUpdateName ? { name: displayName } : {}),
-          ...(shouldUpdateAvatar ? { avatarUrl } : {}),
-        },
-        include: {
-          expertProfile: true,
-          buyerSettings: true,
-        },
-      });
-    }
   }
 
   const role = normalizeRole(user.role);
