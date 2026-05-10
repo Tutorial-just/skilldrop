@@ -72,21 +72,26 @@ export default async function ExpertAvailabilityPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const currentView = getValidView(resolvedSearchParams.view);
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
   const now = new Date();
 
-  const expert = await prisma.expertProfile.findFirst({
+  const expert = await prisma.expertProfile.findUnique({
     where: {
-      user: {
-        email,
-      },
+      userId: user.id,
     },
     include: {
+      services: {
+        where: {
+          isActive: true,
+        },
+        select: {
+          id: true,
+          title: true,
+          durationMinutes: true,
+        },
+        orderBy: {
+          durationMinutes: "asc",
+        },
+      },
       availability: {
         orderBy: {
           startTime: "asc",
@@ -147,6 +152,16 @@ export default async function ExpertAvailabilityPage({
   const deletedCount = resolvedSearchParams.deleted
     ? Number(resolvedSearchParams.deleted)
     : null;
+
+  const shortestActiveService = expert.services[0] ?? null;
+  const shortestServiceDuration = shortestActiveService?.durationMinutes ?? null;
+
+  const availableDurationOptions = shortestServiceDuration
+    ? durationOptions.filter((duration) => duration >= shortestServiceDuration)
+    : durationOptions;
+
+  const defaultSingleDuration = String(shortestServiceDuration ?? 15);
+  const defaultBulkDuration = String(shortestServiceDuration ?? 30);
 
   return (
     <main>
@@ -234,6 +249,69 @@ export default async function ExpertAvailabilityPage({
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-5">
+          <Card
+            className={
+              shortestServiceDuration
+                ? "border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5"
+                : "border-[var(--danger)]/20 bg-[var(--danger-soft)] p-5"
+            }
+          >
+            <Badge variant={shortestServiceDuration ? "accent" : "danger"}>
+              <Clock3 size={14} />
+              Slot duration rule
+            </Badge>
+
+            {shortestServiceDuration ? (
+              <>
+                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                  Create slots long enough for your services.
+                </h2>
+
+                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                  Buyers only see time slots that are at least as long as the
+                  selected service. Your shortest active service is{" "}
+                  <span className="font-black text-[var(--foreground)]">
+                    {shortestServiceDuration} minutes
+                  </span>
+                  , so slots shorter than {shortestServiceDuration} minutes will
+                  not be bookable.
+                </p>
+
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-4 text-sm font-bold leading-6 text-muted">
+                  Example: if your service is 30 minutes, a 15-minute slot will
+                  not appear to buyers. Create 30, 45 or 60 minute slots instead.
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-4 text-sm font-bold leading-6 text-muted">
+                  Shortest service:{" "}
+                  <span className="font-black text-[var(--foreground)]">
+                    {shortestActiveService?.title}
+                  </span>{" "}
+                  · {shortestServiceDuration} min
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                  Create an active service first.
+                </h2>
+
+                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                  Availability works together with your services. Add at least
+                  one active service before creating time slots, so buyers can
+                  book the right duration.
+                </p>
+
+                <div className="mt-4">
+                  <ButtonLink href="/expert/services">
+                    Create service
+                    <ArrowRight size={18} />
+                  </ButtonLink>
+                </div>
+              </>
+            )}
+          </Card>
+
           <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr] xl:items-start">
             <details className="self-start rounded-[26px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[20px]">
@@ -290,18 +368,29 @@ export default async function ExpertAvailabilityPage({
                       id="durationMinutes"
                       name="durationMinutes"
                       required
-                      defaultValue="15"
+                      defaultValue={defaultSingleDuration}
                       className="input mt-2"
                     >
-                      {durationOptions.map((duration) => (
+                      {availableDurationOptions.map((duration) => (
                         <option key={duration} value={duration}>
                           {duration} min
                         </option>
                       ))}
                     </select>
+
+                    {shortestServiceDuration ? (
+                      <p className="mt-2 text-xs font-bold leading-5 text-muted">
+                        Minimum recommended duration: {shortestServiceDuration}{" "}
+                        min.
+                      </p>
+                    ) : null}
                   </div>
 
-                  <button type="submit" className="btn btn-primary">
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={!shortestServiceDuration}
+                  >
                     Add
                     <ArrowRight size={18} />
                   </button>
@@ -417,15 +506,22 @@ export default async function ExpertAvailabilityPage({
                         id="bulkDurationMinutes"
                         name="durationMinutes"
                         required
-                        defaultValue="30"
+                        defaultValue={defaultBulkDuration}
                         className="input mt-2"
                       >
-                        {durationOptions.map((duration) => (
+                        {availableDurationOptions.map((duration) => (
                           <option key={duration} value={duration}>
                             {duration} min
                           </option>
                         ))}
                       </select>
+
+                      {shortestServiceDuration ? (
+                        <p className="mt-2 text-xs font-bold leading-5 text-muted">
+                          Slots shorter than {shortestServiceDuration} min will
+                          not be visible to buyers.
+                        </p>
+                      ) : null}
                     </div>
 
                     <div>
@@ -480,7 +576,11 @@ export default async function ExpertAvailabilityPage({
                     </p>
                   </div>
 
-                  <button type="submit" className="btn btn-primary w-full">
+                  <button
+                    type="submit"
+                    className="btn btn-primary w-full"
+                    disabled={!shortestServiceDuration}
+                  >
                     Create weekly slots
                     <ArrowRight size={18} />
                   </button>
@@ -640,7 +740,7 @@ export default async function ExpertAvailabilityPage({
                 <CompactTip text="Keep 7–14 days of open slots visible." />
                 <CompactTip text="Use bulk create to prepare your week faster." />
                 <CompactTip text="Delete old open slots to keep the calendar clean." />
-                <CompactTip text="Short 15–30 minute slots can increase bookings." />
+                <CompactTip text="Create slots that are at least as long as your shortest active service." />
               </div>
             </Card>
           </div>
@@ -907,6 +1007,10 @@ function formatStatus(status: string) {
     return "Disputed";
   }
 
+  if (status === "EXPIRED") {
+    return "Expired";
+  }
+
   return status.toLowerCase();
 }
 
@@ -925,6 +1029,10 @@ function formatAvailabilityError(error: string) {
 
   if (error === "invalid-duration") {
     return "Please choose a valid duration.";
+  }
+
+  if (error === "duration-too-short-for-service") {
+    return "This slot is shorter than your shortest active service. Create a longer slot or update your service duration.";
   }
 
   if (error === "invalid-time-range") {

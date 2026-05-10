@@ -90,6 +90,44 @@ async function getCurrentExpertProfile() {
   return expert;
 }
 
+async function getShortestActiveServiceDuration(expertId: string) {
+  const shortestService = await prisma.service.findFirst({
+    where: {
+      expertId,
+      isActive: true,
+    },
+    select: {
+      durationMinutes: true,
+    },
+    orderBy: {
+      durationMinutes: "asc",
+    },
+  });
+
+  return shortestService?.durationMinutes ?? null;
+}
+
+async function ensureDurationMatchesActiveServices({
+  expertId,
+  durationMinutes,
+}: {
+  expertId: string;
+  durationMinutes: number;
+}) {
+  const shortestActiveServiceDuration =
+    await getShortestActiveServiceDuration(expertId);
+
+  if (!shortestActiveServiceDuration) {
+    redirectWithError("/expert/availability", "no-active-service");
+  }
+
+  if (durationMinutes < shortestActiveServiceDuration) {
+    redirectWithError("/expert/availability", "duration-too-short-for-service", {
+      minDuration: shortestActiveServiceDuration,
+    });
+  }
+}
+
 function parseLocalDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
@@ -251,17 +289,6 @@ function isTooFarInFuture(startTime: Date) {
   return startTime > maxDate;
 }
 
-async function countFutureSlots(expertId: string) {
-  return prisma.availability.count({
-    where: {
-      expertId,
-      startTime: {
-        gte: new Date(),
-      },
-    },
-  });
-}
-
 function revalidateAvailabilityPaths(expertId: string) {
   revalidatePath("/");
   revalidatePath("/expert");
@@ -292,6 +319,11 @@ export async function createAvailabilityAction(formData: FormData) {
   if (!durationMinutes) {
     redirectWithError("/expert/availability", "invalid-duration");
   }
+
+  await ensureDurationMatchesActiveServices({
+    expertId: expert.id,
+    durationMinutes,
+  });
 
   const now = new Date();
 
@@ -413,6 +445,11 @@ export async function createBulkAvailabilityAction(formData: FormData) {
   if (!durationMinutes) {
     redirectWithError("/expert/availability", "invalid-duration");
   }
+
+  await ensureDurationMatchesActiveServices({
+    expertId: expert.id,
+    durationMinutes,
+  });
 
   if (breakMinutes === null) {
     redirectWithError("/expert/availability", "invalid-break");
@@ -606,10 +643,12 @@ export async function deleteAvailabilityAction(formData: FormData) {
         throw new Error("cannot-delete-past-slot");
       }
 
-      const hasActiveBooking = Boolean(
-        slot.booking &&
+      const bookings = Array.isArray(slot.booking) ? slot.booking : [];
+
+      const hasActiveBooking = bookings.some(
+        (booking) =>
           !["CANCELLED", "REFUNDED", "DISPUTED", "EXPIRED"].includes(
-            slot.booking.status,
+            booking.status,
           ),
       );
 
@@ -666,7 +705,9 @@ export async function deletePastOpenAvailabilityAction() {
       startTime: {
         lt: new Date(),
       },
-      booking: null,
+      booking: {
+        none: {},
+      },
     },
   });
 
