@@ -226,17 +226,20 @@ export async function openStripeDashboardAction() {
     redirect("/expert/settings?error=stripe-account-missing");
   }
 
+  let dashboardUrl: string;
+
   try {
     const loginLink = await stripe.accounts.createLoginLink(account.id);
-
-    revalidateStripeConnectPaths(expert.id);
-
-    redirect(loginLink.url);
+    dashboardUrl = loginLink.url;
   } catch (error) {
     console.error("Stripe dashboard link error:", error);
 
     redirect("/expert/settings?error=stripe-dashboard-unavailable");
   }
+
+  revalidateStripeConnectPaths(expert.id);
+
+  redirect(dashboardUrl);
 }
 
 export async function createStripeConnectDashboardAction() {
