@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 
+const DEFAULT_RETURN_TO = "/buyer/saved";
+
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -16,27 +18,38 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-function getSafeReturnTo(value: string) {
+function getSafeReturnTo(value: string, fallback = DEFAULT_RETURN_TO) {
   if (!value) {
-    return "/buyer/saved";
+    return fallback;
   }
 
   if (!value.startsWith("/")) {
-    return "/buyer/saved";
+    return fallback;
   }
 
   if (value.startsWith("//")) {
-    return "/buyer/saved";
+    return fallback;
   }
 
   return value;
 }
 
+function appendQueryParam(href: string, key: string, value: string) {
+  const [pathname, search = ""] = href.split("?");
+
+  const params = new URLSearchParams(search);
+  params.set(key, value);
+
+  return `${pathname}?${params.toString()}`;
+}
+
 function revalidateSavedProviderPaths(expertId: string) {
+  revalidatePath("/");
   revalidatePath("/buyer");
   revalidatePath("/buyer/saved");
   revalidatePath("/experts");
   revalidatePath(`/experts/${expertId}`);
+  revalidatePath("/notifications");
 }
 
 async function getCurrentBuyerRecord() {
@@ -70,12 +83,19 @@ export async function saveExpertAction(formData: FormData) {
     redirect("/experts");
   }
 
+  const returnTo = getSafeReturnTo(
+    getStringValue(formData, "returnTo"),
+    `/experts/${expertId}`,
+  );
+
   const expert = await prisma.expertProfile.findUnique({
     where: {
       id: expertId,
     },
-    include: {
-      user: true,
+    select: {
+      id: true,
+      userId: true,
+      status: true,
     },
   });
 
@@ -103,7 +123,7 @@ export async function saveExpertAction(formData: FormData) {
 
   revalidateSavedProviderPaths(expertId);
 
-  redirect(`/experts/${expertId}?saved=1`);
+  redirect(appendQueryParam(returnTo, "saved", "1"));
 }
 
 export async function unsaveExpertAction(formData: FormData) {

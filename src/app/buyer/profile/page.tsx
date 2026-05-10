@@ -2,16 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ArrowLeft,
-  Bell,
   Bookmark,
   CalendarClock,
   CheckCircle2,
   Compass,
   Euro,
+  Eye,
   Globe2,
   HeartHandshake,
   Languages,
   Lightbulb,
+  Lock,
+  Mail,
   Save,
   Search,
   ShieldCheck,
@@ -33,30 +35,57 @@ import { Card } from "@/components/ui/card";
 type BuyerProfilePageProps = {
   searchParams?: Promise<{
     saved?: string;
+    error?: string;
   }>;
 };
 
 const profileIdeas = [
   {
     title: "Languages",
-    text: "Tell us which languages you prefer for calls.",
+    text: "Choose the languages you prefer for calls and recommendations.",
     icon: Languages,
   },
   {
     title: "Topics",
-    text: "Add interests like career, moving, family or documents.",
+    text: "Add interests like career, documents, moving abroad or business.",
     icon: HeartHandshake,
   },
   {
     title: "Budget",
-    text: "Set a comfortable price range for recommendations.",
+    text: "Set a comfortable price range to improve expert suggestions.",
     icon: Euro,
   },
   {
     title: "Timezone",
-    text: "Help us show better times for your schedule.",
+    text: "Help SkillDrop show times that match your real schedule.",
     icon: Globe2,
   },
+];
+
+const languageSuggestions = [
+  "English",
+  "French",
+  "Spanish",
+  "German",
+  "Italian",
+  "Russian",
+  "Arabic",
+  "Portuguese",
+  "Turkish",
+  "Ukrainian",
+];
+
+const topicSuggestions = [
+  "career",
+  "CV review",
+  "documents",
+  "translation",
+  "moving abroad",
+  "life advice",
+  "business",
+  "study",
+  "language practice",
+  "admin help",
 ];
 
 export default async function BuyerProfilePage({
@@ -81,9 +110,12 @@ export default async function BuyerProfilePage({
         orderBy: {
           startTime: "desc",
         },
-        take: 20,
+        take: 30,
       },
       savedExperts: {
+        take: 10,
+      },
+      reviews: {
         take: 10,
       },
     },
@@ -101,18 +133,28 @@ export default async function BuyerProfilePage({
       booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
       booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED",
+      booking.status !== "COMPLETED" &&
+      booking.status !== "DISPUTED",
   );
 
   const completedBookings = buyer.bookings.filter(
     (booking) => booking.status === "COMPLETED",
   );
 
+  const pendingBookings = buyer.bookings.filter(
+    (booking) => booking.status === "PENDING" && booking.startTime >= now,
+  );
+
+  const reviewedCalls = buyer.reviews.length;
+
+  const preferredLanguages = settings?.preferredLanguages ?? [];
+  const interests = settings?.interests ?? [];
+
   const profileScore = calculateProfileScore({
     hasName: Boolean(buyer.name),
     hasTimezone: Boolean(settings?.preferredTimezone),
-    hasLanguages: Boolean(settings?.preferredLanguages.length),
-    hasInterests: Boolean(settings?.interests.length),
+    hasLanguages: preferredLanguages.length > 0,
+    hasInterests: interests.length > 0,
     hasBudget: Boolean(settings?.budgetMinCents || settings?.budgetMaxCents),
     hasSavedExperts: buyer.savedExperts.length > 0,
     hasCompletedCall: completedBookings.length > 0,
@@ -126,10 +168,14 @@ export default async function BuyerProfilePage({
     ? String(settings.budgetMaxCents / 100)
     : "";
 
+  const displayName = buyer.name?.trim() || "Friend";
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-180px] top-[-220px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute right-[-180px] top-[120px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
         <div className="relative p-6 md:p-8 lg:p-10">
           <Link
@@ -148,6 +194,12 @@ export default async function BuyerProfilePage({
             </div>
           ) : null}
 
+          {resolvedSearchParams.error ? (
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+              {formatProfileError(resolvedSearchParams.error)}
+            </div>
+          ) : null}
+
           <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
               <Badge variant="primary">
@@ -156,12 +208,12 @@ export default async function BuyerProfilePage({
               </Badge>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Make your experience personal.
+                Make SkillDrop fit your needs.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Your profile helps SkillDrop recommend better experts, better
-                times and better services for your needs.
+                Your profile helps personalize search, recommendations,
+                reminders, languages, topics and booking suggestions.
               </p>
             </div>
 
@@ -178,7 +230,7 @@ export default async function BuyerProfilePage({
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               label="Profile score"
               value={`${profileScore}%`}
@@ -198,9 +250,15 @@ export default async function BuyerProfilePage({
             />
 
             <MetricCard
-              label="Completed"
-              value={String(completedBookings.length)}
-              hint="Finished sessions"
+              label="Pending"
+              value={String(pendingBookings.length)}
+              hint="Waiting payment"
+            />
+
+            <MetricCard
+              label="Reviews"
+              value={String(reviewedCalls)}
+              hint="Feedback written"
             />
           </div>
         </div>
@@ -208,7 +266,7 @@ export default async function BuyerProfilePage({
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-6">
-          <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+          <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
             <Card className="p-5 md:p-6">
               <Badge variant="primary">
                 <Sparkles size={14} />
@@ -227,7 +285,11 @@ export default async function BuyerProfilePage({
                 </div>
 
                 <p className="text-sm font-black text-[var(--primary-dark)]">
-                  {profileScore >= 75 ? "Strong" : "Keep going"}
+                  {profileScore >= 85
+                    ? "Excellent"
+                    : profileScore >= 65
+                      ? "Good"
+                      : "Keep going"}
                 </p>
               </div>
 
@@ -247,36 +309,78 @@ export default async function BuyerProfilePage({
                 />
 
                 <MiniCheck
-                  done={Boolean(settings?.preferredLanguages.length)}
+                  done={preferredLanguages.length > 0}
                   text="Preferred languages added"
                 />
 
+                <MiniCheck done={interests.length > 0} text="Topics added" />
+
                 <MiniCheck
-                  done={Boolean(settings?.interests.length)}
-                  text="Topics added"
+                  done={Boolean(
+                    settings?.budgetMinCents || settings?.budgetMaxCents,
+                  )}
+                  text="Budget range added"
                 />
 
                 <MiniCheck
-                  done={Boolean(settings?.budgetMinCents || settings?.budgetMaxCents)}
-                  text="Budget range added"
+                  done={buyer.savedExperts.length > 0}
+                  text="At least one expert saved"
+                />
+
+                <MiniCheck
+                  done={completedBookings.length > 0}
+                  text="Completed first call"
                 />
               </div>
             </Card>
 
             <Card className="p-5 md:p-6">
               <Badge variant="accent">
-                <Lightbulb size={14} />
-                Why this matters
+                <Eye size={14} />
+                Private client profile
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                Your profile is not public.
-              </h2>
+              <div className="mt-5 flex items-start gap-4 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
 
-              <p className="mt-3 leading-7 text-muted">
-                This profile is for your client experience. It helps the
-                platform understand what kind of experts, languages, topics and
-                call styles fit you best.
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-black tracking-[-0.04em]">
+                    {displayName}
+                  </h2>
+
+                  <p className="mt-1 break-all text-sm font-semibold leading-6 text-muted">
+                    {buyer.email}
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge>
+                      <Lock size={14} />
+                      Private
+                    </Badge>
+
+                    <Badge variant="primary">
+                      <Compass size={14} />
+                      Personalized
+                    </Badge>
+
+                    {settings?.allowReminders ?? true ? (
+                      <Badge variant="success">
+                        <BellIcon />
+                        Reminders on
+                      </Badge>
+                    ) : (
+                      <Badge variant="accent">Reminders off</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-5 leading-7 text-muted">
+                This profile is not a public expert profile. It is used to make
+                your buyer workspace more useful: better search, saved experts,
+                suggested topics, reminders and booking defaults.
               </p>
 
               <div className="mt-6 grid gap-3 md:grid-cols-2">
@@ -318,7 +422,8 @@ export default async function BuyerProfilePage({
               </h2>
 
               <p className="mt-3 text-sm leading-6 text-muted">
-                This name appears in your client workspace and booking history.
+                This name appears in your client workspace, bookings and
+                reviews.
               </p>
 
               <form action={updateBuyerAccountAction} className="mt-6 grid gap-5">
@@ -331,18 +436,29 @@ export default async function BuyerProfilePage({
                     id="name"
                     name="name"
                     type="text"
+                    maxLength={80}
                     defaultValue={buyer.name ?? ""}
                     className="input mt-2"
                     placeholder="Your name"
                   />
+
+                  <p className="mt-2 text-xs font-semibold text-muted">
+                    Use a name experts can recognize when preparing your call.
+                  </p>
                 </div>
 
                 <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
-                    Email
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <Mail size={17} className="text-muted" />
 
-                  <p className="mt-1 truncate font-black">{buyer.email}</p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+                        Email
+                      </p>
+
+                      <p className="mt-1 truncate font-black">{buyer.email}</p>
+                    </div>
+                  </div>
                 </div>
 
                 <button type="submit" className="btn btn-primary">
@@ -363,14 +479,17 @@ export default async function BuyerProfilePage({
               </h2>
 
               <p className="mt-3 max-w-2xl leading-7 text-muted">
-                These preferences can later power search, recommendations,
-                reminders and booking defaults.
+                These preferences can power search, recommendations, reminders
+                and booking defaults.
               </p>
 
               <form action={updateBuyerPreferencesAction} className="mt-7 grid gap-6">
                 <div className="grid gap-5 xl:grid-cols-2">
                   <div>
-                    <label htmlFor="preferredTimezone" className="text-sm font-black">
+                    <label
+                      htmlFor="preferredTimezone"
+                      className="text-sm font-black"
+                    >
                       Preferred timezone
                     </label>
 
@@ -378,6 +497,7 @@ export default async function BuyerProfilePage({
                       id="preferredTimezone"
                       name="preferredTimezone"
                       type="text"
+                      maxLength={80}
                       defaultValue={settings?.preferredTimezone ?? ""}
                       className="input mt-2"
                       placeholder="Europe/Paris"
@@ -389,7 +509,10 @@ export default async function BuyerProfilePage({
                   </div>
 
                   <div>
-                    <label htmlFor="defaultReminderMin" className="text-sm font-black">
+                    <label
+                      htmlFor="defaultReminderMin"
+                      className="text-sm font-black"
+                    >
                       Default call reminder
                     </label>
 
@@ -409,7 +532,10 @@ export default async function BuyerProfilePage({
                   </div>
 
                   <div>
-                    <label htmlFor="preferredLanguages" className="text-sm font-black">
+                    <label
+                      htmlFor="preferredLanguages"
+                      className="text-sm font-black"
+                    >
                       Preferred languages
                     </label>
 
@@ -417,7 +543,8 @@ export default async function BuyerProfilePage({
                       id="preferredLanguages"
                       name="preferredLanguages"
                       type="text"
-                      defaultValue={settings?.preferredLanguages.join(", ") ?? ""}
+                      maxLength={300}
+                      defaultValue={preferredLanguages.join(", ")}
                       className="input mt-2"
                       placeholder="English, French, Russian"
                     />
@@ -425,6 +552,8 @@ export default async function BuyerProfilePage({
                     <p className="mt-2 text-xs font-semibold text-muted">
                       Separate languages with commas.
                     </p>
+
+                    <SuggestionRow items={languageSuggestions} />
                   </div>
 
                   <div>
@@ -436,7 +565,8 @@ export default async function BuyerProfilePage({
                       id="interests"
                       name="interests"
                       type="text"
-                      defaultValue={settings?.interests.join(", ") ?? ""}
+                      maxLength={500}
+                      defaultValue={interests.join(", ")}
                       className="input mt-2"
                       placeholder="career, documents, moving abroad, life advice"
                     />
@@ -444,6 +574,8 @@ export default async function BuyerProfilePage({
                     <p className="mt-2 text-xs font-semibold text-muted">
                       Separate topics with commas.
                     </p>
+
+                    <SuggestionRow items={topicSuggestions} />
                   </div>
 
                   <div>
@@ -451,20 +583,23 @@ export default async function BuyerProfilePage({
                       Minimum budget
                     </label>
 
-                    <input
-                      id="budgetMin"
-                      name="budgetMin"
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={
-                        settings?.budgetMinCents
-                          ? String(settings.budgetMinCents / 100)
-                          : ""
-                      }
-                      className="input mt-2"
-                      placeholder="10"
-                    />
+                    <div className="relative mt-2">
+                      <Euro
+                        size={17}
+                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                      />
+
+                      <input
+                        id="budgetMin"
+                        name="budgetMin"
+                        type="number"
+                        min="0"
+                        step="1"
+                        defaultValue={budgetMin}
+                        className="input pl-12"
+                        placeholder="10"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -472,20 +607,23 @@ export default async function BuyerProfilePage({
                       Maximum budget
                     </label>
 
-                    <input
-                      id="budgetMax"
-                      name="budgetMax"
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={
-                        settings?.budgetMaxCents
-                          ? String(settings.budgetMaxCents / 100)
-                          : ""
-                      }
-                      className="input mt-2"
-                      placeholder="100"
-                    />
+                    <div className="relative mt-2">
+                      <Euro
+                        size={17}
+                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                      />
+
+                      <input
+                        id="budgetMax"
+                        name="budgetMax"
+                        type="number"
+                        min="0"
+                        step="1"
+                        defaultValue={budgetMax}
+                        className="input pl-12"
+                        placeholder="100"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -493,7 +631,7 @@ export default async function BuyerProfilePage({
                   <ToggleCard
                     name="hideEmail"
                     title="Hide my email from experts"
-                    text="Experts should contact me through the platform, not directly by email."
+                    text="Experts should contact you through SkillDrop, not directly by email."
                     defaultChecked={settings?.hideEmail ?? true}
                   />
 
@@ -505,6 +643,26 @@ export default async function BuyerProfilePage({
                   />
                 </div>
 
+                <div className="rounded-[24px] border border-[var(--border)] bg-[var(--primary-soft)] p-5">
+                  <div className="flex gap-3">
+                    <ShieldCheck
+                      size={20}
+                      className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+                    />
+
+                    <div>
+                      <p className="font-black text-[var(--primary-dark)]">
+                        Preferences are private
+                      </p>
+
+                      <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
+                        Experts do not see this full profile. It is mainly used
+                        for your own workspace and future recommendations.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <button type="submit" className="btn btn-primary w-full md:w-fit">
                   <Save size={18} />
                   Save profile preferences
@@ -513,42 +671,78 @@ export default async function BuyerProfilePage({
             </Card>
           </div>
 
-          <Card soft className="p-5 md:p-6">
-            <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                <Compass size={24} />
-              </div>
+          <div className="grid gap-6 xl:grid-cols-[1fr_0.85fr]">
+            <Card className="p-5 md:p-6">
+              <Badge variant="accent">
+                <Lightbulb size={14} />
+                Smart next step
+              </Badge>
 
-              <div>
-                <h2 className="text-2xl font-black tracking-[-0.04em]">
-                  Next best action
-                </h2>
+              <div className="mt-5 grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <Compass size={24} />
+                </div>
 
-                <p className="mt-2 leading-7 text-muted">
-                  {getNextActionText({
-                    hasLanguages: Boolean(settings?.preferredLanguages.length),
-                    hasInterests: Boolean(settings?.interests.length),
+                <div>
+                  <h2 className="text-2xl font-black tracking-[-0.04em]">
+                    {getNextActionTitle({
+                      hasLanguages: preferredLanguages.length > 0,
+                      hasInterests: interests.length > 0,
+                      hasSavedExperts: buyer.savedExperts.length > 0,
+                      hasUpcoming: upcomingBookings.length > 0,
+                      hasPendingPayment: pendingBookings.length > 0,
+                    })}
+                  </h2>
+
+                  <p className="mt-2 leading-7 text-muted">
+                    {getNextActionText({
+                      hasLanguages: preferredLanguages.length > 0,
+                      hasInterests: interests.length > 0,
+                      hasSavedExperts: buyer.savedExperts.length > 0,
+                      hasUpcoming: upcomingBookings.length > 0,
+                      hasPendingPayment: pendingBookings.length > 0,
+                    })}
+                  </p>
+                </div>
+
+                <ButtonLink
+                  href={getNextActionHref({
+                    hasLanguages: preferredLanguages.length > 0,
+                    hasInterests: interests.length > 0,
                     hasSavedExperts: buyer.savedExperts.length > 0,
                     hasUpcoming: upcomingBookings.length > 0,
+                    hasPendingPayment: pendingBookings.length > 0,
                   })}
-                </p>
+                >
+                  Continue
+                  <Sparkles size={18} />
+                </ButtonLink>
               </div>
+            </Card>
 
-              <ButtonLink href={getNextActionHref({
-                hasLanguages: Boolean(settings?.preferredLanguages.length),
-                hasInterests: Boolean(settings?.interests.length),
-                hasSavedExperts: buyer.savedExperts.length > 0,
-                hasUpcoming: upcomingBookings.length > 0,
-              })}>
-                Continue
-                <Sparkles size={18} />
-              </ButtonLink>
-            </div>
-          </Card>
+            <Card className="p-5 md:p-6">
+              <Badge variant="primary">
+                <CalendarClock size={14} />
+                Account snapshot
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <SnapshotRow label="Email visibility" value={settings?.hideEmail ?? true ? "Hidden" : "Visible"} />
+                <SnapshotRow label="Reminders" value={settings?.allowReminders ?? true ? "Enabled" : "Off"} />
+                <SnapshotRow label="Reminder time" value={`${settings?.defaultReminderMin ?? 30} min`} />
+                <SnapshotRow label="Budget" value={formatBudget(settings?.budgetMinCents, settings?.budgetMaxCents)} />
+                <SnapshotRow label="Timezone" value={settings?.preferredTimezone ?? "Not set"} />
+              </div>
+            </Card>
+          </div>
         </div>
       </section>
     </main>
   );
+}
+
+function BellIcon() {
+  return <CalendarClock size={14} />;
 }
 
 function MetricCard({
@@ -621,6 +815,31 @@ function ToggleCard({
   );
 }
 
+function SuggestionRow({ items }: { items: string[] }) {
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {items.slice(0, 6).map((item) => (
+        <span
+          key={item}
+          className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]"
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function SnapshotRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+      <p className="text-sm font-bold text-muted">{label}</p>
+
+      <p className="text-right text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
 function calculateProfileScore({
   hasName,
   hasTimezone,
@@ -651,17 +870,55 @@ function calculateProfileScore({
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
-function getNextActionText({
+function getNextActionTitle({
   hasLanguages,
   hasInterests,
   hasSavedExperts,
   hasUpcoming,
+  hasPendingPayment,
 }: {
   hasLanguages: boolean;
   hasInterests: boolean;
   hasSavedExperts: boolean;
   hasUpcoming: boolean;
+  hasPendingPayment: boolean;
 }) {
+  if (hasPendingPayment) {
+    return "Complete your payment.";
+  }
+
+  if (!hasLanguages || !hasInterests) {
+    return "Complete your preferences.";
+  }
+
+  if (!hasSavedExperts) {
+    return "Save your first expert.";
+  }
+
+  if (!hasUpcoming) {
+    return "Book a saved expert.";
+  }
+
+  return "Prepare for your next call.";
+}
+
+function getNextActionText({
+  hasLanguages,
+  hasInterests,
+  hasSavedExperts,
+  hasUpcoming,
+  hasPendingPayment,
+}: {
+  hasLanguages: boolean;
+  hasInterests: boolean;
+  hasSavedExperts: boolean;
+  hasUpcoming: boolean;
+  hasPendingPayment: boolean;
+}) {
+  if (hasPendingPayment) {
+    return "You have a reserved slot waiting for payment. Complete checkout before the reservation expires.";
+  }
+
   if (!hasLanguages || !hasInterests) {
     return "Add languages and topics so recommendations can become more personal.";
   }
@@ -682,12 +939,18 @@ function getNextActionHref({
   hasInterests,
   hasSavedExperts,
   hasUpcoming,
+  hasPendingPayment,
 }: {
   hasLanguages: boolean;
   hasInterests: boolean;
   hasSavedExperts: boolean;
   hasUpcoming: boolean;
+  hasPendingPayment: boolean;
 }) {
+  if (hasPendingPayment) {
+    return "/buyer/bookings";
+  }
+
   if (!hasLanguages || !hasInterests) {
     return "/buyer/profile";
   }
@@ -701,4 +964,48 @@ function getNextActionHref({
   }
 
   return "/buyer/bookings";
+}
+
+function formatBudget(min?: number | null, max?: number | null) {
+  if (min && max) {
+    return `€${min / 100} – €${max / 100}`;
+  }
+
+  if (min) {
+    return `From €${min / 100}`;
+  }
+
+  if (max) {
+    return `Up to €${max / 100}`;
+  }
+
+  return "Not set";
+}
+
+function formatProfileError(error: string) {
+  if (error === "missing-name") {
+    return "Please enter a display name.";
+  }
+
+  if (error === "name-too-long") {
+    return "Display name is too long.";
+  }
+
+  if (error === "invalid-budget") {
+    return "Please enter a valid budget range.";
+  }
+
+  if (error === "invalid-reminder") {
+    return "Please choose a valid reminder time.";
+  }
+
+  if (error === "invalid-timezone") {
+    return "Please enter a valid timezone.";
+  }
+
+  if (error === "not-signed-in") {
+    return "Please sign in again.";
+  }
+
+  return "Something went wrong. Please try again.";
 }

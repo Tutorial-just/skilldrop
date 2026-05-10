@@ -178,6 +178,12 @@ export async function createBookingAction(formData: FormData) {
     redirect(`/experts/${expertId}?error=provider-not-available`);
   }
 
+  if (!expert.stripeAccountId) {
+    redirect(
+      `/experts/${expertId}?service=${serviceId}&error=expert-payout-not-ready`,
+    );
+  }
+
   const service = await prisma.service.findFirst({
     where: {
       id: serviceId,
@@ -286,10 +292,16 @@ export async function createBookingAction(formData: FormData) {
         note: note || null,
       };
     });
-  } catch {
-    redirect(
-      `/experts/${expertId}?service=${serviceId}&error=slot-not-available`,
-    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "slot-not-available") {
+      redirect(
+        `/experts/${expertId}?service=${serviceId}&error=slot-not-available`,
+      );
+    }
+
+    console.error("Create booking error:", error);
+
+    redirect(`/experts/${expertId}?service=${serviceId}&error=booking-failed`);
   }
 
   if (!booking) {
@@ -607,6 +619,8 @@ export async function updateBookingStatusAction(formData: FormData) {
           data: {
             isVerified: true,
             verifiedAt: now,
+            verificationNote:
+              "Automatically verified after 3 completed sessions and 3.8+ rating.",
           },
         });
       }

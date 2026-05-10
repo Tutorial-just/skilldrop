@@ -8,10 +8,12 @@ import {
   Euro,
   Mail,
   MessageCircle,
+  ShieldAlert,
   ShieldCheck,
   Star,
   UserRound,
   Video,
+  WalletCards,
   XCircle,
 } from "lucide-react";
 
@@ -22,6 +24,10 @@ import {
 import { markCallCompletedAction } from "@/server/actions/call.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  calculatePricingBreakdown,
+  formatMoneyFromCents,
+} from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -86,6 +92,14 @@ export default async function ExpertBookingsPage({
     )
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
+  const pendingPaymentBookings = expert.bookings.filter(
+    (booking) => booking.status === "PENDING" && booking.startTime >= now,
+  );
+
+  const paidWaitingConfirmationBookings = expert.bookings.filter(
+    (booking) => booking.status === "PAID" && booking.startTime >= now,
+  );
+
   const confirmedBookings = expert.bookings.filter(
     (booking) => booking.status === "CONFIRMED" && booking.startTime >= now,
   );
@@ -101,16 +115,22 @@ export default async function ExpertBookingsPage({
       booking.status === "DISPUTED",
   );
 
-  const pendingPaymentBookings = expert.bookings.filter(
-    (booking) => booking.status === "PENDING" && booking.startTime >= now,
-  );
-
-  const pastUncompletedBookings = expert.bookings.filter(
-    (booking) => booking.endTime < now && booking.status === "CONFIRMED",
-  );
+  const pastUncompletedBookings = expert.bookings
+    .filter((booking) => booking.endTime < now && booking.status === "CONFIRMED")
+    .sort((a, b) => b.endTime.getTime() - a.endTime.getTime());
 
   const nextBooking = upcomingBookings[0] ?? null;
   const topMessage = getTopMessage(resolvedSearchParams.error);
+
+  const completedNetCents = completedBookings.reduce(
+    (sum, booking) => sum + getBookingPricing(booking).providerNetCents,
+    0,
+  );
+
+  const upcomingNetCents = confirmedBookings.reduce(
+    (sum, booking) => sum + getBookingPricing(booking).providerNetCents,
+    0,
+  );
 
   return (
     <main>
@@ -150,8 +170,9 @@ export default async function ExpertBookingsPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Join upcoming sessions, review client notes, complete finished
-                calls and manage cancellations from one workspace.
+                Join upcoming sessions, read client notes, complete finished
+                calls, track payout estimates and manage booking status from one
+                workspace.
               </p>
             </div>
 
@@ -160,13 +181,17 @@ export default async function ExpertBookingsPage({
                 Add availability
               </ButtonLink>
 
+              <ButtonLink href="/expert/earnings" variant="secondary">
+                Earnings
+              </ButtonLink>
+
               <ButtonLink href="/expert/stats" variant="secondary">
                 View statistics
               </ButtonLink>
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               icon={Video}
               label="Upcoming"
@@ -185,7 +210,14 @@ export default async function ExpertBookingsPage({
               icon={CheckCircle2}
               label="Completed"
               value={String(completedBookings.length)}
-              hint="Finished sessions"
+              hint={formatMoney(completedNetCents)}
+            />
+
+            <MetricCard
+              icon={WalletCards}
+              label="Upcoming net"
+              value={formatMoney(upcomingNetCents)}
+              hint="If confirmed calls complete"
             />
 
             <MetricCard
@@ -208,70 +240,7 @@ export default async function ExpertBookingsPage({
               </Badge>
 
               {nextBooking ? (
-                <div className="mt-5">
-                  <h2 className="text-3xl font-black tracking-[-0.05em]">
-                    {nextBooking.service?.title ?? "Client call"}
-                  </h2>
-
-                  <p className="mt-3 text-sm font-semibold leading-6 text-muted">
-                    Client:{" "}
-                    <span className="font-black text-[var(--foreground)]">
-                      {nextBooking.buyer.name ?? nextBooking.buyer.email}
-                    </span>
-                  </p>
-
-                  <div className="mt-5 grid gap-3">
-                    <InfoRow
-                      label="Date"
-                      value={formatDateTime(nextBooking.startTime)}
-                    />
-
-                    <InfoRow
-                      label="Duration"
-                      value={`${getDurationMinutes(
-                        nextBooking.startTime,
-                        nextBooking.endTime,
-                      )} minutes`}
-                    />
-
-                    <InfoRow
-                      label="Price"
-                      value={formatMoney(nextBooking.priceCents)}
-                    />
-
-                    <InfoRow
-                      label="Status"
-                      value={formatStatus(nextBooking.status)}
-                    />
-                  </div>
-
-                  {nextBooking.note ? (
-                    <ClientNote note={nextBooking.note} className="mt-5" />
-                  ) : null}
-
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    {canJoinBooking(nextBooking) ? (
-                      <Link
-                        href={`/calls/${nextBooking.id}`}
-                        className="btn btn-primary"
-                      >
-                        Join call
-                        <Video size={18} />
-                      </Link>
-                    ) : null}
-
-                    {nextBooking.status === "CONFIRMED" &&
-                    nextBooking.endTime <= now ? (
-                      <CompleteCallForm bookingId={nextBooking.id} />
-                    ) : null}
-
-                    {(nextBooking.status === "PENDING" ||
-                      nextBooking.status === "CONFIRMED") &&
-                    nextBooking.startTime > now ? (
-                      <CancelCallForm bookingId={nextBooking.id} />
-                    ) : null}
-                  </div>
-                </div>
+                <NextBookingPanel booking={nextBooking} />
               ) : (
                 <EmptyState
                   title="No upcoming calls"
@@ -279,6 +248,35 @@ export default async function ExpertBookingsPage({
                 />
               )}
             </Card>
+
+            {pastUncompletedBookings.length > 0 ? (
+              <Card className="border-[var(--accent)]/20 bg-[var(--accent-soft)] p-5 md:p-6">
+                <Badge variant="accent">
+                  <Clock3 size={14} />
+                  Needs action
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  Past calls waiting for completion.
+                </h2>
+
+                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                  Mark completed calls as completed so clients can leave reviews
+                  and earnings can be counted correctly.
+                </p>
+
+                <div className="mt-6 grid gap-4">
+                  {pastUncompletedBookings.map((booking) => (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      important
+                      highlighted={booking.id === resolvedSearchParams.completed}
+                    />
+                  ))}
+                </div>
+              </Card>
+            ) : null}
 
             {pendingPaymentBookings.length > 0 ? (
               <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
@@ -292,13 +290,48 @@ export default async function ExpertBookingsPage({
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  These reservations are waiting for client payment. They will
-                  be confirmed automatically after Stripe payment.
+                  These reservations are waiting for client payment. If payment
+                  is not completed in time, the slot becomes available again.
                 </p>
 
                 <div className="mt-6 grid gap-4">
-                  {pendingPaymentBookings.slice(0, 3).map((booking) => (
-                    <BookingCard key={booking.id} booking={booking} important />
+                  {pendingPaymentBookings.slice(0, 4).map((booking) => (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      important
+                      highlighted={booking.id === resolvedSearchParams.completed}
+                    />
+                  ))}
+                </div>
+              </Card>
+            ) : null}
+
+            {paidWaitingConfirmationBookings.length > 0 ? (
+              <Card className="border-[var(--primary)]/20 bg-[var(--primary-soft)] p-5 md:p-6">
+                <Badge variant="primary">
+                  <Euro size={14} />
+                  Paid, confirmation pending
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  Payment received.
+                </h2>
+
+                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                  These bookings have payment received but are waiting for final
+                  webhook confirmation. If this stays too long, check Stripe
+                  webhook logs.
+                </p>
+
+                <div className="mt-6 grid gap-4">
+                  {paidWaitingConfirmationBookings.slice(0, 4).map((booking) => (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      important
+                      highlighted={booking.id === resolvedSearchParams.completed}
+                    />
                   ))}
                 </div>
               </Card>
@@ -312,37 +345,14 @@ export default async function ExpertBookingsPage({
 
               <div className="mt-5 grid gap-3">
                 <Tip text="Read the client note before the call so you can prepare faster." />
-                <Tip text="Paid bookings are confirmed automatically after Stripe payment." />
+                <Tip text="Paid bookings are confirmed automatically after Stripe webhook success." />
                 <Tip text="Complete calls after the session so clients can leave reviews." />
-                <Tip text="Keep your availability fresh every week." />
+                <Tip text="Keep your availability fresh every week to appear bookable." />
               </div>
             </Card>
           </div>
 
           <div className="grid gap-6">
-            {pastUncompletedBookings.length > 0 ? (
-              <Card className="border-[var(--accent)]/20 bg-[var(--accent-soft)] p-5 md:p-6">
-                <Badge variant="accent">
-                  <Clock3 size={14} />
-                  Needs action
-                </Badge>
-
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                  Past calls waiting for status
-                </h2>
-
-                <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  Mark completed calls as completed so clients can leave reviews.
-                </p>
-
-                <div className="mt-6 grid gap-4">
-                  {pastUncompletedBookings.map((booking) => (
-                    <BookingCard key={booking.id} booking={booking} important />
-                  ))}
-                </div>
-              </Card>
-            ) : null}
-
             <Card className="p-5 md:p-6">
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
@@ -356,7 +366,7 @@ export default async function ExpertBookingsPage({
                   </h2>
 
                   <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
-                    Pending, confirmed, completed, cancelled, refunded and
+                    Pending, paid, confirmed, completed, cancelled, refunded and
                     disputed client calls.
                   </p>
                 </div>
@@ -367,7 +377,11 @@ export default async function ExpertBookingsPage({
               <div className="mt-6 grid gap-4">
                 {expert.bookings.length > 0 ? (
                   expert.bookings.map((booking) => (
-                    <BookingCard key={booking.id} booking={booking} />
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      highlighted={booking.id === resolvedSearchParams.completed}
+                    />
                   ))
                 ) : (
                   <EmptyState
@@ -396,38 +410,127 @@ export default async function ExpertBookingsPage({
   );
 }
 
+type ExpertBooking = {
+  id: string;
+  expertId: string;
+  startTime: Date;
+  endTime: Date;
+  status: string;
+  priceCents: number;
+  platformFeeCents: number | null;
+  providerNetCents: number | null;
+  clientServiceFeeCents: number | null;
+  clientTotalCents: number | null;
+  note: string | null;
+  buyer: {
+    name: string | null;
+    email: string;
+  };
+  service: {
+    title: string;
+    durationMinutes: number;
+  } | null;
+  callRoom: {
+    roomUrl: string;
+  } | null;
+  review: {
+    rating: number;
+    comment: string | null;
+  } | null;
+};
+
+function NextBookingPanel({ booking }: { booking: ExpertBooking }) {
+  const pricing = getBookingPricing(booking);
+  const canJoin = canJoinBooking(booking);
+  const now = new Date();
+
+  return (
+    <div className="mt-5">
+      <h2 className="text-3xl font-black tracking-[-0.05em]">
+        {booking.service?.title ?? "Client call"}
+      </h2>
+
+      <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+        Client:{" "}
+        <span className="font-black text-[var(--foreground)]">
+          {booking.buyer.name ?? booking.buyer.email}
+        </span>
+      </p>
+
+      <div className="mt-5 grid gap-3">
+        <InfoRow label="Date" value={formatDateTime(booking.startTime)} />
+
+        <InfoRow
+          label="Duration"
+          value={`${getDurationMinutes(
+            booking.startTime,
+            booking.endTime,
+          )} minutes`}
+        />
+
+        <InfoRow
+          label="Service price"
+          value={formatMoney(pricing.servicePriceCents)}
+        />
+
+        <InfoRow
+          label="Your net estimate"
+          value={formatMoney(pricing.providerNetCents)}
+          strong
+        />
+
+        <InfoRow label="Status" value={formatStatus(booking.status)} />
+      </div>
+
+      {booking.note ? <ClientNote note={booking.note} className="mt-5" /> : null}
+
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        {canJoin ? (
+          <Link href={`/calls/${booking.id}`} className="btn btn-primary">
+            Join call
+            <Video size={18} />
+          </Link>
+        ) : null}
+
+        {booking.status === "CONFIRMED" && booking.endTime <= now ? (
+          <CompleteCallForm bookingId={booking.id} />
+        ) : null}
+
+        {(booking.status === "PENDING" || booking.status === "CONFIRMED") &&
+        booking.startTime > now ? (
+          <CancelCallForm bookingId={booking.id} />
+        ) : null}
+      </div>
+
+      {booking.status === "CONFIRMED" && !canJoin ? (
+        <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+          <div className="flex gap-3">
+            <Clock3 size={18} className="mt-0.5 text-[var(--primary-dark)]" />
+            <p className="text-sm font-bold leading-6 text-muted">
+              The call room opens 10 minutes before start and remains available
+              for 15 minutes after the scheduled end.
+            </p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BookingCard({
   booking,
   important = false,
+  highlighted = false,
 }: {
-  booking: {
-    id: string;
-    startTime: Date;
-    endTime: Date;
-    status: string;
-    priceCents: number;
-    note: string | null;
-    buyer: {
-      name: string | null;
-      email: string;
-    };
-    service: {
-      title: string;
-      durationMinutes: number;
-    } | null;
-    callRoom: {
-      roomUrl: string;
-    } | null;
-    review: {
-      rating: number;
-      comment: string | null;
-    } | null;
-  };
+  booking: ExpertBooking;
   important?: boolean;
+  highlighted?: boolean;
 }) {
   const now = new Date();
+  const pricing = getBookingPricing(booking);
 
   const isPending = booking.status === "PENDING";
+  const isPaid = booking.status === "PAID";
   const isConfirmed = booking.status === "CONFIRMED";
   const isCompleted = booking.status === "COMPLETED";
   const isCancelled =
@@ -442,19 +545,28 @@ function BookingCard({
   return (
     <div
       className={
-        important
-          ? "rounded-[26px] border border-[var(--accent)]/30 bg-white/70 p-4"
-          : canComplete
-            ? "rounded-[26px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] p-4"
-            : isPending
-              ? "rounded-[26px] border border-[var(--warning)]/30 bg-[var(--warning-soft)] p-4"
-              : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
+        highlighted
+          ? "rounded-[26px] border border-[var(--success)]/30 bg-[var(--success-soft)] p-4"
+          : important
+            ? "rounded-[26px] border border-[var(--accent)]/30 bg-white/70 p-4"
+            : canComplete
+              ? "rounded-[26px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] p-4"
+              : isPending
+                ? "rounded-[26px] border border-[var(--warning)]/30 bg-[var(--warning-soft)] p-4"
+                : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
       }
     >
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
+
+            {highlighted ? (
+              <Badge variant="success">
+                <CheckCircle2 size={14} />
+                Updated
+              </Badge>
+            ) : null}
 
             {booking.note ? (
               <Badge variant="primary">
@@ -474,6 +586,20 @@ function BookingCard({
               <Badge variant="accent">
                 <Clock3 size={14} />
                 Waiting payment
+              </Badge>
+            ) : null}
+
+            {isPaid ? (
+              <Badge variant="primary">
+                <Euro size={14} />
+                Payment received
+              </Badge>
+            ) : null}
+
+            {canJoin ? (
+              <Badge variant="success">
+                <Video size={14} />
+                Join now
               </Badge>
             ) : null}
 
@@ -516,7 +642,28 @@ function BookingCard({
               )} min`}
             />
 
-            <SmallPill icon={Euro} text={formatMoney(booking.priceCents)} />
+            <SmallPill
+              icon={Euro}
+              text={formatMoney(pricing.servicePriceCents)}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <MiniMoney
+              label="Service"
+              value={formatMoney(pricing.servicePriceCents)}
+            />
+
+            <MiniMoney
+              label="Commission"
+              value={formatMoney(pricing.providerCommissionCents)}
+            />
+
+            <MiniMoney
+              label="Net estimate"
+              value={formatMoney(pricing.providerNetCents)}
+              strong
+            />
           </div>
 
           {booking.note ? (
@@ -524,21 +671,38 @@ function BookingCard({
           ) : null}
 
           {isPending ? (
-            <p className="mt-4 rounded-2xl border border-[var(--warning)]/20 bg-white/55 p-3 text-sm font-bold text-[var(--warning)]">
-              This reservation is waiting for client payment.
-            </p>
+            <StatusExplanation
+              variant="warning"
+              text="This reservation is waiting for client payment."
+            />
+          ) : null}
+
+          {isPaid ? (
+            <StatusExplanation
+              variant="primary"
+              text="Payment was received. Final confirmation may still be processing through Stripe webhook."
+            />
+          ) : null}
+
+          {isConfirmed && !canJoin && booking.endTime > now ? (
+            <StatusExplanation
+              variant="success"
+              text="Booking confirmed. The call room opens near the scheduled time."
+            />
           ) : null}
 
           {isCancelled ? (
-            <p className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]">
-              This booking is closed and the slot is no longer active.
-            </p>
+            <StatusExplanation
+              variant="danger"
+              text="This booking is closed and the slot is no longer active."
+            />
           ) : null}
 
           {isDisputed ? (
-            <p className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]">
-              This booking is disputed and is under SkillDrop review.
-            </p>
+            <StatusExplanation
+              variant="danger"
+              text="This booking is disputed and is under SkillDrop review."
+            />
           ) : null}
 
           {booking.review ? (
@@ -640,7 +804,7 @@ function StatusBadge({ status }: { status: string }) {
   }
 
   if (status === "CONFIRMED") {
-    return <Badge variant="primary">Confirmed</Badge>;
+    return <Badge variant="success">Confirmed</Badge>;
   }
 
   if (status === "PAID") {
@@ -648,7 +812,12 @@ function StatusBadge({ status }: { status: string }) {
   }
 
   if (status === "DISPUTED") {
-    return <Badge variant="danger">Disputed</Badge>;
+    return (
+      <Badge variant="danger">
+        <ShieldAlert size={14} />
+        Disputed
+      </Badge>
+    );
   }
 
   if (status === "PENDING") {
@@ -686,11 +855,27 @@ function MetricCard({
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
       <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
+      <p
+        className={
+          strong
+            ? "text-right text-sm font-black text-[var(--primary-dark)]"
+            : "text-right text-sm font-black"
+        }
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -708,6 +893,55 @@ function SmallPill({
       {text}
     </span>
   );
+}
+
+function MiniMoney({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/55 p-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+
+      <p
+        className={
+          strong
+            ? "mt-1 font-black text-[var(--primary-dark)]"
+            : "mt-1 font-black"
+        }
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function StatusExplanation({
+  text,
+  variant,
+}: {
+  text: string;
+  variant: "warning" | "primary" | "success" | "danger" | "muted";
+}) {
+  const className =
+    variant === "warning"
+      ? "mt-4 rounded-2xl border border-[var(--warning)]/20 bg-white/55 p-3 text-sm font-bold text-[var(--warning)]"
+      : variant === "primary"
+        ? "mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]"
+        : variant === "success"
+          ? "mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-bold text-[var(--success)]"
+          : variant === "danger"
+            ? "mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]"
+            : "mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-3 text-sm font-bold text-muted";
+
+  return <p className={className}>{text}</p>;
 }
 
 function Tip({ text }: { text: string }) {
@@ -751,6 +985,26 @@ function canJoinBooking(booking: {
   );
 }
 
+function getBookingPricing(booking: {
+  priceCents: number;
+  platformFeeCents?: number | null;
+  providerNetCents?: number | null;
+}) {
+  const fallback = calculatePricingBreakdown(booking.priceCents);
+
+  return {
+    servicePriceCents: booking.priceCents,
+    providerCommissionCents:
+      typeof booking.platformFeeCents === "number"
+        ? booking.platformFeeCents
+        : fallback.providerCommissionCents,
+    providerNetCents:
+      typeof booking.providerNetCents === "number"
+        ? booking.providerNetCents
+        : fallback.providerNetCents,
+  };
+}
+
 function getDurationMinutes(startTime: Date, endTime: Date) {
   return Math.max(
     Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
@@ -759,7 +1013,7 @@ function getDurationMinutes(startTime: Date, endTime: Date) {
 }
 
 function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+  return formatMoneyFromCents(cents);
 }
 
 function formatDateTime(date: Date) {
@@ -817,6 +1071,18 @@ function getTopMessage(error?: string) {
     return "You can mark the call as completed only after the scheduled end time.";
   }
 
+  if (error === "call-not-started") {
+    return "You can mark the call as completed only after the call has started.";
+  }
+
+  if (error === "call-not-confirmed") {
+    return "This call is not confirmed yet.";
+  }
+
+  if (error === "not-confirmed") {
+    return "This booking is not confirmed yet.";
+  }
+
   if (error === "cannot-cancel") {
     return "This booking cannot be cancelled anymore.";
   }
@@ -827,6 +1093,10 @@ function getTopMessage(error?: string) {
 
   if (error === "invalid-status") {
     return "Invalid booking status.";
+  }
+
+  if (error === "booking-not-found") {
+    return "Booking was not found.";
   }
 
   return null;

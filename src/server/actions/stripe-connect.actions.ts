@@ -11,7 +11,7 @@ function getAppUrl() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
   if (!appUrl) {
-    return null;
+    throw new Error("NEXT_PUBLIC_APP_URL is missing.");
   }
 
   return appUrl.replace(/\/$/, "");
@@ -19,13 +19,14 @@ function getAppUrl() {
 
 function revalidateStripeConnectPaths(expertId: string) {
   revalidatePath("/");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expertId}`);
-
   revalidatePath("/expert");
   revalidatePath("/expert/earnings");
   revalidatePath("/expert/settings");
   revalidatePath("/expert/stats");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
+  revalidatePath("/admin");
+  revalidatePath("/admin/experts");
 }
 
 async function getCurrentExpert() {
@@ -60,13 +61,7 @@ async function getCurrentExpert() {
   };
 }
 
-async function getValidStripeAccountId({
-  expertId,
-  stripeAccountId,
-}: {
-  expertId: string;
-  stripeAccountId: string | null;
-}) {
+async function getValidStripeAccountId(stripeAccountId: string | null) {
   if (!stripeAccountId) {
     return null;
   }
@@ -75,46 +70,20 @@ async function getValidStripeAccountId({
     const account = await stripe.accounts.retrieve(stripeAccountId);
 
     if (account.deleted) {
-      await prisma.expertProfile.update({
-        where: {
-          id: expertId,
-        },
-        data: {
-          stripeAccountId: null,
-        },
-      });
-
       return null;
     }
 
     return account.id;
   } catch {
-    await prisma.expertProfile.update({
-      where: {
-        id: expertId,
-      },
-      data: {
-        stripeAccountId: null,
-      },
-    });
-
     return null;
   }
 }
 
 export async function createStripeConnectAccountAction() {
   const { user, expert } = await getCurrentExpert();
-
   const appUrl = getAppUrl();
 
-  if (!appUrl) {
-    redirect("/expert/earnings?error=stripe-not-configured");
-  }
-
-  let stripeAccountId = await getValidStripeAccountId({
-    expertId: expert.id,
-    stripeAccountId: expert.stripeAccountId,
-  });
+  let stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
 
   if (!stripeAccountId) {
     const account = await stripe.accounts.create({
@@ -156,8 +125,8 @@ export async function createStripeConnectAccountAction() {
 
   const accountLink = await stripe.accountLinks.create({
     account: stripeAccountId,
-    refresh_url: `${appUrl}/expert/earnings?stripe=refresh`,
-    return_url: `${appUrl}/expert/earnings?stripe=return`,
+    refresh_url: `${appUrl}/expert/settings?stripe=refresh`,
+    return_url: `${appUrl}/expert/settings?stripe=connected`,
     type: "account_onboarding",
   });
 
@@ -169,24 +138,46 @@ export async function createStripeConnectAccountAction() {
 export async function openStripeDashboardAction() {
   const { expert } = await getCurrentExpert();
 
-  const stripeAccountId = await getValidStripeAccountId({
-    expertId: expert.id,
-    stripeAccountId: expert.stripeAccountId,
-  });
+  const stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
 
   if (!stripeAccountId) {
-    revalidateStripeConnectPaths(expert.id);
-
-    redirect("/expert/earnings?error=stripe-account-missing");
+    redirect("/expert/settings?error=stripe-account-missing");
   }
 
   try {
     const loginLink = await stripe.accounts.createLoginLink(stripeAccountId);
 
-    revalidateStripeConnectPaths(expert.id);
-
     redirect(loginLink.url);
   } catch {
-    redirect("/expert/earnings?error=stripe-dashboard-unavailable");
+    redirect("/expert/settings?error=stripe-dashboard-unavailable");
   }
+}
+
+export async function createStripeConnectDashboardAction() {
+  await openStripeDashboardAction();
+}
+
+export async function refreshStripeConnectStatusAction() {
+  const { expert } = await getCurrentExpert();
+
+  const stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
+
+  if (!stripeAccountId) {
+    await prisma.expertProfile.update({
+      where: {
+        id: expert.id,
+      },
+      data: {
+        stripeAccountId: null,
+      },
+    });
+
+    revalidateStripeConnectPaths(expert.id);
+
+    redirect("/expert/settings?error=stripe-account-invalid");
+  }
+
+  revalidateStripeConnectPaths(expert.id);
+
+  redirect("/expert/settings?stripe=checked");
 }

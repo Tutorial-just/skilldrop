@@ -24,7 +24,7 @@ import {
   createStripeConnectAccountAction,
   createStripeConnectDashboardAction,
   refreshStripeConnectStatusAction,
-} from "@/server/actions/payment.actions";
+} from "@/server/actions/stripe-connect.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";

@@ -1409,5 +1409,9 @@ function formatError(error: string) {
     return "Your booking note is too long. Please keep it under 500 characters.";
   }
 
+  if (error === "booking-failed") {
+    return "Booking could not be created. Please try again.";
+  }
+
   return "Something went wrong. Please try again.";
 }

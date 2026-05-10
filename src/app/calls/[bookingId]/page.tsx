@@ -77,6 +77,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
 
   const backHref = getBookingsHref(currentUser.role);
   const bookingNote = booking.note?.trim() || "";
+  const now = new Date();
 
   if (booking.status !== "CONFIRMED") {
     return (
@@ -99,8 +100,6 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
       />
     );
   }
-
-  const now = new Date();
 
   const joinOpensAt = new Date(
     booking.startTime.getTime() - JOIN_BEFORE_MINUTES * 60 * 1000,
@@ -163,6 +162,9 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     });
   }
 
+  const canMarkCompleted =
+    (isExpert || isAdmin) && booking.status === "CONFIRMED" && now >= booking.startTime;
+
   return (
     <main className="p-6 md:p-8 lg:p-10">
       <Link
@@ -172,17 +174,6 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
         <ArrowLeft size={16} />
         Back to bookings
       </Link>
-
-      {isExpert || isAdmin ? (
-        <form action={markCallCompletedAction} className="mt-5 max-w-xs">
-          <input type="hidden" name="bookingId" value={booking.id} />
-
-          <button type="submit" className="btn btn-primary w-full">
-            <CheckCircle2 size={17} />
-            Mark call completed
-          </button>
-        </form>
-      ) : null}
 
       <div className="mx-auto mt-8 max-w-5xl">
         <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start">
@@ -296,20 +287,38 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
               <Link href={backHref} className="btn btn-secondary w-full">
                 Back to bookings
               </Link>
+
+              {canMarkCompleted ? (
+                <form action={markCallCompletedAction}>
+                  <input type="hidden" name="bookingId" value={booking.id} />
+
+                  <button type="submit" className="btn btn-secondary w-full">
+                    <CheckCircle2 size={17} />
+                    Mark call completed
+                  </button>
+                </form>
+              ) : null}
             </div>
 
             <div className="mt-6 grid gap-3">
               <SideFact label="Status" value={formatStatus(booking.status)} />
+
               <SideFact
                 label="Room status"
                 value={formatRoomStatus(booking.callRoom.status)}
               />
+
               <SideFact
                 label="Duration"
                 value={`${getDurationMinutes(
                   booking.startTime,
                   booking.endTime,
                 )} minutes`}
+              />
+
+              <SideFact
+                label="Join window"
+                value={`${JOIN_BEFORE_MINUTES} min before`}
               />
             </div>
 
@@ -460,6 +469,10 @@ function getBookingsHref(role: string) {
 function getBlockedStatusText(status: string) {
   if (status === "PENDING") {
     return "The video room opens only after payment is confirmed.";
+  }
+
+  if (status === "PAID") {
+    return "Payment was received, but final confirmation is still processing.";
   }
 
   if (status === "COMPLETED") {

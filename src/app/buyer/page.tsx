@@ -14,9 +14,11 @@ import {
   Lightbulb,
   MessageCircle,
   Search,
+  Settings,
   ShieldCheck,
   Sparkles,
   Star,
+  UserRound,
   Video,
   WalletCards,
 } from "lucide-react";
@@ -671,7 +673,7 @@ export default async function BuyerDashboardPage() {
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-6">
             <QuickAction
               icon={Search}
               title="Find help"
@@ -699,6 +701,21 @@ export default async function BuyerDashboardPage() {
               text="Help strong experts build trust after completed calls."
               href="/buyer/reviews"
             />
+
+            <QuickAction
+               icon={UserRound}
+               title="Profile"
+               text="Update your client preferences, languages and interests."
+               href="/buyer/profile"
+            />
+
+            <QuickAction
+                 icon={Settings}
+                 title="Settings"
+                 text="Manage appearance, privacy, account tools and workspace options."
+                 href="/buyer/settings"
+            />
+             
           </div>
         </div>
       </section>

@@ -469,43 +469,13 @@ export default async function AdminBookingsPage({
 
           <div className="mt-6 flex flex-wrap gap-2">
             <FilterLink current={statusFilter} value="all" label="All" q={query} />
-            <FilterLink
-              current={statusFilter}
-              value="active"
-              label="Active"
-              q={query}
-            />
-            <FilterLink
-              current={statusFilter}
-              value="pending"
-              label="Pending"
-              q={query}
-            />
+            <FilterLink current={statusFilter} value="active" label="Active" q={query} />
+            <FilterLink current={statusFilter} value="pending" label="Pending" q={query} />
             <FilterLink current={statusFilter} value="paid" label="Paid" q={query} />
-            <FilterLink
-              current={statusFilter}
-              value="confirmed"
-              label="Confirmed"
-              q={query}
-            />
-            <FilterLink
-              current={statusFilter}
-              value="completed"
-              label="Completed"
-              q={query}
-            />
-            <FilterLink
-              current={statusFilter}
-              value="disputed"
-              label="Disputed"
-              q={query}
-            />
-            <FilterLink
-              current={statusFilter}
-              value="refunded"
-              label="Refunded"
-              q={query}
-            />
+            <FilterLink current={statusFilter} value="confirmed" label="Confirmed" q={query} />
+            <FilterLink current={statusFilter} value="completed" label="Completed" q={query} />
+            <FilterLink current={statusFilter} value="disputed" label="Disputed" q={query} />
+            <FilterLink current={statusFilter} value="refunded" label="Refunded" q={query} />
           </div>
         </div>
       </section>
@@ -561,7 +531,7 @@ function BookingAdminCard({
     id: string;
     buyerId: string;
     expertId: string;
-    serviceId: string;
+    serviceId: string | null;
     availabilityId: string | null;
     startTime: Date;
     endTime: Date;
@@ -602,7 +572,7 @@ function BookingAdminCard({
     service: {
       title: string;
       durationMinutes: number;
-    };
+    } | null;
     callRoom: {
       roomUrl: string;
       status: string;
@@ -626,6 +596,11 @@ function BookingAdminCard({
 
   const canResolveDispute = booking.status === "DISPUTED";
   const pricing = getBookingPricing(booking);
+
+  const serviceTitle = booking.service?.title ?? "Booked call";
+  const durationMinutes =
+    booking.service?.durationMinutes ??
+    getDurationMinutes(booking.startTime, booking.endTime);
 
   return (
     <Card className="p-5 md:p-6 hover-lift">
@@ -659,7 +634,7 @@ function BookingAdminCard({
           </div>
 
           <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-            {booking.service.title}
+            {serviceTitle}
           </h2>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -700,7 +675,7 @@ function BookingAdminCard({
             <SmallFact
               icon={Video}
               label="Duration"
-              value={`${booking.service.durationMinutes} min`}
+              value={`${durationMinutes} min`}
             />
           </div>
 
@@ -1117,6 +1092,13 @@ function getBookingPricing(booking: {
         ? booking.clientTotalCents
         : fallback.clientTotalCents,
   };
+}
+
+function getDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.max(
+    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
+    0,
+  );
 }
 
 function formatMoney(cents: number) {

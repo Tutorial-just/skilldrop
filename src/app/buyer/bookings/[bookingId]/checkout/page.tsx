@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { createCheckoutSessionAction } from "@/server/actions/payment.actions";
+import { releaseExpiredPendingBookings } from "@/server/actions/booking.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { calculatePricingBreakdown } from "@/config/pricing";
@@ -34,6 +35,8 @@ export default async function BookingCheckoutPage({
   params,
   searchParams,
 }: CheckoutPageProps) {
+  await releaseExpiredPendingBookings();
+
   const { bookingId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
@@ -72,7 +75,7 @@ export default async function BookingCheckoutPage({
   });
 
   if (!booking) {
-    redirect("/buyer/bookings");
+    redirect("/buyer/bookings?error=booking-not-found");
   }
 
   if (booking.status !== "PENDING") {
@@ -91,7 +94,7 @@ export default async function BookingCheckoutPage({
   const durationMinutes = getDurationMinutes(booking.startTime, booking.endTime);
   const bookingNote = booking.note?.trim() || "";
 
-  const pricing = calculatePricingBreakdown(booking.priceCents);
+  const pricing = getBookingPricing(booking);
 
   return (
     <main className="p-6 md:p-8 lg:p-10">
@@ -212,10 +215,12 @@ export default async function BookingCheckoutPage({
                 label="Provider service price"
                 value={formatMoney(pricing.servicePriceCents)}
               />
+
               <InfoRow
                 label="SkillDrop service fee"
                 value={formatMoney(pricing.clientServiceFeeCents)}
               />
+
               <InfoRow
                 label="Total today"
                 value={formatMoney(pricing.clientTotalCents)}
@@ -236,11 +241,13 @@ export default async function BookingCheckoutPage({
                 title="Booking confirmed"
                 text="Your time slot becomes confirmed and appears in your bookings."
               />
+
               <Step
                 number="2"
                 title="Call room prepared"
                 text="You will get access to the call page for the scheduled session."
               />
+
               <Step
                 number="3"
                 title="Review after call"
@@ -260,14 +267,17 @@ export default async function BookingCheckoutPage({
                 title="Prepare one clear question"
                 text="Short calls work best when you know exactly what you want to solve."
               />
+
               <TrustPoint
                 title="Check the time carefully"
                 text="Make sure the selected date and time work for you before paying."
               />
+
               <TrustPoint
                 title="Payment confirms the slot"
                 text="The slot is only guaranteed after checkout is completed successfully."
               />
+
               <TrustPoint
                 title="Use your bookings page"
                 text="After payment, you can find the session from your buyer bookings page."
@@ -299,16 +309,21 @@ export default async function BookingCheckoutPage({
               value={formatShortDateTime(booking.startTime)}
             />
             <PaymentRow label="Duration" value={`${durationMinutes} min`} />
+
             <div className="h-px bg-[var(--border)]" />
+
             <PaymentRow
               label="Provider service"
               value={formatMoney(pricing.servicePriceCents)}
             />
+
             <PaymentRow
               label="SkillDrop fee"
               value={formatMoney(pricing.clientServiceFeeCents)}
             />
+
             <div className="h-px bg-[var(--border)]" />
+
             <PaymentRow
               label="Total today"
               value={formatMoney(pricing.clientTotalCents)}
@@ -323,8 +338,10 @@ export default async function BookingCheckoutPage({
                   size={18}
                   className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
                 />
+
                 <div>
                   <p className="text-sm font-black">Your note</p>
+
                   <p className="mt-1 line-clamp-4 text-sm font-bold leading-6 text-muted">
                     {bookingNote}
                   </p>
@@ -385,6 +402,7 @@ export default async function BookingCheckoutPage({
           <div className="mt-6 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
             <div className="flex gap-3">
               <Clock3 size={18} className="mt-0.5 text-[var(--primary-dark)]" />
+
               <p className="text-sm font-bold leading-6 text-muted">
                 Your slot is held only while the countdown is active. If payment
                 is not completed in time, the slot becomes available again.
@@ -398,6 +416,7 @@ export default async function BookingCheckoutPage({
                 size={18}
                 className="mt-0.5 text-[var(--primary-dark)]"
               />
+
               <p className="text-sm font-bold leading-6 text-muted">
                 Stripe handles card payment details. SkillDrop confirms the
                 booking only after payment succeeds.
@@ -422,6 +441,7 @@ function InfoRow({
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
       <p className="text-sm font-bold text-muted">{label}</p>
+
       <p
         className={
           strong
@@ -485,6 +505,7 @@ function Step({
       </div>
 
       <p className="mt-4 font-black tracking-[-0.02em]">{title}</p>
+
       <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
     </div>
   );
@@ -498,8 +519,10 @@ function TrustPoint({ title, text }: { title: string; text: string }) {
           size={18}
           className="mt-0.5 shrink-0 text-[var(--success)]"
         />
+
         <div>
           <p className="font-black tracking-[-0.02em]">{title}</p>
+
           <p className="mt-1 text-sm font-semibold leading-6 text-muted">
             {text}
           </p>
@@ -507,6 +530,30 @@ function TrustPoint({ title, text }: { title: string; text: string }) {
       </div>
     </div>
   );
+}
+
+function getBookingPricing(booking: {
+  priceCents: number;
+  platformFeeCents: number | null;
+  providerNetCents: number | null;
+  clientServiceFeeCents: number | null;
+  clientTotalCents: number | null;
+}) {
+  const fallback = calculatePricingBreakdown(booking.priceCents);
+
+  return {
+    servicePriceCents: booking.priceCents,
+
+    providerCommissionCents:
+      booking.platformFeeCents ?? fallback.providerCommissionCents,
+
+    providerNetCents: booking.providerNetCents ?? fallback.providerNetCents,
+
+    clientServiceFeeCents:
+      booking.clientServiceFeeCents ?? fallback.clientServiceFeeCents,
+
+    clientTotalCents: booking.clientTotalCents ?? fallback.clientTotalCents,
+  };
 }
 
 function getDurationMinutes(startTime: Date, endTime: Date) {

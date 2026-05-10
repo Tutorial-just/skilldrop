@@ -4,9 +4,8 @@ import {
   ArrowLeft,
   BadgeCheck,
   Bookmark,
-  CalendarDays,
-  Clock3,
   Euro,
+  Globe2,
   Search,
   Star,
   Trash2,
@@ -15,6 +14,10 @@ import {
 import { unsaveExpertAction } from "@/server/actions/saved-expert.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  calculatePricingBreakdown,
+  formatMoneyFromCents,
+} from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -219,11 +222,16 @@ function SavedExpertCard({
   const nextSlot = expert.availability[0] ?? null;
 
   const providerName = expert.user.name ?? expert.user.email;
+
   const avatarLetter = (
     expert.user.name?.charAt(0) ||
     expert.user.email.charAt(0) ||
     "P"
   ).toUpperCase();
+
+  const startingTotal = startingPrice
+    ? calculatePricingBreakdown(startingPrice).clientTotalCents
+    : null;
 
   return (
     <Card className="p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
@@ -249,10 +257,17 @@ function SavedExpertCard({
                 {expert.rating ? expert.rating.toFixed(1) : "New"}
               </Badge>
 
-              {startingPrice ? (
+              {startingTotal ? (
                 <Badge variant="primary">
                   <Euro size={14} />
-                  From {formatMoney(startingPrice)}
+                  From {formatMoneyFromCents(startingTotal)}
+                </Badge>
+              ) : null}
+
+              {expert.country ? (
+                <Badge>
+                  <Globe2 size={14} />
+                  {expert.country}
                 </Badge>
               ) : null}
             </div>
@@ -285,6 +300,30 @@ function SavedExpertCard({
                 </span>
               ) : null}
             </div>
+
+            {expert.services.length > 0 ? (
+              <div className="mt-5 grid gap-2 md:grid-cols-2">
+                {expert.services.map((service) => {
+                  const pricing = calculatePricingBreakdown(service.priceCents);
+
+                  return (
+                    <div
+                      key={service.id}
+                      className="rounded-2xl border border-[var(--border)] bg-white/55 p-3"
+                    >
+                      <p className="line-clamp-1 text-sm font-black">
+                        {service.title}
+                      </p>
+
+                      <p className="mt-1 text-xs font-semibold text-muted">
+                        {service.durationMinutes} min ·{" "}
+                        {formatMoneyFromCents(pricing.clientTotalCents)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -295,6 +334,8 @@ function SavedExpertCard({
           />
 
           <SideRow label="Sessions" value={String(expert.totalSessions)} />
+
+          <SideRow label="Reviews" value={String(expert.totalReviews)} />
 
           <SideRow label="Saved" value={formatShortDate(saved.createdAt)} />
 
@@ -346,10 +387,6 @@ function SideRow({ label, value }: { label: string; value: string }) {
       <p className="text-right text-sm font-black">{value}</p>
     </div>
   );
-}
-
-function formatMoney(cents: number) {
-  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
 }
 
 function formatDateTime(date: Date) {

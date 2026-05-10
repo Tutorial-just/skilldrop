@@ -7,13 +7,13 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth/get-current-user";
 
 const MAX_AVATAR_SIZE_BYTES = 1024 * 1024;
-
 const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const ALLOWED_DURATIONS = [15, 30, 45, 60];
 
 const MAX_LIST_ITEMS = 24;
 const MAX_TAG_LENGTH = 40;
+const MAX_PRICE_EUR = 1000;
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -25,8 +25,23 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
+function redirectWithSearch(
+  path: string,
+  params: Record<string, string | number>,
+): never {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    searchParams.set(key, String(value));
+  });
+
+  redirect(`${path}?${searchParams.toString()}`);
+}
+
 function redirectWithError(path: string, message: string): never {
-  redirect(`${path}?error=${encodeURIComponent(message)}`);
+  redirectWithSearch(path, {
+    error: message,
+  });
 }
 
 function cleanText(value: string, maxLength = 2000) {
@@ -36,10 +51,8 @@ function cleanText(value: string, maxLength = 2000) {
 function parseList(value: string) {
   return value
     .split(",")
-    .map((item) => item.trim())
-    .map((item) => item.replace(/\s+/g, " "))
+    .map((item) => cleanText(item, MAX_TAG_LENGTH))
     .filter(Boolean)
-    .map((item) => item.slice(0, MAX_TAG_LENGTH))
     .filter(
       (item, index, array) =>
         array.findIndex(
@@ -64,11 +77,7 @@ function parsePriceCents(value: string) {
   const normalized = value.replace(",", ".").trim();
   const price = Number(normalized);
 
-  if (!Number.isFinite(price) || price <= 0) {
-    return null;
-  }
-
-  if (price > 1000) {
+  if (!Number.isFinite(price) || price <= 0 || price > MAX_PRICE_EUR) {
     return null;
   }
 
@@ -78,7 +87,7 @@ function parsePriceCents(value: string) {
 function parseDuration(value: string) {
   const duration = Number(value);
 
-  if (!ALLOWED_DURATIONS.includes(duration)) {
+  if (!Number.isInteger(duration) || !ALLOWED_DURATIONS.includes(duration)) {
     return null;
   }
 
@@ -140,6 +149,10 @@ async function getCurrentExpertProfile() {
 async function getOrCreateCategory(categoryName: string) {
   const cleanCategoryName = cleanText(categoryName, 80);
   const categorySlug = createSlug(cleanCategoryName);
+
+  if (!cleanCategoryName) {
+    redirectWithError("/expert/services", "missing-required-fields");
+  }
 
   return prisma.category.upsert({
     where: {
@@ -242,6 +255,54 @@ function validateProviderProfileInput({
   }
 }
 
+function validateProfileUpdateInput({
+  displayName,
+  headline,
+  bio,
+  languages,
+  skills,
+  errorPath,
+}: {
+  displayName: string;
+  headline: string;
+  bio: string;
+  languages: string[];
+  skills: string[];
+  errorPath: string;
+}) {
+  if (!displayName) {
+    redirectWithError(errorPath, "missing-required-fields");
+  }
+
+  if (displayName.length > 80) {
+    redirectWithError(errorPath, "name-too-long");
+  }
+
+  if (headline.length < 8) {
+    redirectWithError(errorPath, "headline-too-short");
+  }
+
+  if (headline.length > 120) {
+    redirectWithError(errorPath, "headline-too-long");
+  }
+
+  if (bio.length < 80) {
+    redirectWithError(errorPath, "bio-too-short");
+  }
+
+  if (bio.length > 1200) {
+    redirectWithError(errorPath, "bio-too-long");
+  }
+
+  if (languages.length === 0) {
+    redirectWithError(errorPath, "missing-languages");
+  }
+
+  if (skills.length < 2) {
+    redirectWithError(errorPath, "missing-skills");
+  }
+}
+
 function validateServiceInput({
   categoryName,
   title,
@@ -257,7 +318,7 @@ function validateServiceInput({
   priceCents: number | null;
   errorPath: string;
 }) {
-  if (!categoryName) {
+  if (!categoryName || !title || !description) {
     redirectWithError(errorPath, "missing-required-fields");
   }
 
@@ -284,6 +345,21 @@ function validateServiceInput({
   if (!priceCents) {
     redirectWithError(errorPath, "invalid-price");
   }
+}
+
+function revalidateExpertPaths(expertId: string) {
+  revalidatePath("/");
+  revalidatePath("/expert");
+  revalidatePath("/expert/profile");
+  revalidatePath("/expert/services");
+  revalidatePath("/expert/availability");
+  revalidatePath("/expert/settings");
+  revalidatePath("/expert/stats");
+  revalidatePath("/become-expert");
+  revalidatePath("/experts");
+  revalidatePath(`/experts/${expertId}`);
+  revalidatePath("/admin");
+  revalidatePath("/admin/experts");
 }
 
 export async function createProviderProfileAction(formData: FormData) {
@@ -325,6 +401,7 @@ export async function createProviderProfileAction(formData: FormData) {
   const tags = parseList(getStringValue(formData, "tags"));
 
   const serviceTitle = cleanText(getStringValue(formData, "serviceTitle"), 120);
+
   const serviceDescription = getStringValue(formData, "serviceDescription")
     .trim()
     .slice(0, 800);
@@ -436,12 +513,7 @@ export async function createProviderProfileAction(formData: FormData) {
     return expertProfile.id;
   });
 
-  revalidatePath("/expert");
-  revalidatePath("/expert/profile");
-  revalidatePath("/expert/services");
-  revalidatePath("/become-expert");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expertProfileId}`);
+  revalidateExpertPaths(expertProfileId);
 
   redirect("/expert?profile=created");
 }
@@ -469,37 +541,14 @@ export async function updateProviderProfileAction(formData: FormData) {
   const avatarDataUrl = await getAvatarDataUrl(formData, "/expert/profile");
   const removeAvatar = getStringValue(formData, "removeAvatar") === "true";
 
-  if (!displayName) {
-    redirectWithError("/expert/profile", "missing-required-fields");
-  }
-
-  if (displayName.length > 80) {
-    redirectWithError("/expert/profile", "name-too-long");
-  }
-
-  if (headline.length < 8) {
-    redirectWithError("/expert/profile", "headline-too-short");
-  }
-
-  if (headline.length > 120) {
-    redirectWithError("/expert/profile", "headline-too-long");
-  }
-
-  if (bio.length < 80) {
-    redirectWithError("/expert/profile", "bio-too-short");
-  }
-
-  if (bio.length > 1200) {
-    redirectWithError("/expert/profile", "bio-too-long");
-  }
-
-  if (languages.length === 0) {
-    redirectWithError("/expert/profile", "missing-languages");
-  }
-
-  if (skills.length < 2) {
-    redirectWithError("/expert/profile", "missing-skills");
-  }
+  validateProfileUpdateInput({
+    displayName,
+    headline,
+    bio,
+    languages,
+    skills,
+    errorPath: "/expert/profile",
+  });
 
   const dbUser = await prisma.user.findUnique({
     where: {
@@ -552,10 +601,7 @@ export async function updateProviderProfileAction(formData: FormData) {
     });
   });
 
-  revalidatePath("/expert");
-  revalidatePath("/expert/profile");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expertProfile.id}`);
+  revalidateExpertPaths(expertProfile.id);
 
   redirect("/expert/profile?saved=1");
 }
@@ -565,7 +611,9 @@ export async function createProviderServiceAction(formData: FormData) {
 
   const categoryName = cleanText(getStringValue(formData, "category"), 80);
   const title = cleanText(getStringValue(formData, "title"), 120);
-  const description = getStringValue(formData, "description").trim().slice(0, 800);
+  const description = getStringValue(formData, "description")
+    .trim()
+    .slice(0, 800);
 
   const durationMinutes = parseDuration(
     getStringValue(formData, "durationMinutes"),
@@ -597,10 +645,7 @@ export async function createProviderServiceAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/expert");
-  revalidatePath("/expert/services");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expert.id}`);
+  revalidateExpertPaths(expert.id);
 
   redirect("/expert/services?saved=1");
 }
@@ -611,7 +656,9 @@ export async function updateProviderServiceAction(formData: FormData) {
   const serviceId = getStringValue(formData, "serviceId");
   const categoryName = cleanText(getStringValue(formData, "category"), 80);
   const title = cleanText(getStringValue(formData, "title"), 120);
-  const description = getStringValue(formData, "description").trim().slice(0, 800);
+  const description = getStringValue(formData, "description")
+    .trim()
+    .slice(0, 800);
 
   const durationMinutes = parseDuration(
     getStringValue(formData, "durationMinutes"),
@@ -659,10 +706,7 @@ export async function updateProviderServiceAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/expert");
-  revalidatePath("/expert/services");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expert.id}`);
+  revalidateExpertPaths(expert.id);
 
   redirect("/expert/services?saved=1");
 }
@@ -696,10 +740,55 @@ export async function toggleProviderServiceAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/expert");
-  revalidatePath("/expert/services");
-  revalidatePath("/experts");
-  revalidatePath(`/experts/${expert.id}`);
+  revalidateExpertPaths(expert.id);
+
+  redirect("/expert/services?saved=1");
+}
+
+export async function deleteProviderServiceAction(formData: FormData) {
+  const expert = await getCurrentExpertProfile();
+
+  const serviceId = getStringValue(formData, "serviceId");
+
+  if (!serviceId) {
+    redirectWithError("/expert/services", "service-not-found");
+  }
+
+  const service = await prisma.service.findFirst({
+    where: {
+      id: serviceId,
+      expertId: expert.id,
+    },
+    include: {
+      bookings: {
+        where: {
+          status: {
+            in: ["PENDING", "PAID", "CONFIRMED"],
+          },
+        },
+        select: {
+          id: true,
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!service) {
+    redirectWithError("/expert/services", "service-not-found");
+  }
+
+  if (service.bookings.length > 0) {
+    redirectWithError("/expert/services", "service-has-active-bookings");
+  }
+
+  await prisma.service.delete({
+    where: {
+      id: service.id,
+    },
+  });
+
+  revalidateExpertPaths(expert.id);
 
   redirect("/expert/services?saved=1");
 }

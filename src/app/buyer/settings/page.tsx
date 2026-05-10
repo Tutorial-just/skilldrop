@@ -1,21 +1,31 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
   Bell,
+  Bookmark,
   CalendarClock,
+  CheckCircle2,
   Download,
   Eye,
   FileText,
   Globe2,
+  HelpCircle,
   Lock,
   Mail,
+  MessageCircle,
   Palette,
+  Receipt,
+  ShieldAlert,
   ShieldCheck,
   Settings,
+  Star,
   Trash2,
   UserRound,
   Video,
+  WalletCards,
+  Clock3,
 } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/get-current-user";
@@ -53,13 +63,13 @@ export default async function BuyerSettingsPage({
         orderBy: {
           startTime: "desc",
         },
-        take: 20,
+        take: 50,
       },
       reviews: {
-        take: 20,
+        take: 50,
       },
       savedExperts: {
-        take: 20,
+        take: 50,
       },
       buyerSettings: true,
     },
@@ -72,12 +82,28 @@ export default async function BuyerSettingsPage({
   const now = new Date();
   const settings = buyer.buyerSettings;
 
+  const preferredLanguages = settings?.preferredLanguages ?? [];
+  const interests = settings?.interests ?? [];
+  const defaultReminderMin = settings?.defaultReminderMin ?? 30;
+  const allowReminders = settings?.allowReminders ?? true;
+  const hideEmail = settings?.hideEmail ?? true;
+  const preferredTimezone = settings?.preferredTimezone ?? "Not set";
+
   const upcomingBookings = buyer.bookings.filter(
     (booking) =>
       booking.startTime >= now &&
       booking.status !== "CANCELLED" &&
       booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED",
+      booking.status !== "COMPLETED" &&
+      booking.status !== "DISPUTED",
+  );
+
+  const pendingBookings = buyer.bookings.filter(
+    (booking) => booking.status === "PENDING",
+  );
+
+  const confirmedBookings = buyer.bookings.filter(
+    (booking) => booking.status === "CONFIRMED",
   );
 
   const completedBookings = buyer.bookings.filter(
@@ -88,10 +114,38 @@ export default async function BuyerSettingsPage({
     (booking) => booking.status === "CANCELLED" || booking.status === "REFUNDED",
   );
 
+  const disputedBookings = buyer.bookings.filter(
+    (booking) => booking.status === "DISPUTED",
+  );
+
+  const accountReadiness = calculateAccountReadiness({
+    hasName: Boolean(buyer.name?.trim()),
+    hasLanguages: preferredLanguages.length > 0,
+    hasInterests: interests.length > 0,
+    hasTimezone: Boolean(settings?.preferredTimezone),
+    hasBudget:
+      typeof settings?.budgetMinCents === "number" ||
+      typeof settings?.budgetMaxCents === "number",
+    hasSavedExperts: buyer.savedExperts.length > 0,
+    hasCompletedBookings: completedBookings.length > 0,
+    hasReviews: buyer.reviews.length > 0,
+  });
+
+  const totalSpendCents = buyer.bookings
+    .filter(
+      (booking) =>
+        booking.status === "PAID" ||
+        booking.status === "CONFIRMED" ||
+        booking.status === "COMPLETED",
+    )
+    .reduce((sum, booking) => sum + getBookingTotalCents(booking.priceCents), 0);
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-140px] top-[-180px] h-[380px] w-[380px] rounded-full bg-[var(--primary)]/12 blur-3xl" />
+        <div className="absolute bottom-[-180px] right-[-120px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/12 blur-3xl" />
 
         <div className="relative p-6 md:p-8 lg:p-10">
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
@@ -113,17 +167,17 @@ export default async function BuyerSettingsPage({
               <div className="mt-6">
                 <Badge variant="primary">
                   <Settings size={14} />
-                  Settings
+                  Buyer settings
                 </Badge>
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Account and system settings.
+                Control your SkillDrop workspace.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Manage appearance, notifications, privacy, security and account
-                tools. Personal preferences are now handled in your profile.
+                Manage appearance, account visibility, reminders, activity,
+                privacy and support tools from one clean place.
               </p>
             </div>
 
@@ -137,29 +191,40 @@ export default async function BuyerSettingsPage({
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MiniStat
+              icon={CalendarClock}
               label="Upcoming"
               value={String(upcomingBookings.length)}
               text="Scheduled calls"
             />
 
             <MiniStat
+              icon={CheckCircle2}
               label="Completed"
               value={String(completedBookings.length)}
               text="Finished calls"
             />
 
             <MiniStat
+              icon={Bookmark}
               label="Saved"
               value={String(buyer.savedExperts.length)}
-              text="Saved experts"
+              text="Saved providers"
             />
 
             <MiniStat
+              icon={Star}
               label="Reviews"
               value={String(buyer.reviews.length)}
-              text="Reviews written"
+              text="Feedback written"
+            />
+
+            <MiniStat
+              icon={WalletCards}
+              label="Spend"
+              value={formatMoney(totalSpendCents)}
+              text="Paid / confirmed"
             />
           </div>
         </div>
@@ -174,14 +239,30 @@ export default async function BuyerSettingsPage({
                 Account summary
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                Your account
-              </h2>
+              <div className="mt-5 flex flex-col justify-between gap-5 md:flex-row md:items-start">
+                <div>
+                  <h2 className="text-3xl font-black tracking-[-0.05em]">
+                    Your account
+                  </h2>
 
-              <p className="mt-3 text-sm leading-6 text-muted">
-                Basic account information. Change your name and personal
-                preferences from your profile page.
-              </p>
+                  <p className="mt-3 text-sm leading-6 text-muted">
+                    Basic account details. Profile preferences like languages,
+                    topics, budget and timezone are managed from your buyer
+                    profile.
+                  </p>
+                </div>
+
+                <Badge variant={accountReadiness >= 70 ? "success" : "accent"}>
+                  {accountReadiness}% ready
+                </Badge>
+              </div>
+
+              <div className="mt-6 h-3 overflow-hidden rounded-full bg-[var(--border)]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
+                  style={{ width: `${accountReadiness}%` }}
+                />
+              </div>
 
               <div className="mt-6 grid gap-3">
                 <SettingRow icon={Mail} label="Email" value={buyer.email} />
@@ -192,18 +273,26 @@ export default async function BuyerSettingsPage({
                   value={buyer.name ?? "Not set"}
                 />
 
-                <SettingRow icon={ShieldCheck} label="Role" value={role} />
+                <SettingRow
+                  icon={ShieldCheck}
+                  label="Role"
+                  value={formatRole(role)}
+                />
 
                 <SettingRow
                   icon={CalendarClock}
                   label="Default reminder"
-                  value={`${settings?.defaultReminderMin ?? 30} minutes`}
+                  value={`${defaultReminderMin} minutes`}
                 />
               </div>
 
-              <div className="mt-6">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <ButtonLink href="/buyer/profile" variant="secondary">
                   Edit profile preferences
+                </ButtonLink>
+
+                <ButtonLink href="/buyer/bookings" variant="secondary">
+                  View bookings
                 </ButtonLink>
               </div>
             </Card>
@@ -219,14 +308,48 @@ export default async function BuyerSettingsPage({
               </h2>
 
               <p className="mt-3 leading-7 text-muted">
-                Choose how your client workspace looks while you browse, save
-                experts and manage calls.
+                Choose how SkillDrop looks while you browse providers, save
+                profiles, book calls and manage your activity.
               </p>
 
               <div className="mt-6">
                 <AppearanceSettings />
               </div>
             </Card>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-4">
+            <QuickActionCard
+              icon={Video}
+              title="My bookings"
+              text="See upcoming calls, pending payments and completed sessions."
+              href="/buyer/bookings"
+              action="Open bookings"
+            />
+
+            <QuickActionCard
+              icon={Bookmark}
+              title="Saved providers"
+              text="Return quickly to people you saved for later."
+              href="/buyer/saved"
+              action="Open saved"
+            />
+
+            <QuickActionCard
+              icon={Star}
+              title="My reviews"
+              text="Leave feedback after completed calls and view past reviews."
+              href="/buyer/reviews"
+              action="Open reviews"
+            />
+
+            <QuickActionCard
+              icon={HelpCircle}
+              title="Help center"
+              text="Find safety, refund and support information."
+              href="/help"
+              action="Get help"
+            />
           </div>
 
           <div className="grid gap-5 xl:grid-cols-3">
@@ -237,11 +360,8 @@ export default async function BuyerSettingsPage({
               text="Your reminder preference is saved in your profile. Message delivery can be connected later."
               rows={[
                 ["Booking confirmations", "Enabled"],
-                [
-                  "Call reminders",
-                  settings?.allowReminders ?? true ? "Enabled" : "Off",
-                ],
-                ["Reminder time", `${settings?.defaultReminderMin ?? 30} min`],
+                ["Call reminders", allowReminders ? "Enabled" : "Off"],
+                ["Reminder time", `${defaultReminderMin} min`],
                 ["Product updates", "Soon"],
               ]}
             />
@@ -250,12 +370,12 @@ export default async function BuyerSettingsPage({
               icon={Lock}
               badge="Privacy"
               title="Visibility and contact"
-              text="Control what experts can see and how communication should happen."
+              text="Control what providers can see and how communication should happen."
               rows={[
-                ["Email visibility", settings?.hideEmail ?? true ? "Hidden" : "Visible"],
+                ["Email visibility", hideEmail ? "Hidden" : "Visible"],
                 ["Platform contact", "Enabled"],
-                ["Saved experts", "Private"],
-                ["Blocked experts", "Soon"],
+                ["Saved providers", "Private"],
+                ["Blocked providers", "Soon"],
               ]}
             />
 
@@ -283,13 +403,13 @@ export default async function BuyerSettingsPage({
               <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
                 <div>
                   <h2 className="text-3xl font-black tracking-[-0.05em]">
-                    Personalization moved to Profile.
+                    Personalization lives in Profile.
                   </h2>
 
                   <p className="mt-3 max-w-2xl leading-7 text-muted">
-                    Languages, interests, budget, timezone and reminder defaults
-                    are part of your client profile. Keeping them there makes
-                    settings cleaner and easier to understand.
+                    Languages, topics, budget, timezone and reminder defaults
+                    help SkillDrop show better providers and keep the settings
+                    page simple.
                   </p>
                 </div>
 
@@ -303,19 +423,15 @@ export default async function BuyerSettingsPage({
                 <PreferencePreview
                   label="Languages"
                   value={
-                    settings?.preferredLanguages.length
-                      ? settings.preferredLanguages.join(", ")
+                    preferredLanguages.length
+                      ? preferredLanguages.join(", ")
                       : "Not set"
                   }
                 />
 
                 <PreferencePreview
                   label="Topics"
-                  value={
-                    settings?.interests.length
-                      ? settings.interests.join(", ")
-                      : "Not set"
-                  }
+                  value={interests.length ? interests.join(", ") : "Not set"}
                 />
 
                 <PreferencePreview
@@ -326,17 +442,14 @@ export default async function BuyerSettingsPage({
                   )}
                 />
 
-                <PreferencePreview
-                  label="Timezone"
-                  value={settings?.preferredTimezone ?? "Not set"}
-                />
+                <PreferencePreview label="Timezone" value={preferredTimezone} />
               </div>
             </Card>
 
             <Card className="p-5 md:p-6">
               <Badge variant="accent">
                 <Eye size={14} />
-                Client activity
+                Activity
               </Badge>
 
               <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
@@ -349,9 +462,15 @@ export default async function BuyerSettingsPage({
 
               <div className="mt-6 grid gap-3">
                 <SettingRow
+                  icon={Clock3}
+                  label="Pending payment"
+                  value={String(pendingBookings.length)}
+                />
+
+                <SettingRow
                   icon={Video}
-                  label="Upcoming calls"
-                  value={String(upcomingBookings.length)}
+                  label="Confirmed calls"
+                  value={String(confirmedBookings.length)}
                 />
 
                 <SettingRow
@@ -361,8 +480,14 @@ export default async function BuyerSettingsPage({
                 />
 
                 <SettingRow
+                  icon={ShieldAlert}
+                  label="Disputed calls"
+                  value={String(disputedBookings.length)}
+                />
+
+                <SettingRow
                   icon={FileText}
-                  label="Cancelled calls"
+                  label="Closed calls"
                   value={String(cancelledBookings.length)}
                 />
 
@@ -388,14 +513,15 @@ export default async function BuyerSettingsPage({
 
               <p className="mt-3 leading-7 text-muted">
                 These tools are useful for a professional platform, but they can
-                be built after the main booking and payment flow is stable.
+                be built after the main booking, payment and support flow is
+                stable.
               </p>
 
               <div className="mt-6 grid gap-3">
-                <DisabledTool label="Export booking history" />
-                <DisabledTool label="Download receipts" />
-                <DisabledTool label="Export reviews" />
-                <DisabledTool label="Download account archive" />
+                <DisabledTool icon={Receipt} label="Export booking history" />
+                <DisabledTool icon={Download} label="Download receipts" />
+                <DisabledTool icon={Star} label="Export reviews" />
+                <DisabledTool icon={FileText} label="Download account archive" />
               </div>
             </Card>
 
@@ -415,10 +541,22 @@ export default async function BuyerSettingsPage({
               </p>
 
               <div className="mt-6 grid gap-3">
-                <DisabledTool label="Contact support" />
-                <DisabledTool label="Report a problem" />
-                <DisabledTool label="Request refund" />
-                <DisabledTool label="Manage blocked experts" />
+                <SupportLink
+                  icon={HelpCircle}
+                  label="Help center"
+                  href="/help"
+                />
+                <SupportLink
+                  icon={ShieldCheck}
+                  label="Safety and trust"
+                  href="/legal/safety"
+                />
+                <SupportLink
+                  icon={WalletCards}
+                  label="Refund policy"
+                  href="/legal/refunds"
+                />
+                <DisabledTool icon={MessageCircle} label="Support tickets" />
               </div>
             </Card>
           </div>
@@ -437,8 +575,8 @@ export default async function BuyerSettingsPage({
 
                 <p className="mt-3 max-w-3xl leading-7 text-muted">
                   Account deletion, full data export and account pause should be
-                  added carefully later, with confirmation screens and safety
-                  checks.
+                  added later with confirmation screens, identity checks and
+                  admin-safe audit logs.
                 </p>
               </div>
 
@@ -458,7 +596,7 @@ function SettingRow({
   label,
   value,
 }: {
-  icon: typeof Mail;
+  icon: LucideIcon;
   label: string;
   value: string;
 }) {
@@ -480,17 +618,23 @@ function SettingRow({
 }
 
 function MiniStat({
+  icon: Icon,
   label,
   value,
   text,
 }: {
+  icon: LucideIcon;
   label: string;
   value: string;
   text: string;
 }) {
   return (
-    <Card soft className="p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+    <Card soft className="p-4 hover-lift">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={20} />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
 
@@ -501,6 +645,40 @@ function MiniStat({
   );
 }
 
+function QuickActionCard({
+  icon: Icon,
+  title,
+  text,
+  href,
+  action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  text: string;
+  href: string;
+  action: string;
+}) {
+  return (
+    <Link href={href} className="group">
+      <Card className="h-full p-5 transition group-hover:-translate-y-1 group-hover:shadow-[var(--shadow-md)]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+          <Icon size={20} />
+        </div>
+
+        <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
+
+        <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+          {text}
+        </p>
+
+        <p className="mt-5 text-sm font-black text-[var(--primary-dark)]">
+          {action} →
+        </p>
+      </Card>
+    </Link>
+  );
+}
+
 function SystemPanel({
   icon: Icon,
   badge,
@@ -508,7 +686,7 @@ function SystemPanel({
   text,
   rows,
 }: {
-  icon: typeof Bell;
+  icon: LucideIcon;
   badge: string;
   title: string;
   text: string;
@@ -555,10 +733,16 @@ function PreferencePreview({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DisabledTool({ label }: { label: string }) {
+function DisabledTool({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <p className="text-sm font-bold text-muted">{label}</p>
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+          <Icon size={16} />
+        </div>
+
+        <p className="text-sm font-bold text-muted">{label}</p>
+      </div>
 
       <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-black text-[var(--accent)]">
         Soon
@@ -567,18 +751,107 @@ function DisabledTool({ label }: { label: string }) {
   );
 }
 
+function SupportLink({
+  icon: Icon,
+  label,
+  href,
+}: {
+  icon: LucideIcon;
+  label: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--shadow-sm)]"
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+          <Icon size={16} />
+        </div>
+
+        <p className="text-sm font-bold text-muted">{label}</p>
+      </div>
+
+      <span className="text-sm font-black text-[var(--primary-dark)]">Open</span>
+    </Link>
+  );
+}
+
+function calculateAccountReadiness({
+  hasName,
+  hasLanguages,
+  hasInterests,
+  hasTimezone,
+  hasBudget,
+  hasSavedExperts,
+  hasCompletedBookings,
+  hasReviews,
+}: {
+  hasName: boolean;
+  hasLanguages: boolean;
+  hasInterests: boolean;
+  hasTimezone: boolean;
+  hasBudget: boolean;
+  hasSavedExperts: boolean;
+  hasCompletedBookings: boolean;
+  hasReviews: boolean;
+}) {
+  const checks = [
+    hasName,
+    hasLanguages,
+    hasInterests,
+    hasTimezone,
+    hasBudget,
+    hasSavedExperts,
+    hasCompletedBookings,
+    hasReviews,
+  ];
+
+  const done = checks.filter(Boolean).length;
+
+  return Math.round((done / checks.length) * 100);
+}
+
+function getBookingTotalCents(priceCents: number) {
+  const servicePriceCents = Math.max(Math.round(priceCents), 0);
+  const clientServiceFeeCents = Math.round(servicePriceCents * 0.05);
+
+  return servicePriceCents + clientServiceFeeCents;
+}
+
 function formatBudget(min?: number | null, max?: number | null) {
-  if (min && max) {
-    return `€${min / 100} – €${max / 100}`;
+  if (typeof min === "number" && typeof max === "number") {
+    return `${formatMoney(min)} – ${formatMoney(max)}`;
   }
 
-  if (min) {
-    return `From €${min / 100}`;
+  if (typeof min === "number") {
+    return `From ${formatMoney(min)}`;
   }
 
-  if (max) {
-    return `Up to €${max / 100}`;
+  if (typeof max === "number") {
+    return `Up to ${formatMoney(max)}`;
   }
 
   return "Not set";
+}
+
+function formatMoney(cents: number) {
+  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+}
+
+function formatRole(role: string) {
+  if (role === "admin") {
+    return "Admin";
+  }
+
+  if (role === "buyer") {
+    return "Buyer";
+  }
+
+  if (role === "expert") {
+    return "Expert";
+  }
+
+  return role;
 }

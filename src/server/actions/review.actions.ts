@@ -212,11 +212,14 @@ export async function createReviewAction(formData: FormData) {
       },
     });
 
+    if (!expert) {
+      return {
+        status: "EXPERT_NOT_FOUND" as const,
+      };
+    }
+
     const shouldAutoVerify =
-      Boolean(expert) &&
-      !expert?.isVerified &&
-      expert.totalSessions >= 3 &&
-      newRating >= 3.8;
+      !expert.isVerified && expert.totalSessions >= 3 && newRating >= 3.8;
 
     await tx.expertProfile.update({
       where: {
@@ -248,6 +251,10 @@ export async function createReviewAction(formData: FormData) {
 
   if (result.status === "BOOKING_NOT_FOUND") {
     redirect("/buyer/reviews?error=booking-not-found");
+  }
+
+  if (result.status === "EXPERT_NOT_FOUND") {
+    redirect("/buyer/reviews?error=expert-not-found");
   }
 
   if (result.status === "NOT_ALLOWED") {

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { ArrowRight, Bell, LayoutDashboard, Sparkles } from "lucide-react";
 
@@ -8,10 +8,69 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { getUnreadNotificationCount } from "@/server/services/notification-count.service";
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://skilldrop-dusky.vercel.app";
+
 export const metadata: Metadata = {
-  title: "SkillDrop — Real people. Useful advice. Short calls.",
+  metadataBase: new URL(appUrl),
+  title: {
+    default: "SkillDrop — Real people. Useful advice. Short calls.",
+    template: "%s · SkillDrop",
+  },
   description:
     "Book short 1:1 calls with people who can advise, translate, support, explain or help you solve practical life problems.",
+  applicationName: "SkillDrop",
+  keywords: [
+    "SkillDrop",
+    "short calls",
+    "1:1 advice",
+    "CV review",
+    "translation help",
+    "relocation advice",
+    "career help",
+    "document help",
+    "online consultation",
+  ],
+  authors: [{ name: "SkillDrop" }],
+  creator: "SkillDrop",
+  publisher: "SkillDrop",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "SkillDrop — Real people. Useful advice. Short calls.",
+    description:
+      "Book short 1:1 calls with people who can advise, translate, support, explain or help you solve practical life problems.",
+    url: "/",
+    siteName: "SkillDrop",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SkillDrop — Real people. Useful advice. Short calls.",
+    description:
+      "Book short 1:1 calls with people who can advise, translate, support, explain or help you solve practical life problems.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: [
+    {
+      media: "(prefers-color-scheme: light)",
+      color: "#ffffff",
+    },
+    {
+      media: "(prefers-color-scheme: dark)",
+      color: "#0f1117",
+    },
+  ],
 };
 
 const themeScript = `
@@ -138,7 +197,7 @@ export default async function RootLayout({
 
                       {unreadNotifications > 0 ? (
                         <span className="ml-1 rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-black text-white">
-                          {unreadNotifications}
+                          {unreadNotifications > 99 ? "99+" : unreadNotifications}
                         </span>
                       ) : null}
                     </Link>
@@ -199,7 +258,11 @@ export default async function RootLayout({
                         <FooterLink href="/notifications">
                           Notifications
                           {unreadNotifications > 0
-                            ? ` · ${unreadNotifications}`
+                            ? ` · ${
+                                unreadNotifications > 99
+                                  ? "99+"
+                                  : unreadNotifications
+                              }`
                             : ""}
                         </FooterLink>
                       </>
@@ -272,10 +335,7 @@ function FooterLink({
   children: React.ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      className="transition hover:text-[var(--foreground)]"
-    >
+    <Link href={href} className="transition hover:text-[var(--foreground)]">
       {children}
     </Link>
   );

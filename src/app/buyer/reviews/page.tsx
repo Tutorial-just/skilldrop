@@ -8,6 +8,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Sparkles,
   Star,
   ThumbsUp,
   Video,
@@ -109,6 +110,18 @@ export default async function BuyerReviewsPage({
     (booking) => booking.id === reviewedBookingId,
   );
 
+  const averageRating =
+    reviewedBookings.length > 0
+      ? reviewedBookings.reduce(
+          (sum, booking) => sum + (booking.review?.rating ?? 0),
+          0,
+        ) / reviewedBookings.length
+      : null;
+
+  const recommendedCount = reviewedBookings.filter(
+    (booking) => booking.review?.wouldRecommend === true,
+  ).length;
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
@@ -157,8 +170,8 @@ export default async function BuyerReviewsPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Your feedback helps good providers grow and helps other clients
-                choose with confidence.
+                Your feedback helps strong providers grow and helps other
+                clients choose with confidence.
               </p>
             </div>
 
@@ -174,19 +187,19 @@ export default async function BuyerReviewsPage({
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-3">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               icon={CheckCircle2}
-              label="Completed calls"
+              label="Completed"
               value={String(completedBookings.length)}
               hint="Finished sessions"
             />
 
             <MetricCard
               icon={MessageCircle}
-              label="Waiting reviews"
+              label="To review"
               value={String(waitingForReview.length)}
-              hint="Need your feedback"
+              hint="Need feedback"
             />
 
             <MetricCard
@@ -194,6 +207,20 @@ export default async function BuyerReviewsPage({
               label="Reviewed"
               value={String(reviewedBookings.length)}
               hint="Already rated"
+            />
+
+            <MetricCard
+              icon={Sparkles}
+              label="Average"
+              value={averageRating ? averageRating.toFixed(1) : "—"}
+              hint="Your review average"
+            />
+
+            <MetricCard
+              icon={ThumbsUp}
+              label="Recommended"
+              value={String(recommendedCount)}
+              hint="Positive recommendations"
             />
           </div>
         </div>
@@ -214,24 +241,30 @@ export default async function BuyerReviewsPage({
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  You can see your submitted review in the review history.
+                  You can see your submitted feedback in the review history.
                 </p>
               </Card>
             ) : null}
 
             <Card className="p-5 md:p-6">
-              <Badge variant="accent">
-                <MessageCircle size={14} />
-                Waiting for review
-              </Badge>
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div>
+                  <Badge variant="accent">
+                    <MessageCircle size={14} />
+                    Waiting for review
+                  </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                Calls to review
-              </h2>
+                  <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                    Calls to review
+                  </h2>
 
-              <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                Leave detailed feedback after a completed call.
-              </p>
+                  <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                    Rate completed calls and share what was helpful.
+                  </p>
+                </div>
+
+                <Badge>{waitingForReview.length} waiting</Badge>
+              </div>
 
               <div className="mt-6 grid gap-4">
                 {waitingForReview.length > 0 ? (
@@ -244,6 +277,7 @@ export default async function BuyerReviewsPage({
                   ))
                 ) : (
                   <EmptyState
+                    icon={CheckCircle2}
                     title="Nothing to review yet"
                     text="Completed calls that need feedback will appear here."
                   />
@@ -252,7 +286,7 @@ export default async function BuyerReviewsPage({
             </Card>
           </div>
 
-          <div className="grid gap-6">
+          <div className="grid gap-6 xl:sticky xl:top-[96px]">
             <Card className="p-5 md:p-6">
               <Badge variant="primary">
                 <ShieldCheck size={14} />
@@ -265,16 +299,26 @@ export default async function BuyerReviewsPage({
 
               <div className="mt-5 grid gap-3">
                 <Tip text="Reviews help clients choose providers faster." />
-                <Tip text="Providers can become verified after successful calls and good ratings." />
-                <Tip text="Clear feedback makes the marketplace safer and more useful." />
+                <Tip text="Detailed feedback helps providers improve their offers." />
+                <Tip text="Good reviews help verified providers grow safely." />
               </div>
             </Card>
 
             <Card className="p-5 md:p-6">
-              <Badge variant="success">
-                <Star size={14} />
-                Your past reviews
-              </Badge>
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div>
+                  <Badge variant="success">
+                    <Star size={14} />
+                    Your past reviews
+                  </Badge>
+
+                  <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                    Review history
+                  </h2>
+                </div>
+
+                <Badge>{reviewedBookings.length} total</Badge>
+              </div>
 
               <div className="mt-5 grid gap-4">
                 {reviewedBookings.length > 0 ? (
@@ -287,6 +331,7 @@ export default async function BuyerReviewsPage({
                   ))
                 ) : (
                   <EmptyState
+                    icon={Star}
                     title="No reviews yet"
                     text="Your submitted reviews will appear here."
                   />
@@ -330,18 +375,16 @@ function ReviewFormCard({
           : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
       }
     >
-      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+      <div className="grid gap-5 lg:grid-cols-[1fr_430px] lg:items-start">
         <div>
-          <Badge variant="primary">
-            <Video size={14} />
-            Completed call
-          </Badge>
-
-          {highlighted ? (
-            <Badge variant="accent" className="ml-2">
-              Selected
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="primary">
+              <Video size={14} />
+              Completed call
             </Badge>
-          ) : null}
+
+            {highlighted ? <Badge variant="accent">Selected</Badge> : null}
+          </div>
 
           <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
             {serviceTitle}
@@ -358,12 +401,16 @@ function ReviewFormCard({
             <Clock3 size={14} />
             {formatDateTime(booking.startTime)}
           </p>
+
+          <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+            <p className="text-sm font-bold leading-6 text-muted">
+              Be honest and practical. Mention what was useful, what could be
+              better, and whether you would recommend this provider.
+            </p>
+          </div>
         </div>
 
-        <form
-          action={createReviewAction}
-          className="grid min-w-0 gap-3 lg:w-[430px]"
-        >
+        <form action={createReviewAction} className="grid min-w-0 gap-3">
           <input type="hidden" name="bookingId" value={booking.id} />
 
           <ReviewSelect name="rating" label="Overall rating" required />
@@ -452,8 +499,7 @@ function ReviewScoreSelect({
     <div>
       <label className="text-xs font-black">{label}</label>
 
-      <select name={name} className="input mt-2" defaultValue="">
-        <option value="">—</option>
+      <select name={name} className="input mt-2" defaultValue="5" required>
         <option value="5">5</option>
         <option value="4">4</option>
         <option value="3">3</option>
@@ -535,6 +581,11 @@ function ReviewedCard({
         Provider: {providerName}
       </p>
 
+      <p className="mt-1 inline-flex items-center gap-2 text-xs font-bold text-muted">
+        <Clock3 size={13} />
+        Call: {formatDateTime(booking.startTime)}
+      </p>
+
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
         <ReviewMiniScore label="Helpfulness" value={booking.review.helpfulness} />
         <ReviewMiniScore label="Clarity" value={booking.review.clarity} />
@@ -563,6 +614,7 @@ function ReviewMiniScore({
       <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
+
       <p className="mt-1 text-sm font-black">{value ? `${value}/5` : "—"}</p>
     </div>
   );
@@ -605,10 +657,22 @@ function Tip({ text }: { text: string }) {
   );
 }
 
-function EmptyState({ title, text }: { title: string; text: string }) {
+function EmptyState({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: typeof Star;
+  title: string;
+  text: string;
+}) {
   return (
     <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center">
-      <h3 className="text-2xl font-black tracking-[-0.04em]">{title}</h3>
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={24} />
+      </div>
+
+      <h3 className="mt-5 text-2xl font-black tracking-[-0.04em]">{title}</h3>
 
       <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
         {text}
@@ -629,7 +693,7 @@ function formatDateTime(date: Date) {
 
 function formatReviewError(error: string) {
   if (error === "invalid-review") {
-    return "Please choose a rating before submitting your review.";
+    return "Please choose valid scores before submitting your review.";
   }
 
   if (error === "booking-not-found") {

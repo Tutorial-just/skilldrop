@@ -1,20 +1,26 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Clock3,
   Euro,
+  ExternalLink,
+  RefreshCcw,
+  ShieldAlert,
   ShieldCheck,
+  TrendingUp,
   WalletCards,
 } from "lucide-react";
-import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
 import {
   createStripeConnectAccountAction,
   openStripeDashboardAction,
+  refreshStripeConnectStatusAction,
 } from "@/server/actions/stripe-connect.actions";
 import {
   calculatePricingBreakdown,
@@ -59,11 +65,14 @@ export default async function ExpertEarningsPage({
     redirect("/become-expert");
   }
 
+  const expert = currentUser.expertProfile;
+  const stripeStatus = await getStripeStatus(expert.stripeAccountId);
+
   const bookings = await prisma.booking.findMany({
     where: {
-      expertId: currentUser.expertProfile.id,
+      expertId: expert.id,
       status: {
-        in: ["CONFIRMED", "COMPLETED"],
+        in: ["PAID", "CONFIRMED", "COMPLETED"],
       },
     },
     include: {
@@ -84,42 +93,12 @@ export default async function ExpertEarningsPage({
     (booking) => booking.status === "CONFIRMED",
   );
 
-  const grossCompletedCents = completedBookings.reduce(
-    (sum, booking) => sum + booking.priceCents,
-    0,
-  );
+  const paidBookings = bookings.filter((booking) => booking.status === "PAID");
 
-  const platformCommissionCompletedCents = completedBookings.reduce(
-    (sum, booking) =>
-      sum +
-      (booking.platformFeeCents ??
-        calculatePricingBreakdown(booking.priceCents).providerCommissionCents),
-    0,
-  );
-
-  const netCompletedCents = completedBookings.reduce(
-    (sum, booking) =>
-      sum +
-      (booking.providerNetCents ??
-        calculatePricingBreakdown(booking.priceCents).providerNetCents),
-    0,
-  );
-
-  const upcomingGrossCents = confirmedBookings.reduce(
-    (sum, booking) => sum + booking.priceCents,
-    0,
-  );
-
-  const upcomingNetCents = confirmedBookings.reduce(
-    (sum, booking) =>
-      sum +
-      (booking.providerNetCents ??
-        calculatePricingBreakdown(booking.priceCents).providerNetCents),
-    0,
-  );
-
-  const stripeAccountId = currentUser.expertProfile.stripeAccountId;
-  const hasStripeAccount = Boolean(stripeAccountId);
+  const completedTotals = calculateEarningsTotals(completedBookings);
+  const confirmedTotals = calculateEarningsTotals(confirmedBookings);
+  const paidTotals = calculateEarningsTotals(paidBookings);
+  const allVisibleTotals = calculateEarningsTotals(bookings);
 
   return (
     <main>
@@ -135,25 +114,9 @@ export default async function ExpertEarningsPage({
             Back to dashboard
           </Link>
 
-          {resolvedSearchParams.stripe === "connected" ||
-          resolvedSearchParams.stripe === "return" ? (
+          {resolvedSearchParams.stripe ? (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Stripe onboarding returned. If Stripe still asks for information,
-              continue setup to finish payout activation.
-            </div>
-          ) : null}
-
-          {resolvedSearchParams.stripe === "refresh" ? (
-            <div className="mt-6 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4 text-sm font-black text-[var(--accent)]">
-              Stripe onboarding was refreshed. Please continue setup to complete
-              your payout account.
-            </div>
-          ) : null}
-
-          {resolvedSearchParams.stripe === "checked" ? (
-            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Stripe account checked. If payout setup is incomplete, continue
-              onboarding.
+              {formatStripeMessage(resolvedSearchParams.stripe)}
             </div>
           ) : null}
 
@@ -163,100 +126,175 @@ export default async function ExpertEarningsPage({
             </div>
           ) : null}
 
-          <Badge variant="primary" className="mt-8">
-            <WalletCards size={14} />
-            Earnings
-          </Badge>
+          <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-end">
+            <div>
+              <Badge variant="primary">
+                <WalletCards size={14} />
+                Earnings
+              </Badge>
 
-          <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-            Track your SkillDrop earnings.
-          </h1>
+              <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+                Track your SkillDrop earnings.
+              </h1>
 
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-            See completed paid calls, SkillDrop commission, payout-ready
-            estimates and upcoming confirmed value.
-          </p>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                See completed paid calls, SkillDrop commission, payout-ready
+                estimates and upcoming confirmed value.
+              </p>
+            </div>
+
+            <Card className="p-5">
+              <Badge variant={stripeStatus.ready ? "success" : "accent"}>
+                <ShieldCheck size={14} />
+                Stripe Connect
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <InfoRow
+                  label="Account"
+                  value={expert.stripeAccountId ? "Created" : "Missing"}
+                />
+
+                <InfoRow
+                  label="Charges"
+                  value={stripeStatus.chargesEnabled ? "Enabled" : "Not ready"}
+                />
+
+                <InfoRow
+                  label="Payouts"
+                  value={stripeStatus.payoutsEnabled ? "Enabled" : "Not ready"}
+                />
+              </div>
+            </Card>
+          </div>
 
           <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               icon={Euro}
-              label="Gross completed"
-              value={formatMoney(grossCompletedCents)}
+              label="Completed gross"
+              value={formatMoney(completedTotals.servicePriceCents)}
               hint="Completed calls only"
             />
 
             <MetricCard
               icon={ShieldCheck}
               label="SkillDrop commission"
-              value={formatMoney(platformCommissionCompletedCents)}
-              hint="10% provider commission"
+              value={formatMoney(completedTotals.providerCommissionCents)}
+              hint="Provider-side fee"
             />
 
             <MetricCard
               icon={WalletCards}
-              label="Payout-ready estimate"
-              value={formatMoney(netCompletedCents)}
-              hint="Completed calls minus commission"
+              label="Payout-ready"
+              value={formatMoney(completedTotals.providerNetCents)}
+              hint="Estimated net completed"
             />
 
             <MetricCard
               icon={CalendarDays}
               label="Upcoming net"
-              value={formatMoney(upcomingNetCents)}
-              hint={`${formatMoney(upcomingGrossCents)} gross confirmed`}
+              value={formatMoney(confirmedTotals.providerNetCents)}
+              hint={`${formatMoney(confirmedTotals.servicePriceCents)} gross confirmed`}
             />
           </div>
         </div>
       </section>
 
       <section className="p-6 md:p-8 lg:p-10">
-        <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start">
-          <Card className="p-5 md:p-6">
-            <Badge variant="accent">
-              <CheckCircle2 size={14} />
-              Paid call history
-            </Badge>
-
-            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-              Completed and confirmed calls
-            </h2>
-
-            <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-              Completed calls count toward payout-ready earnings. Confirmed calls
-              are upcoming value until the call is completed.
-            </p>
-
-            <div className="mt-6 grid gap-4">
-              {bookings.length > 0 ? (
-                bookings.map((booking) => (
-                  <EarningBookingCard key={booking.id} booking={booking} />
-                ))
-              ) : (
-                <EmptyState
-                  title="No earnings yet"
-                  text="Confirmed and completed paid calls will appear here."
-                />
-              )}
-            </div>
-          </Card>
-
+        <div className="grid gap-6 xl:grid-cols-[1fr_370px] xl:items-start">
           <div className="grid gap-6">
             <Card className="p-5 md:p-6">
-              <Badge variant={hasStripeAccount ? "success" : "primary"}>
+              <Badge variant="accent">
+                <TrendingUp size={14} />
+                Earnings overview
+              </Badge>
+
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Money flow
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                Completed calls are payout-ready estimates. Confirmed and paid
+                calls are not counted as payout-ready until completed.
+              </p>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <MoneyBox
+                  label="Completed net"
+                  value={formatMoney(completedTotals.providerNetCents)}
+                  hint={`${completedBookings.length} completed`}
+                  strong
+                />
+
+                <MoneyBox
+                  label="Confirmed net"
+                  value={formatMoney(confirmedTotals.providerNetCents)}
+                  hint={`${confirmedBookings.length} upcoming`}
+                />
+
+                <MoneyBox
+                  label="Paid pending"
+                  value={formatMoney(paidTotals.providerNetCents)}
+                  hint={`${paidBookings.length} processing`}
+                />
+
+                <MoneyBox
+                  label="Visible total"
+                  value={formatMoney(allVisibleTotals.providerNetCents)}
+                  hint="Paid + confirmed + completed"
+                />
+              </div>
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="primary">
+                <CheckCircle2 size={14} />
+                Paid call history
+              </Badge>
+
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Completed, confirmed and paid calls
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                Completed calls count toward payout-ready earnings. Confirmed
+                calls are upcoming value. Paid calls are waiting for final
+                confirmation or webhook processing.
+              </p>
+
+              <div className="mt-6 grid gap-4">
+                {bookings.length > 0 ? (
+                  bookings.map((booking) => (
+                    <EarningBookingCard key={booking.id} booking={booking} />
+                  ))
+                ) : (
+                  <EmptyState
+                    title="No earnings yet"
+                    text="Paid, confirmed and completed calls will appear here."
+                  />
+                )}
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 xl:sticky xl:top-[96px]">
+            <Card className="p-5 md:p-6">
+              <Badge variant={stripeStatus.ready ? "success" : "primary"}>
                 <ShieldCheck size={14} />
                 Payout status
               </Badge>
 
               <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                {hasStripeAccount
-                  ? "Stripe account created."
-                  : "Connect your Stripe account."}
+                {stripeStatus.ready
+                  ? "Payout setup is ready."
+                  : expert.stripeAccountId
+                    ? "Finish Stripe setup."
+                    : "Connect Stripe account."}
               </h2>
 
               <p className="mt-3 text-sm font-semibold leading-6 text-muted">
-                Connect Stripe to prepare for real payouts. Stripe handles
-                onboarding, identity verification and payout setup. Final payout
-                readiness is checked during checkout.
+                Buyers can pay only when Stripe Connect is ready. Stripe handles
+                onboarding, identity verification and payout setup.
               </p>
 
               <div className="mt-5 grid gap-3">
@@ -264,31 +302,60 @@ export default async function ExpertEarningsPage({
                 <InfoRow label="Payout provider" value="Stripe Connect" />
                 <InfoRow
                   label="Stripe account"
-                  value={hasStripeAccount ? "Created" : "Not connected"}
+                  value={expert.stripeAccountId ? "Created" : "Not connected"}
+                />
+                <InfoRow
+                  label="Details submitted"
+                  value={stripeStatus.detailsSubmitted ? "Yes" : "No"}
                 />
               </div>
 
-              {stripeAccountId ? (
+              {expert.stripeAccountId ? (
                 <p className="mt-5 break-all rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-xs font-bold text-muted">
-                  Stripe account: {maskStripeAccountId(stripeAccountId)}
+                  Stripe account: {maskStripeAccountId(expert.stripeAccountId)}
                 </p>
               ) : null}
 
-              <form action={createStripeConnectAccountAction} className="mt-5">
-                <button type="submit" className="btn btn-primary w-full">
-                  {hasStripeAccount
-                    ? "Continue Stripe setup"
-                    : "Connect Stripe account"}
-                </button>
-              </form>
+              {stripeStatus.error ? (
+                <div className="mt-5 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
+                  {stripeStatus.error}
+                </div>
+              ) : stripeStatus.ready ? (
+                <div className="mt-5 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
+                  Stripe confirmed charges and payouts are enabled.
+                </div>
+              ) : (
+                <div className="mt-5 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-sm font-black leading-6 text-[var(--warning)]">
+                  Continue onboarding, then refresh status.
+                </div>
+              )}
 
-              {hasStripeAccount ? (
-                <form action={openStripeDashboardAction} className="mt-3">
-                  <button type="submit" className="btn btn-secondary w-full">
-                    Open Stripe dashboard
+              <div className="mt-5 grid gap-3">
+                <form action={createStripeConnectAccountAction}>
+                  <button type="submit" className="btn btn-primary w-full">
+                    <WalletCards size={17} />
+                    {expert.stripeAccountId
+                      ? "Continue Stripe setup"
+                      : "Connect Stripe account"}
                   </button>
                 </form>
-              ) : null}
+
+                <form action={refreshStripeConnectStatusAction}>
+                  <button type="submit" className="btn btn-secondary w-full">
+                    <RefreshCcw size={17} />
+                    Refresh status
+                  </button>
+                </form>
+
+                {expert.stripeAccountId ? (
+                  <form action={openStripeDashboardAction}>
+                    <button type="submit" className="btn btn-secondary w-full">
+                      <ExternalLink size={17} />
+                      Open Stripe dashboard
+                    </button>
+                  </form>
+                ) : null}
+              </div>
             </Card>
 
             <Card soft className="p-5 md:p-6">
@@ -297,28 +364,65 @@ export default async function ExpertEarningsPage({
                 Good to know
               </Badge>
 
-              <p className="mt-4 text-sm font-bold leading-6 text-muted">
-                Client service fees are paid by clients on top of the service
-                price. They are not deducted from your provider earnings.
-              </p>
-
-              <p className="mt-3 text-sm font-bold leading-6 text-muted">
-                Earnings become payout-ready only after a call is completed.
-                Cancelled, refunded or disputed bookings do not count as
-                payout-ready.
-              </p>
-
-              <p className="mt-3 text-sm font-bold leading-6 text-muted">
-                Stripe account creation does not always mean payouts are fully
-                enabled. If Stripe asks for more information, continue setup
-                before accepting real paid bookings.
-              </p>
+              <div className="mt-4 grid gap-3">
+                <Tip text="Client service fees are paid by clients on top of the service price." />
+                <Tip text="Client service fees are not deducted from your provider earnings." />
+                <Tip text="Earnings become payout-ready only after a call is completed." />
+                <Tip text="Cancelled, refunded or disputed bookings do not count as payout-ready." />
+              </div>
             </Card>
           </div>
         </div>
       </section>
     </main>
   );
+}
+
+async function getStripeStatus(stripeAccountId: string | null) {
+  if (!stripeAccountId) {
+    return {
+      ready: false,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+      error: null,
+    };
+  }
+
+  try {
+    const account = await stripe.accounts.retrieve(stripeAccountId);
+
+    if (account.deleted) {
+      return {
+        ready: false,
+        chargesEnabled: false,
+        payoutsEnabled: false,
+        detailsSubmitted: false,
+        error: "Stripe account was deleted or is no longer available.",
+      };
+    }
+
+    const chargesEnabled = Boolean(account.charges_enabled);
+    const payoutsEnabled = Boolean(account.payouts_enabled);
+    const detailsSubmitted = Boolean(account.details_submitted);
+
+    return {
+      ready: chargesEnabled && payoutsEnabled,
+      chargesEnabled,
+      payoutsEnabled,
+      detailsSubmitted,
+      error: null,
+    };
+  } catch {
+    return {
+      ready: false,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+      error:
+        "Stripe account could not be checked. Continue setup or reconnect Stripe.",
+    };
+  }
 }
 
 function EarningBookingCard({
@@ -348,21 +452,10 @@ function EarningBookingCard({
     } | null;
   };
 }) {
-  const fallbackPricing = calculatePricingBreakdown(booking.priceCents);
-
-  const platformFeeCents =
-    booking.platformFeeCents ?? fallbackPricing.providerCommissionCents;
-
-  const providerNetCents =
-    booking.providerNetCents ?? fallbackPricing.providerNetCents;
-
-  const clientServiceFeeCents =
-    booking.clientServiceFeeCents ?? fallbackPricing.clientServiceFeeCents;
-
-  const clientTotalCents =
-    booking.clientTotalCents ?? fallbackPricing.clientTotalCents;
-
+  const pricing = getBookingPricing(booking);
   const isCompleted = booking.status === "COMPLETED";
+  const isConfirmed = booking.status === "CONFIRMED";
+  const isPaid = booking.status === "PAID";
 
   return (
     <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4">
@@ -373,9 +466,11 @@ function EarningBookingCard({
 
             {isCompleted ? (
               <Badge variant="success">Payout-ready estimate</Badge>
-            ) : (
+            ) : isConfirmed ? (
               <Badge variant="primary">Upcoming value</Badge>
-            )}
+            ) : isPaid ? (
+              <Badge variant="accent">Payment processing</Badge>
+            ) : null}
 
             {booking.review ? (
               <Badge variant="success">Reviewed {booking.review.rating}/5</Badge>
@@ -397,23 +492,26 @@ function EarningBookingCard({
         </div>
 
         <div className="grid min-w-[240px] gap-2 rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
-          <InfoRow label="Service price" value={formatMoney(booking.priceCents)} />
+          <InfoRow
+            label="Service price"
+            value={formatMoney(pricing.servicePriceCents)}
+          />
           <InfoRow
             label="SkillDrop commission"
-            value={formatMoney(platformFeeCents)}
+            value={formatMoney(pricing.providerCommissionCents)}
           />
           <InfoRow
             label={isCompleted ? "Net estimate" : "Net if completed"}
-            value={formatMoney(providerNetCents)}
+            value={formatMoney(pricing.providerNetCents)}
           />
 
           <div className="my-1 h-px bg-[var(--border)]" />
 
           <InfoRow
             label="Client service fee"
-            value={formatMoney(clientServiceFeeCents)}
+            value={formatMoney(pricing.clientServiceFeeCents)}
           />
-          <InfoRow label="Client paid" value={formatMoney(clientTotalCents)} />
+          <InfoRow label="Client paid" value={formatMoney(pricing.clientTotalCents)} />
         </div>
       </div>
     </div>
@@ -448,6 +546,32 @@ function MetricCard({
   );
 }
 
+function MoneyBox({
+  label,
+  value,
+  hint,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className={
+        strong
+          ? "rounded-[22px] border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-4"
+          : "rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+      }
+    >
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-1 text-xs font-semibold text-muted">{hint}</p>
+    </div>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
@@ -466,7 +590,19 @@ function StatusBadge({ status }: { status: string }) {
     return <Badge variant="primary">Confirmed</Badge>;
   }
 
+  if (status === "PAID") {
+    return <Badge variant="accent">Paid</Badge>;
+  }
+
   return <Badge variant="accent">{status.toLowerCase()}</Badge>;
+}
+
+function Tip({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+    </div>
+  );
 }
 
 function EmptyState({ title, text }: { title: string; text: string }) {
@@ -478,6 +614,74 @@ function EmptyState({ title, text }: { title: string; text: string }) {
         {text}
       </p>
     </div>
+  );
+}
+
+function getBookingPricing(booking: {
+  priceCents: number;
+  platformFeeCents?: number | null;
+  providerNetCents?: number | null;
+  clientServiceFeeCents?: number | null;
+  clientTotalCents?: number | null;
+}) {
+  const fallback = calculatePricingBreakdown(booking.priceCents);
+
+  return {
+    servicePriceCents: booking.priceCents,
+
+    providerCommissionCents:
+      typeof booking.platformFeeCents === "number"
+        ? booking.platformFeeCents
+        : fallback.providerCommissionCents,
+
+    providerNetCents:
+      typeof booking.providerNetCents === "number"
+        ? booking.providerNetCents
+        : fallback.providerNetCents,
+
+    clientServiceFeeCents:
+      typeof booking.clientServiceFeeCents === "number"
+        ? booking.clientServiceFeeCents
+        : fallback.clientServiceFeeCents,
+
+    clientTotalCents:
+      typeof booking.clientTotalCents === "number"
+        ? booking.clientTotalCents
+        : fallback.clientTotalCents,
+  };
+}
+
+function calculateEarningsTotals(
+  bookings: {
+    priceCents: number;
+    platformFeeCents?: number | null;
+    providerNetCents?: number | null;
+    clientServiceFeeCents?: number | null;
+    clientTotalCents?: number | null;
+  }[],
+) {
+  return bookings.reduce(
+    (totals, booking) => {
+      const pricing = getBookingPricing(booking);
+
+      return {
+        servicePriceCents:
+          totals.servicePriceCents + pricing.servicePriceCents,
+        providerCommissionCents:
+          totals.providerCommissionCents + pricing.providerCommissionCents,
+        providerNetCents: totals.providerNetCents + pricing.providerNetCents,
+        clientServiceFeeCents:
+          totals.clientServiceFeeCents + pricing.clientServiceFeeCents,
+        clientTotalCents: totals.clientTotalCents + pricing.clientTotalCents,
+      };
+    },
+    {
+      servicePriceCents: 0,
+      providerCommissionCents: 0,
+      providerNetCents: 0,
+      clientServiceFeeCents: 0,
+      clientTotalCents: 0,
+    },
   );
 }
 
@@ -501,6 +705,22 @@ function formatDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatStripeMessage(message: string) {
+  if (message === "connected" || message === "return") {
+    return "Stripe onboarding returned. Refresh the status to confirm payouts are ready.";
+  }
+
+  if (message === "refresh") {
+    return "Stripe onboarding was refreshed. Continue setup to finish payout activation.";
+  }
+
+  if (message === "checked") {
+    return "Stripe account checked.";
+  }
+
+  return "Stripe status updated.";
 }
 
 function formatStripeError(error: string) {

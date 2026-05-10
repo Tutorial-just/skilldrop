@@ -119,7 +119,7 @@ export default async function BuyerBookingsPage({
   );
 
   const paidWaitingConfirmationBookings = bookings.filter(
-    (booking) => booking.status === "PAID",
+    (booking) => booking.status === "PAID" && booking.startTime >= now,
   );
 
   const nextBooking = upcomingBookings[0] ?? null;
@@ -1095,7 +1095,7 @@ function getTopMessage({
   if (payment === "success" || paid) {
     return {
       variant: "success" as const,
-      text: "Payment received. Your booking is being confirmed.",
+      text: "Payment received. If confirmation is not visible yet, it will appear shortly.",
     };
   }
 

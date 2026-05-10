@@ -6,6 +6,11 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 
+const MAX_LIST_ITEMS = 24;
+const MAX_ITEM_LENGTH = 40;
+
+const ALLOWED_REMINDERS = [10, 15, 30, 60, 120, 1440];
+
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -16,125 +21,179 @@ function getStringValue(formData: FormData, key: string) {
   return value.trim();
 }
 
-function getBooleanValue(formData: FormData, key: string) {
+function getCheckboxValue(formData: FormData, key: string) {
   return formData.get(key) === "on";
 }
 
-function parseListValue(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 20);
+function redirectWithError(code: string): never {
+  redirect(`/buyer/profile?error=${encodeURIComponent(code)}`);
 }
 
-function parseMoneyToCents(value: string) {
+function cleanText(value: string, maxLength = 500) {
+  return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function parseList(value: string) {
+  return value
+    .split(",")
+    .map((item) => cleanText(item, MAX_ITEM_LENGTH))
+    .filter(Boolean)
+    .filter(
+      (item, index, array) =>
+        array.findIndex(
+          (currentItem) => currentItem.toLowerCase() === item.toLowerCase(),
+        ) === index,
+    )
+    .slice(0, MAX_LIST_ITEMS);
+}
+
+function parseBudgetCents(value: string) {
   if (!value) {
     return null;
   }
 
-  const number = Number(value.replace(",", "."));
+  const normalized = value.replace(",", ".").trim();
+  const amount = Number(normalized);
 
-  if (!Number.isFinite(number) || number < 0) {
-    return null;
+  if (!Number.isFinite(amount) || amount < 0 || amount > 10000) {
+    return undefined;
   }
 
-  return Math.round(number * 100);
+  return Math.round(amount * 100);
 }
 
 function parseReminder(value: string) {
-  const number = Number(value);
+  const reminder = Number(value);
 
-  if (!Number.isFinite(number)) {
-    return 30;
+  if (!ALLOWED_REMINDERS.includes(reminder)) {
+    return null;
   }
 
-  const allowed = [10, 15, 30, 60, 120, 1440];
-
-  if (!allowed.includes(number)) {
-    return 30;
-  }
-
-  return number;
+  return reminder;
 }
 
-export async function updateBuyerAccountAction(formData: FormData) {
+function isValidTimezone(value: string) {
+  if (!value) {
+    return true;
+  }
+
+  try {
+    new Intl.DateTimeFormat("en", {
+      timeZone: value,
+    });
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getCurrentBuyerOrAdmin() {
   const { user } = await requireRole(["buyer", "admin"]);
 
   const email = user.email?.toLowerCase();
 
   if (!email) {
-    redirect("/sign-in");
+    redirectWithError("not-signed-in");
   }
 
-  const name = getStringValue(formData, "name");
-
-  const dbUser = await prisma.user.findUnique({
+  const currentUser = await prisma.user.findUnique({
     where: {
       email,
     },
   });
 
-  if (!dbUser) {
+  if (!currentUser) {
     redirect("/sign-in");
+  }
+
+  return currentUser;
+}
+
+function revalidateBuyerProfilePaths() {
+  revalidatePath("/buyer");
+  revalidatePath("/buyer/profile");
+  revalidatePath("/buyer/settings");
+  revalidatePath("/buyer/bookings");
+  revalidatePath("/buyer/saved");
+  revalidatePath("/experts");
+  revalidatePath("/notifications");
+}
+
+export async function updateBuyerAccountAction(formData: FormData) {
+  const currentUser = await getCurrentBuyerOrAdmin();
+
+  const name = cleanText(getStringValue(formData, "name"), 80);
+
+  if (!name) {
+    redirectWithError("missing-name");
+  }
+
+  if (name.length > 80) {
+    redirectWithError("name-too-long");
   }
 
   await prisma.user.update({
     where: {
-      id: dbUser.id,
+      id: currentUser.id,
     },
     data: {
-      name: name || null,
+      name,
     },
   });
 
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/settings");
-  revalidatePath("/buyer/bookings");
-  revalidatePath("/buyer/reviews");
-  revalidatePath("/buyer/saved");
+  revalidateBuyerProfilePaths();
 
-  redirect("/buyer/settings?saved=account");
+  redirect("/buyer/profile?saved=account");
 }
 
 export async function updateBuyerPreferencesAction(formData: FormData) {
-  const { user } = await requireRole(["buyer", "admin"]);
+  const currentUser = await getCurrentBuyerOrAdmin();
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
-  const dbUser = await prisma.user.findUnique({
-    where: {
-      email,
-    },
-  });
-
-  if (!dbUser) {
-    redirect("/sign-in");
-  }
-
-  const preferredTimezone = getStringValue(formData, "preferredTimezone");
-  const preferredLanguages = parseListValue(
-    getStringValue(formData, "preferredLanguages"),
+  const preferredTimezone = cleanText(
+    getStringValue(formData, "preferredTimezone"),
+    80,
   );
-  const interests = parseListValue(getStringValue(formData, "interests"));
 
-  const budgetMinCents = parseMoneyToCents(getStringValue(formData, "budgetMin"));
-  const budgetMaxCents = parseMoneyToCents(getStringValue(formData, "budgetMax"));
+  if (!isValidTimezone(preferredTimezone)) {
+    redirectWithError("invalid-timezone");
+  }
 
   const defaultReminderMin = parseReminder(
     getStringValue(formData, "defaultReminderMin"),
   );
 
-  const hideEmail = getBooleanValue(formData, "hideEmail");
-  const allowReminders = getBooleanValue(formData, "allowReminders");
+  if (!defaultReminderMin) {
+    redirectWithError("invalid-reminder");
+  }
+
+  const preferredLanguages = parseList(
+    getStringValue(formData, "preferredLanguages"),
+  );
+
+  const interests = parseList(getStringValue(formData, "interests"));
+
+  const budgetMinCents = parseBudgetCents(getStringValue(formData, "budgetMin"));
+  const budgetMaxCents = parseBudgetCents(getStringValue(formData, "budgetMax"));
+
+  if (budgetMinCents === undefined || budgetMaxCents === undefined) {
+    redirectWithError("invalid-budget");
+  }
+
+  if (
+    budgetMinCents !== null &&
+    budgetMaxCents !== null &&
+    budgetMinCents > budgetMaxCents
+  ) {
+    redirectWithError("invalid-budget");
+  }
+
+  const hideEmail = getCheckboxValue(formData, "hideEmail");
+  const allowReminders = getCheckboxValue(formData, "allowReminders");
 
   await prisma.buyerSettings.upsert({
     where: {
-      userId: dbUser.id,
+      userId: currentUser.id,
     },
     update: {
       preferredTimezone: preferredTimezone || null,
@@ -147,7 +206,7 @@ export async function updateBuyerPreferencesAction(formData: FormData) {
       allowReminders,
     },
     create: {
-      userId: dbUser.id,
+      userId: currentUser.id,
       preferredTimezone: preferredTimezone || null,
       preferredLanguages,
       interests,
@@ -159,9 +218,7 @@ export async function updateBuyerPreferencesAction(formData: FormData) {
     },
   });
 
-  revalidatePath("/buyer");
-  revalidatePath("/buyer/settings");
-  revalidatePath("/experts");
+  revalidateBuyerProfilePaths();
 
-  redirect("/buyer/settings?saved=preferences");
+  redirect("/buyer/profile?saved=preferences");
 }

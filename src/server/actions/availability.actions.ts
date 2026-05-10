@@ -10,7 +10,7 @@ const ALLOWED_DURATIONS = [15, 30, 45, 60];
 const ALLOWED_BREAKS = [0, 5, 10, 15, 30];
 const ALLOWED_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
-const MAX_SINGLE_FUTURE_SLOTS = 300;
+const MAX_FUTURE_SLOTS = 300;
 const MAX_BULK_SLOTS_PER_ACTION = 80;
 const MAX_REPEAT_WEEKS = 8;
 
@@ -32,11 +32,10 @@ function getStringValues(formData: FormData, key: string) {
     .filter(Boolean);
 }
 
-function redirectWithError(path: string, code: string): never {
-  redirect(`${path}?error=${encodeURIComponent(code)}`);
-}
-
-function redirectWithSuccess(path: string, params: Record<string, string | number>) {
+function redirectWithSearch(
+  path: string,
+  params: Record<string, string | number>,
+): never {
   const searchParams = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {
@@ -44,6 +43,17 @@ function redirectWithSuccess(path: string, params: Record<string, string | numbe
   });
 
   redirect(`${path}?${searchParams.toString()}`);
+}
+
+function redirectWithError(
+  path: string,
+  code: string,
+  extraParams: Record<string, string | number> = {},
+): never {
+  redirectWithSearch(path, {
+    ...extraParams,
+    error: code,
+  });
 }
 
 async function getCurrentExpertProfile() {
@@ -70,10 +80,52 @@ async function getCurrentExpertProfile() {
   return expert;
 }
 
-function parseDateTime(value: string) {
-  const date = new Date(value);
+function parseLocalDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function parseLocalDateTime(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hours = Number(match[4]);
+  const minutes = Number(match[5]);
+
+  const date = new Date(year, month - 1, day, hours, minutes, 0, 0);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getHours() !== hours ||
+    date.getMinutes() !== minutes
+  ) {
     return null;
   }
 
@@ -93,33 +145,10 @@ function parseTimeToMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
-function addMinutes(date: Date, minutes: number) {
-  return new Date(date.getTime() + minutes * 60 * 1000);
-}
-
-function addDays(date: Date, days: number) {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
-}
-
-function startOfDay(date: Date) {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
-function setMinutesFromMidnight(date: Date, minutesFromMidnight: number) {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  result.setMinutes(minutesFromMidnight, 0, 0);
-  return result;
-}
-
 function parseDuration(value: string) {
   const duration = Number(value);
 
-  if (!ALLOWED_DURATIONS.includes(duration)) {
+  if (!Number.isInteger(duration) || !ALLOWED_DURATIONS.includes(duration)) {
     return null;
   }
 
@@ -129,7 +158,10 @@ function parseDuration(value: string) {
 function parseBreakMinutes(value: string) {
   const breakMinutes = Number(value);
 
-  if (!ALLOWED_BREAKS.includes(breakMinutes)) {
+  if (
+    !Number.isInteger(breakMinutes) ||
+    !ALLOWED_BREAKS.includes(breakMinutes)
+  ) {
     return null;
   }
 
@@ -153,9 +185,33 @@ function parseRepeatWeeks(value: string) {
 function parseWeekdays(values: string[]) {
   const weekdays = values
     .map((value) => Number(value))
-    .filter((value) => ALLOWED_WEEKDAYS.includes(value));
+    .filter(
+      (value) => Number.isInteger(value) && ALLOWED_WEEKDAYS.includes(value),
+    );
 
   return Array.from(new Set(weekdays));
+}
+
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+function addDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function setMinutesFromMidnight(date: Date, minutesFromMidnight: number) {
+  const result = startOfDay(date);
+  result.setMinutes(minutesFromMidnight, 0, 0);
+  return result;
 }
 
 function hasOverlap(
@@ -191,8 +247,10 @@ function revalidateAvailabilityPaths(expertId: string) {
   revalidatePath("/expert");
   revalidatePath("/expert/availability");
   revalidatePath("/expert/bookings");
+  revalidatePath("/expert/stats");
   revalidatePath("/experts");
   revalidatePath(`/experts/${expertId}`);
+  revalidatePath("/notifications");
 }
 
 export async function createAvailabilityAction(formData: FormData) {
@@ -203,7 +261,7 @@ export async function createAvailabilityAction(formData: FormData) {
     getStringValue(formData, "durationMinutes"),
   );
 
-  const startTime = parseDateTime(startTimeValue);
+  const startTime = parseLocalDateTime(startTimeValue);
 
   if (!startTime) {
     redirectWithError("/expert/availability", "invalid-start-time");
@@ -219,13 +277,17 @@ export async function createAvailabilityAction(formData: FormData) {
     redirectWithError("/expert/availability", "past-time");
   }
 
-  const futureSlotsCount = await countFutureSlots(expert.id);
+  const endTime = addMinutes(startTime, durationMinutes);
 
-  if (futureSlotsCount >= MAX_SINGLE_FUTURE_SLOTS) {
-    redirectWithError("/expert/availability", "too-many-slots");
+  if (endTime <= startTime) {
+    redirectWithError("/expert/availability", "invalid-time-range");
   }
 
-  const endTime = addMinutes(startTime, durationMinutes);
+  const futureSlotsCount = await countFutureSlots(expert.id);
+
+  if (futureSlotsCount >= MAX_FUTURE_SLOTS) {
+    redirectWithError("/expert/availability", "too-many-slots");
+  }
 
   const overlappingSlot = await prisma.availability.findFirst({
     where: {
@@ -236,6 +298,9 @@ export async function createAvailabilityAction(formData: FormData) {
       endTime: {
         gt: startTime,
       },
+    },
+    select: {
+      id: true,
     },
   });
 
@@ -254,7 +319,11 @@ export async function createAvailabilityAction(formData: FormData) {
 
   revalidateAvailabilityPaths(expert.id);
 
-  redirect("/expert/availability?saved=1");
+  redirectWithSearch("/expert/availability", {
+    saved: 1,
+    created: 1,
+    view: "open",
+  });
 }
 
 export async function createBulkAvailabilityAction(formData: FormData) {
@@ -268,11 +337,15 @@ export async function createBulkAvailabilityAction(formData: FormData) {
     getStringValue(formData, "durationMinutes"),
   );
 
-  const breakMinutes = parseBreakMinutes(getStringValue(formData, "breakMinutes"));
+  const breakMinutes = parseBreakMinutes(
+    getStringValue(formData, "breakMinutes"),
+  );
+
   const repeatWeeks = parseRepeatWeeks(getStringValue(formData, "repeatWeeks"));
+
   const weekdays = parseWeekdays(getStringValues(formData, "weekdays"));
 
-  const startDate = parseDateTime(startDateValue);
+  const startDate = parseLocalDate(startDateValue);
   const startMinutes = parseTimeToMinutes(startTimeValue);
   const endMinutes = parseTimeToMinutes(endTimeValue);
 
@@ -302,6 +375,7 @@ export async function createBulkAvailabilityAction(formData: FormData) {
 
   const now = new Date();
   const firstDay = startOfDay(startDate);
+
   const candidateSlots: {
     startTime: Date;
     endTime: Date;
@@ -349,12 +423,17 @@ export async function createBulkAvailabilityAction(formData: FormData) {
 
   const futureSlotsCount = await countFutureSlots(expert.id);
 
-  if (futureSlotsCount + candidateSlots.length > MAX_SINGLE_FUTURE_SLOTS) {
+  if (futureSlotsCount + candidateSlots.length > MAX_FUTURE_SLOTS) {
     redirectWithError("/expert/availability", "too-many-slots");
   }
 
-  const firstSlotStart = candidateSlots[0].startTime;
-  const lastSlotEnd = candidateSlots[candidateSlots.length - 1].endTime;
+  const sortedCandidateSlots = [...candidateSlots].sort(
+    (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+  );
+
+  const firstSlotStart = sortedCandidateSlots[0].startTime;
+  const lastSlotEnd =
+    sortedCandidateSlots[sortedCandidateSlots.length - 1].endTime;
 
   const existingSlots = await prisma.availability.findMany({
     where: {
@@ -372,7 +451,7 @@ export async function createBulkAvailabilityAction(formData: FormData) {
     },
   });
 
-  const nonOverlappingSlots = candidateSlots.filter(
+  const nonOverlappingSlots = sortedCandidateSlots.filter(
     (candidateSlot) => !hasOverlap(candidateSlot, existingSlots),
   );
 
@@ -391,10 +470,10 @@ export async function createBulkAvailabilityAction(formData: FormData) {
 
   revalidateAvailabilityPaths(expert.id);
 
-  redirectWithSuccess("/expert/availability", {
+  redirectWithSearch("/expert/availability", {
     saved: 1,
     created: nonOverlappingSlots.length,
-    skipped: candidateSlots.length - nonOverlappingSlots.length,
+    skipped: sortedCandidateSlots.length - nonOverlappingSlots.length,
     view: "week",
   });
 }
@@ -435,7 +514,10 @@ export async function deleteAvailabilityAction(formData: FormData) {
 
   revalidateAvailabilityPaths(expert.id);
 
-  redirect("/expert/availability?deleted=1");
+  redirectWithSearch("/expert/availability", {
+    deleted: 1,
+    view: "open",
+  });
 }
 
 export async function deletePastOpenAvailabilityAction() {
@@ -453,7 +535,7 @@ export async function deletePastOpenAvailabilityAction() {
 
   revalidateAvailabilityPaths(expert.id);
 
-  redirectWithSuccess("/expert/availability", {
+  redirectWithSearch("/expert/availability", {
     deleted: result.count,
     view: "past",
   });

@@ -29,6 +29,7 @@ type ExpertsPageProps = {
   searchParams?: Promise<{
     q?: string;
     verified?: string;
+    paymentReady?: string;
     maxPrice?: string;
     language?: string;
     sort?: string;
@@ -131,6 +132,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
   const query = resolvedSearchParams.q?.trim() ?? "";
   const verifiedOnly = resolvedSearchParams.verified === "true";
+  const paymentReadyOnly = resolvedSearchParams.paymentReady === "true";
 
   const parsedMaxPrice = resolvedSearchParams.maxPrice
     ? Number(resolvedSearchParams.maxPrice)
@@ -141,7 +143,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       ? parsedMaxPrice * 100
       : null;
 
-  const language = resolvedSearchParams.language?.trim() ?? "";
+  const language = resolvedSearchParams.language?.trim().toLowerCase() ?? "";
   const sort = resolvedSearchParams.sort ?? "best";
 
   const now = new Date();
@@ -198,6 +200,14 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       status: "APPROVED",
 
       ...(verifiedOnly ? { isVerified: true } : {}),
+
+      ...(paymentReadyOnly
+        ? {
+            stripeAccountId: {
+              not: null,
+            },
+          }
+        : {}),
 
       ...(language
         ? {
@@ -384,6 +394,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
   const hasActiveFilters =
     Boolean(query) ||
     verifiedOnly ||
+    paymentReadyOnly ||
     Boolean(resolvedSearchParams.maxPrice) ||
     Boolean(language) ||
     sort !== "best";
@@ -483,7 +494,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 ) : null}
               </div>
 
-              <div className="mt-3 grid gap-3 md:grid-cols-4">
+              <div className="mt-3 grid gap-3 md:grid-cols-5">
                 <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)]">
                   <input
                     type="checkbox"
@@ -491,7 +502,17 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                     value="true"
                     defaultChecked={verifiedOnly}
                   />
-                  Verified only
+                  Verified
+                </label>
+
+                <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)]">
+                  <input
+                    type="checkbox"
+                    name="paymentReady"
+                    value="true"
+                    defaultChecked={paymentReadyOnly}
+                  />
+                  Payments ready
                 </label>
 
                 <select
@@ -499,10 +520,10 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   defaultValue={resolvedSearchParams.maxPrice ?? ""}
                   className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
                 >
-                  <option value="">Any price</option>
-                  <option value="20">Service up to €20</option>
-                  <option value="50">Service up to €50</option>
-                  <option value="100">Service up to €100</option>
+                  <option value="">Any service price</option>
+                  <option value="20">Service price up to €20</option>
+                  <option value="50">Service price up to €50</option>
+                  <option value="100">Service price up to €100</option>
                 </select>
 
                 <input
@@ -744,12 +765,19 @@ function ExpertSearchCard({
                   </Badge>
                 )}
 
-                <Badge
-                  variant={expert.qualityScore >= 80 ? "success" : "primary"}
-                >
-                  <Sparkles size={14} />
-                  Match {expert.qualityScore}
-                </Badge>
+                {expert.searchScore > 0 ? (
+                  <Badge variant="primary">
+                    <Sparkles size={14} />
+                    Match {expert.searchScore}
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant={expert.qualityScore >= 80 ? "success" : "primary"}
+                  >
+                    <Sparkles size={14} />
+                    Quality {expert.qualityScore}/100
+                  </Badge>
+                )}
 
                 {expert.country ? (
                   <Badge>

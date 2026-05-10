@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -10,8 +11,6 @@ import {
   Globe2,
   HeartHandshake,
   Languages,
-  MessageCircleHeart,
-  MessageSquareText,
   Search,
   ShieldCheck,
   Sparkles,
@@ -179,7 +178,7 @@ export default function HomePage() {
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <ButtonLink href="/experts">
-                Find an expert
+                Find help
                 <Search size={18} />
               </ButtonLink>
 
@@ -245,11 +244,13 @@ export default function HomePage() {
               title="Fast to start"
               text="No long courses, no complicated process. Search, choose, book and talk."
             />
+
             <ValueCard
-              icon={MessageSquareText}
+              icon={CheckCircle2}
               title="Human and practical"
               text="Ask someone who has experience, context or useful knowledge for your situation."
             />
+
             <ValueCard
               icon={ShieldCheck}
               title="Clear and safer"
@@ -322,7 +323,7 @@ export default function HomePage() {
             </div>
 
             <ButtonLink href="/experts" variant="secondary">
-              Explore experts
+              Explore help
               <ArrowRight size={18} />
             </ButtonLink>
           </div>
@@ -352,7 +353,7 @@ export default function HomePage() {
 
               <div className="mt-7">
                 <ButtonLink href="/experts">
-                  Browse experts
+                  Browse help
                   <ArrowRight size={18} />
                 </ButtonLink>
               </div>
@@ -503,11 +504,13 @@ export default function HomePage() {
                     title="Buyer service price"
                     value="€30"
                   />
+
                   <CommissionRow
                     icon={ShieldCheck}
                     title="Buyer service fee"
                     value="€1.50"
                   />
+
                   <CommissionRow
                     icon={WalletCards}
                     title="Total before payment"
@@ -529,10 +532,10 @@ export default function HomePage() {
         <div className="container-page">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <Badge variant="success">Marketplace preview</Badge>
+              <Badge variant="success">Example providers</Badge>
 
               <h2 className="heading-xl mt-5 max-w-3xl text-balance">
-                Many people. Many skills. One simple call.
+                See what expert profiles can look like.
               </h2>
             </div>
 
@@ -606,7 +609,7 @@ function HeroMarketplacePreview() {
       <Card className="relative overflow-hidden p-5 shadow-[var(--shadow-lg)]">
         <div className="rounded-[28px] bg-gradient-to-br from-[#31265f] via-[#2b275f] to-[#1f2937] p-5 text-white">
           <div className="flex items-center justify-between gap-4">
-            <Badge variant="primary">Marketplace preview</Badge>
+            <Badge variant="primary">Example marketplace</Badge>
 
             <div className="flex -space-x-2">
               <Avatar label="A" />
@@ -617,6 +620,7 @@ function HeroMarketplacePreview() {
 
           <div className="mt-8">
             <p className="text-sm font-bold text-white/50">Example request</p>
+
             <h2 className="mt-2 text-4xl font-black leading-none tracking-[-0.055em]">
               I need help with documents before moving abroad
             </h2>
@@ -666,7 +670,7 @@ function ValueCard({
   title,
   text,
 }: {
-  icon: typeof Zap;
+  icon: LucideIcon;
   title: string;
   text: string;
 }) {
@@ -677,6 +681,7 @@ function ValueCard({
       </div>
 
       <h3 className="mt-5 text-xl font-black tracking-tight">{title}</h3>
+
       <p className="mt-3 leading-7 text-muted">{text}</p>
     </Card>
   );
@@ -702,7 +707,7 @@ function CategoryCard({
   category: {
     title: string;
     description: string;
-    icon: typeof MessageCircleHeart;
+    icon: LucideIcon;
     tag: string;
   };
 }) {
@@ -743,7 +748,7 @@ function AudiencePanel({
   action,
   points,
 }: {
-  icon: typeof UserRound;
+  icon: LucideIcon;
   badge: string;
   title: string;
   text: string;
@@ -802,7 +807,7 @@ function CommissionRow({
   title,
   value,
 }: {
-  icon: typeof CreditCard;
+  icon: LucideIcon;
   title: string;
   value: string;
 }) {
@@ -854,6 +859,7 @@ function HelperPreviewCard({
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
             Rating
           </p>
+
           <p className="mt-1 flex items-center gap-1 text-lg font-black">
             <Star size={16} fill="currentColor" />
             {helper.rating}
@@ -864,6 +870,7 @@ function HelperPreviewCard({
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
             From
           </p>
+
           <p className="mt-1 text-lg font-black">{helper.price}</p>
         </div>
       </div>
@@ -871,10 +878,7 @@ function HelperPreviewCard({
       <div className="mt-5 flex items-center justify-between gap-3">
         <Badge>{helper.tag}</Badge>
 
-        <Link
-          href="/experts"
-          className="text-sm font-black text-[var(--primary-dark)]"
-        >
+        <Link href="/experts" className="text-sm font-black text-[var(--primary-dark)]">
           Book →
         </Link>
       </div>
@@ -920,6 +924,7 @@ function MiniPanel({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/45">
         {label}
       </p>
+
       <p className="mt-1 text-sm font-black">{value}</p>
     </div>
   );
