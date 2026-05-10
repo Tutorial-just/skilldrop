@@ -540,7 +540,7 @@ export async function createProviderProfileAction(formData: FormData) {
         languages,
         skills,
         tags,
-        status: "PENDING",
+        status: "APPROVED",
         isVerified: false,
       },
     });
