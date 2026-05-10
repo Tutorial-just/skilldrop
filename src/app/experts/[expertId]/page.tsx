@@ -114,7 +114,14 @@ export default async function ExpertPublicPage({
   const currentUser = session.user;
   const isBuyer = session.role === "buyer" || session.role === "admin";
   const isOwnProfile = currentUser?.id === expert.userId;
-  const canAcceptPayments = Boolean(expert.stripeAccountId);
+
+  const canAcceptPayments =
+    Boolean(expert.stripeAccountId) &&
+    expert.stripeChargesEnabled &&
+    expert.stripePayoutsEnabled &&
+    expert.stripeDetailsSubmitted;
+
+  const isProviderApproved = expert.status === "APPROVED";
 
   const selectedService =
     expert.services.find(
@@ -127,15 +134,27 @@ export default async function ExpertPublicPage({
     ? calculatePricingBreakdown(selectedService.priceCents)
     : null;
 
-  const groupedSlots = groupSlotsByDate(expert.availability);
+  const bookableAvailability = selectedService
+    ? expert.availability.filter((slot) => {
+        const slotDurationMinutes = getSlotDurationMinutes(
+          slot.startTime,
+          slot.endTime,
+        );
+
+        return slotDurationMinutes >= selectedService.durationMinutes;
+      })
+    : expert.availability;
+
+  const groupedSlots = groupSlotsByDate(bookableAvailability);
 
   const hasServices = expert.services.length > 0;
-  const hasOpenSlots = expert.availability.length > 0;
+  const hasOpenSlots = bookableAvailability.length > 0;
 
   const canBook =
     Boolean(currentUser) &&
     isBuyer &&
     !isOwnProfile &&
+    isProviderApproved &&
     canAcceptPayments &&
     Boolean(selectedService) &&
     hasOpenSlots;
@@ -144,6 +163,7 @@ export default async function ExpertPublicPage({
     hasUser: Boolean(currentUser),
     isBuyer,
     isOwnProfile,
+    isProviderApproved,
     canAcceptPayments,
     hasServices,
     hasOpenSlots,
@@ -153,9 +173,7 @@ export default async function ExpertPublicPage({
     selectedService ? `?service=${selectedService.id}` : ""
   }`;
 
-  const signInHref = `/sign-in?callbackUrl=${encodeURIComponent(
-    currentProfileUrl,
-  )}`;
+  const signInHref = `/sign-in?next=${encodeURIComponent(currentProfileUrl)}`;
 
   const savedExpert =
     currentUser && isBuyer && !isOwnProfile
@@ -183,7 +201,7 @@ export default async function ExpertPublicPage({
     totalReviews: expert.totalReviews,
     totalSessions: expert.totalSessions,
     isVerified: expert.isVerified,
-    openSlots: expert.availability.length,
+    openSlots: bookableAvailability.length,
     reviews: expert.reviews,
   });
 
@@ -265,6 +283,18 @@ export default async function ExpertPublicPage({
                     </>
                   )}
                 </Badge>
+
+                {isProviderApproved ? (
+                  <Badge variant="success">
+                    <ShieldCheck size={14} />
+                    Approved
+                  </Badge>
+                ) : (
+                  <Badge variant="danger">
+                    <ShieldAlert size={14} />
+                    Not approved
+                  </Badge>
+                )}
 
                 {canAcceptPayments ? (
                   <Badge variant="success">
@@ -361,14 +391,14 @@ export default async function ExpertPublicPage({
                     ) : null}
                   </div>
 
-                  {expert.availability.length > 0 ? (
+                  {bookableAvailability.length > 0 ? (
                     <div className="mt-7 rounded-[24px] border border-[var(--border)] bg-white/55 p-4">
                       <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
                         Next available
                       </p>
 
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {expert.availability.slice(0, 5).map((slot) => (
+                        {bookableAvailability.slice(0, 5).map((slot) => (
                           <span
                             key={slot.id}
                             className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]"
@@ -443,7 +473,7 @@ export default async function ExpertPublicPage({
 
                 <SummaryRow
                   label="Open times"
-                  value={String(expert.availability.length)}
+                  value={String(bookableAvailability.length)}
                 />
               </div>
 
@@ -648,7 +678,7 @@ export default async function ExpertPublicPage({
                   </p>
                 </div>
 
-                <Badge>{expert.availability.length} open</Badge>
+                <Badge>{bookableAvailability.length} open</Badge>
               </div>
 
               {bookingBlockedReason ? (
@@ -762,7 +792,11 @@ export default async function ExpertPublicPage({
                 {groupedSlots.length === 0 ? (
                   <EmptyState
                     title="No open times"
-                    text="This provider has no available time slots right now."
+                    text={
+                      selectedService
+                        ? "This provider has no available time slots long enough for the selected service."
+                        : "This provider has no available time slots right now."
+                    }
                   />
                 ) : null}
 
@@ -1224,6 +1258,7 @@ function getBookingBlockedReason({
   hasUser,
   isBuyer,
   isOwnProfile,
+  isProviderApproved,
   canAcceptPayments,
   hasServices,
   hasOpenSlots,
@@ -1231,6 +1266,7 @@ function getBookingBlockedReason({
   hasUser: boolean;
   isBuyer: boolean;
   isOwnProfile: boolean;
+  isProviderApproved: boolean;
   canAcceptPayments: boolean;
   hasServices: boolean;
   hasOpenSlots: boolean;
@@ -1247,6 +1283,10 @@ function getBookingBlockedReason({
     return "You cannot book your own provider profile.";
   }
 
+  if (!isProviderApproved) {
+    return "This provider is not approved for public bookings yet.";
+  }
+
   if (!canAcceptPayments) {
     return "This provider is finishing payout setup. Booking is temporarily unavailable.";
   }
@@ -1256,7 +1296,7 @@ function getBookingBlockedReason({
   }
 
   if (!hasOpenSlots) {
-    return "This provider has no available time slots right now.";
+    return "This provider has no available time slots for the selected service right now.";
   }
 
   return null;
@@ -1356,6 +1396,10 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function getSlotDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+}
+
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("en", {
     weekday: "short",
@@ -1393,12 +1437,24 @@ function formatError(error: string) {
     return "This time slot is no longer available.";
   }
 
+  if (error === "slot-too-short") {
+    return "This time slot is too short for the selected service.";
+  }
+
   if (error === "service-not-found") {
     return "This service is not available anymore.";
   }
 
+  if (error === "invalid-service") {
+    return "This service is not configured correctly.";
+  }
+
   if (error === "missing-booking-data") {
     return "Please choose a service and a time slot.";
+  }
+
+  if (error === "provider-not-available") {
+    return "This provider is not available for public bookings yet.";
   }
 
   if (error === "expert-payout-not-ready") {

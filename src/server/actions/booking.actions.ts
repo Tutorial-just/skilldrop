@@ -1,11 +1,16 @@
 "use server";
 
-import { randomUUID } from "crypto";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  assertRateLimit,
+  getClientIp,
+  rateLimitPresets,
+} from "@/lib/rate-limit";
 import { sendNotification } from "@/server/services/notification.service";
 import { calculatePricingBreakdown } from "@/config/pricing";
 
@@ -16,7 +21,8 @@ type BookingStatusValue =
   | "COMPLETED"
   | "CANCELLED"
   | "REFUNDED"
-  | "DISPUTED";
+  | "DISPUTED"
+  | "EXPIRED";
 
 const PENDING_BOOKING_EXPIRES_MINUTES = 15;
 const MAX_BOOKING_NOTE_LENGTH = 500;
@@ -47,43 +53,6 @@ function formatDateTime(date: Date) {
 
 function getDisplayName(user: { name: string | null; email: string }) {
   return user.name?.trim() || user.email.split("@")[0] || "Client";
-}
-
-function createCallRoomData(bookingId: string) {
-  const provider = process.env.VIDEO_PROVIDER || "JITSI";
-  const baseUrl = process.env.JITSI_BASE_URL || "https://meet.jit.si";
-  const roomName = `skilldrop-${bookingId}-${randomUUID()}`;
-  const roomUrl = `${baseUrl}/${roomName}`;
-
-  return {
-    provider,
-    roomName,
-    roomUrl,
-  };
-}
-
-async function getCurrentUserRecord(
-  allowedRoles: ("buyer" | "expert" | "admin")[],
-) {
-  const { user } = await requireRole(allowedRoles);
-
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
-  const currentUser = await prisma.user.findUnique({
-    where: {
-      email,
-    },
-  });
-
-  if (!currentUser) {
-    redirect("/sign-in");
-  }
-
-  return currentUser;
 }
 
 function getBookingsRedirectHref(role: string) {
@@ -128,18 +97,65 @@ function revalidateBookingPaths(expertId?: string, bookingId?: string) {
   }
 }
 
-function canCancelBooking(status: string) {
-  return status === "PENDING" || status === "CONFIRMED";
+async function safeSendNotification(
+  input: Parameters<typeof sendNotification>[0],
+) {
+  try {
+    await sendNotification(input);
+  } catch (error) {
+    console.error("Notification error:", error);
+  }
+}
+
+async function getCurrentUserRecord(
+  allowedRoles: ("buyer" | "expert" | "admin")[],
+) {
+  const { user } = await requireRole(allowedRoles);
+
+  const currentUser = await prisma.user.findUnique({
+    where: {
+      id: user.id,
+    },
+  });
+
+  if (!currentUser) {
+    redirect("/sign-in");
+  }
+
+  return currentUser;
+}
+
+function canCancelBookingDirectly(status: string) {
+  return status === "PENDING";
 }
 
 function canCompleteBooking(status: string) {
   return status === "CONFIRMED";
 }
 
+function isClosedStatus(status: string) {
+  return (
+    status === "COMPLETED" ||
+    status === "CANCELLED" ||
+    status === "REFUNDED" ||
+    status === "DISPUTED" ||
+    status === "EXPIRED"
+  );
+}
+
+function getAvailabilityDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+}
+
 export async function createBookingAction(formData: FormData) {
   await releaseExpiredPendingBookings();
 
   const buyer = await getCurrentUserRecord(["buyer", "admin"]);
+
+  const requestHeaders = await headers();
+  const ip = getClientIp(requestHeaders);
+
+  assertRateLimit(`booking:create:${buyer.id}:${ip}`, rateLimitPresets.booking);
 
   const expertId = getStringValue(formData, "expertId");
   const serviceId = getStringValue(formData, "serviceId");
@@ -178,7 +194,13 @@ export async function createBookingAction(formData: FormData) {
     redirect(`/experts/${expertId}?error=provider-not-available`);
   }
 
-  if (!expert.stripeAccountId) {
+  const expertCanAcceptPayments =
+    Boolean(expert.stripeAccountId) &&
+    expert.stripeChargesEnabled &&
+    expert.stripePayoutsEnabled &&
+    expert.stripeDetailsSubmitted;
+
+  if (!expertCanAcceptPayments) {
     redirect(
       `/experts/${expertId}?service=${serviceId}&error=expert-payout-not-ready`,
     );
@@ -196,6 +218,10 @@ export async function createBookingAction(formData: FormData) {
     redirect(`/experts/${expertId}?error=service-not-found`);
   }
 
+  if (service.priceCents <= 0 || service.durationMinutes <= 0) {
+    redirect(`/experts/${expertId}?service=${serviceId}&error=invalid-service`);
+  }
+
   const availability = await prisma.availability.findFirst({
     where: {
       id: availabilityId,
@@ -210,6 +236,17 @@ export async function createBookingAction(formData: FormData) {
   if (!availability) {
     redirect(
       `/experts/${expertId}?service=${serviceId}&error=slot-not-available`,
+    );
+  }
+
+  const slotDurationMinutes = getAvailabilityDurationMinutes(
+    availability.startTime,
+    availability.endTime,
+  );
+
+  if (slotDurationMinutes < service.durationMinutes) {
+    redirect(
+      `/experts/${expertId}?service=${serviceId}&error=slot-too-short`,
     );
   }
 
@@ -246,6 +283,16 @@ export async function createBookingAction(formData: FormData) {
         throw new Error("slot-not-available");
       }
 
+      const freshAvailability = await tx.availability.findUnique({
+        where: {
+          id: availabilityId,
+        },
+      });
+
+      if (!freshAvailability) {
+        throw new Error("slot-not-available");
+      }
+
       const expiresAt = new Date(
         Date.now() + PENDING_BOOKING_EXPIRES_MINUTES * 60 * 1000,
       );
@@ -256,8 +303,8 @@ export async function createBookingAction(formData: FormData) {
           expertId,
           serviceId,
           availabilityId,
-          startTime: availability.startTime,
-          endTime: availability.endTime,
+          startTime: freshAvailability.startTime,
+          endTime: freshAvailability.endTime,
           priceCents: pricing.servicePriceCents,
           currency: service.currency,
           platformFeeCents: pricing.platformFeeCents,
@@ -270,26 +317,13 @@ export async function createBookingAction(formData: FormData) {
         },
       });
 
-      const room = createCallRoomData(createdBooking.id);
-
-      await tx.callRoom.create({
-        data: {
-          bookingId: createdBooking.id,
-          provider: room.provider,
-          roomName: room.roomName,
-          roomUrl: room.roomUrl,
-          startsAt: createdBooking.startTime,
-          endsAt: createdBooking.endTime,
-        },
-      });
-
       return {
         id: createdBooking.id,
         expertId: createdBooking.expertId,
         serviceId: createdBooking.serviceId,
         startTime: createdBooking.startTime,
         endTime: createdBooking.endTime,
-        note: note || null,
+        note: createdBooking.note,
       };
     });
   } catch (error) {
@@ -310,7 +344,7 @@ export async function createBookingAction(formData: FormData) {
     );
   }
 
-  await sendNotification({
+  await safeSendNotification({
     to: buyer.email,
     type: "BOOKING_CREATED",
     subject: "Your booking is waiting for payment",
@@ -329,9 +363,9 @@ export async function createBookingAction(formData: FormData) {
 
   const buyerName = getDisplayName(buyer);
 
-  await sendNotification({
+  await safeSendNotification({
     to: expert.user.email,
-    type: "BOOKING_PENDING_PAYMENT",
+    type: "BOOKING_CREATED",
     subject: "A client reserved your time slot",
     message: `${buyerName} reserved "${service.title}" for ${formatDateTime(
       booking.startTime,
@@ -397,23 +431,35 @@ export async function cancelBookingAction(formData: FormData) {
     redirect("/");
   }
 
-  if (!canCancelBooking(booking.status)) {
-    redirect(`${getBookingsRedirectHref(currentUser.role)}?error=cannot-cancel`);
+  if (!canCancelBookingDirectly(booking.status)) {
+    redirect(
+      `${getBookingsRedirectHref(currentUser.role)}?error=confirmed-booking-needs-refund`,
+    );
   }
 
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
+    const updatedBooking = await tx.booking.updateMany({
       where: {
         id: booking.id,
+        status: "PENDING",
       },
       data: {
         status: "CANCELLED",
         cancelledAt: now,
+        cancelReason: isAdmin
+          ? "CANCELLED_BY_ADMIN"
+          : isExpert
+            ? "CANCELLED_BY_EXPERT"
+            : "CANCELLED_BY_BUYER",
         expiresAt: null,
       },
     });
+
+    if (updatedBooking.count === 0) {
+      return;
+    }
 
     if (booking.availabilityId) {
       await tx.availability.updateMany({
@@ -445,7 +491,7 @@ export async function cancelBookingAction(formData: FormData) {
       ? "the provider"
       : "the client";
 
-  await sendNotification({
+  await safeSendNotification({
     to: booking.buyer.email,
     type: "BOOKING_CANCELLED",
     subject: "Booking cancelled",
@@ -460,7 +506,7 @@ export async function cancelBookingAction(formData: FormData) {
     },
   });
 
-  await sendNotification({
+  await safeSendNotification({
     to: booking.expert.user.email,
     type: "BOOKING_CANCELLED",
     subject: "Booking cancelled",
@@ -518,22 +564,30 @@ export async function updateBookingStatusAction(formData: FormData) {
     redirect(getBookingsRedirectHref(currentUser.role));
   }
 
-  const allowedStatuses: BookingStatusValue[] = [
-    "PENDING",
-    "PAID",
-    "CONFIRMED",
-    "COMPLETED",
-    "CANCELLED",
-    "REFUNDED",
-    "DISPUTED",
-  ];
+  const allowedStatuses: BookingStatusValue[] = isAdmin
+    ? [
+        "PENDING",
+        "PAID",
+        "CONFIRMED",
+        "COMPLETED",
+        "CANCELLED",
+        "DISPUTED",
+        "EXPIRED",
+      ]
+    : ["COMPLETED"];
 
   if (!allowedStatuses.includes(status)) {
     redirect(`${getBookingsRedirectHref(currentUser.role)}?error=invalid-status`);
   }
 
-  if (!isAdmin && status !== "COMPLETED" && status !== "CANCELLED") {
-    redirect(`${getBookingsRedirectHref(currentUser.role)}?error=not-allowed`);
+  if (status === "REFUNDED") {
+    redirect(
+      `${getBookingsRedirectHref(currentUser.role)}?error=refund-must-use-stripe`,
+    );
+  }
+
+  if (isClosedStatus(booking.status)) {
+    redirect(`${getBookingsRedirectHref(currentUser.role)}?error=booking-closed`);
   }
 
   const now = new Date();
@@ -550,14 +604,17 @@ export async function updateBookingStatusAction(formData: FormData) {
     }
   }
 
-  if (status === "CANCELLED" && !canCancelBooking(booking.status)) {
-    redirect(`${getBookingsRedirectHref(currentUser.role)}?error=cannot-cancel`);
+  if (status === "CANCELLED" && !canCancelBookingDirectly(booking.status)) {
+    redirect(
+      `${getBookingsRedirectHref(currentUser.role)}?error=confirmed-booking-needs-refund`,
+    );
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
+    const updatedBooking = await tx.booking.updateMany({
       where: {
         id: booking.id,
+        status: booking.status,
       },
       data: {
         status,
@@ -569,20 +626,36 @@ export async function updateBookingStatusAction(formData: FormData) {
         ...(status === "CANCELLED"
           ? {
               cancelledAt: now,
+              cancelReason: isAdmin
+                ? "CANCELLED_BY_ADMIN"
+                : "CANCELLED_BY_EXPERT",
               expiresAt: null,
             }
           : {}),
-        ...(status === "REFUNDED"
+        ...(status === "DISPUTED"
           ? {
-              refundedAt: now,
+              disputedAt: now,
+              disputeReason: "MANUAL_REVIEW",
+              disputeNote: "Marked as disputed from booking admin action.",
+              expiresAt: null,
+            }
+          : {}),
+        ...(status === "EXPIRED"
+          ? {
+              cancelledAt: now,
+              cancelReason: "PAYMENT_EXPIRED",
               expiresAt: null,
             }
           : {}),
       },
     });
 
+    if (updatedBooking.count === 0) {
+      throw new Error("booking-status-changed");
+    }
+
     if (
-      (status === "CANCELLED" || status === "REFUNDED") &&
+      (status === "CANCELLED" || status === "EXPIRED") &&
       booking.availabilityId
     ) {
       await tx.availability.updateMany({
@@ -630,7 +703,8 @@ export async function updateBookingStatusAction(formData: FormData) {
       booking.callRoom &&
       (status === "COMPLETED" ||
         status === "CANCELLED" ||
-        status === "REFUNDED")
+        status === "DISPUTED" ||
+        status === "EXPIRED")
     ) {
       await tx.callRoom.updateMany({
         where: {
@@ -645,7 +719,7 @@ export async function updateBookingStatusAction(formData: FormData) {
   });
 
   if (status === "COMPLETED") {
-    await sendNotification({
+    await safeSendNotification({
       to: booking.expert.user.email,
       type: "CALL_COMPLETED",
       subject: "Call marked as completed",
@@ -659,7 +733,7 @@ export async function updateBookingStatusAction(formData: FormData) {
       },
     });
 
-    await sendNotification({
+    await safeSendNotification({
       to: booking.buyer.email,
       type: "REVIEW_REQUESTED",
       subject: "How was your SkillDrop call?",
@@ -674,14 +748,52 @@ export async function updateBookingStatusAction(formData: FormData) {
     });
   }
 
-  if (status === "CANCELLED") {
-    await sendNotification({
+  if (status === "CANCELLED" || status === "EXPIRED") {
+    const isExpired = status === "EXPIRED";
+
+    await safeSendNotification({
       to: booking.buyer.email,
-      type: "BOOKING_CANCELLED",
-      subject: "Booking cancelled",
+      type: isExpired ? "BOOKING_EXPIRED" : "BOOKING_CANCELLED",
+      subject: isExpired ? "Booking expired" : "Booking cancelled",
+      message: isExpired
+        ? `Your booking "${
+            booking.service?.title ?? "Booked call"
+          }" expired because payment was not completed in time.`
+        : `Your booking "${booking.service?.title ?? "Booked call"}" was cancelled.`,
+      metadata: {
+        bookingId: booking.id,
+        expertId: booking.expertId,
+        previousStatus: booking.status,
+        newStatus: status,
+      },
+    });
+
+    await safeSendNotification({
+      to: booking.expert.user.email,
+      type: isExpired ? "BOOKING_EXPIRED" : "BOOKING_CANCELLED",
+      subject: isExpired ? "Booking expired" : "Booking cancelled",
+      message: isExpired
+        ? `The booking "${
+            booking.service?.title ?? "Booked call"
+          }" expired because payment was not completed in time.`
+        : `The booking "${booking.service?.title ?? "Booked call"}" was cancelled.`,
+      metadata: {
+        bookingId: booking.id,
+        expertId: booking.expertId,
+        previousStatus: booking.status,
+        newStatus: status,
+      },
+    });
+  }
+
+  if (status === "DISPUTED") {
+    await safeSendNotification({
+      to: booking.buyer.email,
+      type: "BOOKING_DISPUTED",
+      subject: "Booking under review",
       message: `Your booking "${
         booking.service?.title ?? "Booked call"
-      }" was cancelled.`,
+      }" is under review by SkillDrop support.`,
       metadata: {
         bookingId: booking.id,
         expertId: booking.expertId,
@@ -689,13 +801,13 @@ export async function updateBookingStatusAction(formData: FormData) {
       },
     });
 
-    await sendNotification({
+    await safeSendNotification({
       to: booking.expert.user.email,
-      type: "BOOKING_CANCELLED",
-      subject: "Booking cancelled",
+      type: "BOOKING_DISPUTED",
+      subject: "Booking under review",
       message: `The booking "${
         booking.service?.title ?? "Booked call"
-      }" was cancelled.`,
+      }" is under review by SkillDrop support.`,
       metadata: {
         bookingId: booking.id,
         expertId: booking.expertId,
@@ -739,6 +851,8 @@ export async function releaseExpiredPendingBookings() {
     return;
   }
 
+  const expiredBookingIds: string[] = [];
+
   await prisma.$transaction(async (tx) => {
     for (const booking of expiredBookings) {
       const updatedBooking = await tx.booking.updateMany({
@@ -747,8 +861,9 @@ export async function releaseExpiredPendingBookings() {
           status: "PENDING",
         },
         data: {
-          status: "CANCELLED",
+          status: "EXPIRED",
           cancelledAt: now,
+          cancelReason: "PAYMENT_EXPIRED",
           expiresAt: null,
         },
       });
@@ -756,6 +871,8 @@ export async function releaseExpiredPendingBookings() {
       if (updatedBooking.count === 0) {
         continue;
       }
+
+      expiredBookingIds.push(booking.id);
 
       if (booking.availabilityId) {
         await tx.availability.updateMany({
@@ -782,9 +899,13 @@ export async function releaseExpiredPendingBookings() {
     }
   });
 
+  const actuallyExpiredBookings = expiredBookings.filter((booking) =>
+    expiredBookingIds.includes(booking.id),
+  );
+
   await Promise.all(
-    expiredBookings.map((booking) =>
-      sendNotification({
+    actuallyExpiredBookings.map((booking) =>
+      safeSendNotification({
         to: booking.buyer.email,
         type: "BOOKING_EXPIRED",
         subject: "Booking expired",
@@ -795,7 +916,7 @@ export async function releaseExpiredPendingBookings() {
           bookingId: booking.id,
           expertId: booking.expertId,
           previousStatus: "PENDING",
-          newStatus: "CANCELLED",
+          newStatus: "EXPIRED",
           reason: "payment-expired",
         },
       }),
@@ -803,7 +924,7 @@ export async function releaseExpiredPendingBookings() {
   );
 
   const expertIds = Array.from(
-    new Set(expiredBookings.map((booking) => booking.expertId)),
+    new Set(actuallyExpiredBookings.map((booking) => booking.expertId)),
   );
 
   revalidateBookingPaths();

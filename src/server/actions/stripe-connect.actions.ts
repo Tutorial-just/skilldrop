@@ -1,11 +1,17 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import {
+  assertRateLimit,
+  getClientIp,
+  rateLimitPresets,
+} from "@/lib/rate-limit";
 
 function getAppUrl() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -29,18 +35,23 @@ function revalidateStripeConnectPaths(expertId: string) {
   revalidatePath("/admin/experts");
 }
 
+async function assertStripeConnectRateLimit(userId: string, action: string) {
+  const requestHeaders = await headers();
+  const ip = getClientIp(requestHeaders);
+
+  assertRateLimit(
+    `stripe-connect:${action}:${userId}:${ip}`,
+    rateLimitPresets.payment,
+    "Too many Stripe requests. Please try again later.",
+  );
+}
+
 async function getCurrentExpert() {
   const { user } = await requireRole(["expert", "admin"]);
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
   const currentUser = await prisma.user.findUnique({
     where: {
-      email,
+      id: user.id,
     },
     include: {
       expertProfile: true,
@@ -61,7 +72,25 @@ async function getCurrentExpert() {
   };
 }
 
-async function getValidStripeAccountId(stripeAccountId: string | null) {
+function getStripeReadinessData(account: {
+  charges_enabled?: boolean;
+  payouts_enabled?: boolean;
+  details_submitted?: boolean;
+}) {
+  const chargesEnabled = Boolean(account.charges_enabled);
+  const payoutsEnabled = Boolean(account.payouts_enabled);
+  const detailsSubmitted = Boolean(account.details_submitted);
+
+  return {
+    stripeChargesEnabled: chargesEnabled,
+    stripePayoutsEnabled: payoutsEnabled,
+    stripeDetailsSubmitted: detailsSubmitted,
+    stripeOnboardingDoneAt:
+      chargesEnabled && payoutsEnabled && detailsSubmitted ? new Date() : null,
+  };
+}
+
+async function retrieveStripeAccount(stripeAccountId: string | null) {
   if (!stripeAccountId) {
     return null;
   }
@@ -73,20 +102,67 @@ async function getValidStripeAccountId(stripeAccountId: string | null) {
       return null;
     }
 
-    return account.id;
-  } catch {
+    return account;
+  } catch (error) {
+    console.error("Stripe account retrieve error:", error);
+
     return null;
   }
 }
 
+async function syncStripeAccountStatus({
+  expertId,
+  stripeAccountId,
+}: {
+  expertId: string;
+  stripeAccountId: string | null;
+}) {
+  const account = await retrieveStripeAccount(stripeAccountId);
+
+  if (!account) {
+    await prisma.expertProfile.update({
+      where: {
+        id: expertId,
+      },
+      data: {
+        stripeAccountId: null,
+        stripeChargesEnabled: false,
+        stripePayoutsEnabled: false,
+        stripeDetailsSubmitted: false,
+        stripeOnboardingDoneAt: null,
+      },
+    });
+
+    return null;
+  }
+
+  await prisma.expertProfile.update({
+    where: {
+      id: expertId,
+    },
+    data: {
+      stripeAccountId: account.id,
+      ...getStripeReadinessData(account),
+    },
+  });
+
+  return account;
+}
+
 export async function createStripeConnectAccountAction() {
   const { user, expert } = await getCurrentExpert();
+
+  await assertStripeConnectRateLimit(user.id, "create");
+
   const appUrl = getAppUrl();
 
-  let stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
+  let account = await syncStripeAccountStatus({
+    expertId: expert.id,
+    stripeAccountId: expert.stripeAccountId,
+  });
 
-  if (!stripeAccountId) {
-    const account = await stripe.accounts.create({
+  if (!account) {
+    account = await stripe.accounts.create({
       type: "express",
       country: "FR",
       email: user.email,
@@ -103,6 +179,7 @@ export async function createStripeConnectAccountAction() {
         name: user.name ?? "SkillDrop provider",
         product_description:
           "Paid short 1:1 calls for practical help, career, language, documents and guidance through SkillDrop.",
+        url: appUrl,
       },
       metadata: {
         userId: user.id,
@@ -111,20 +188,19 @@ export async function createStripeConnectAccountAction() {
       },
     });
 
-    stripeAccountId = account.id;
-
     await prisma.expertProfile.update({
       where: {
         id: expert.id,
       },
       data: {
-        stripeAccountId,
+        stripeAccountId: account.id,
+        ...getStripeReadinessData(account),
       },
     });
   }
 
   const accountLink = await stripe.accountLinks.create({
-    account: stripeAccountId,
+    account: account.id,
     refresh_url: `${appUrl}/expert/settings?stripe=refresh`,
     return_url: `${appUrl}/expert/settings?stripe=connected`,
     type: "account_onboarding",
@@ -136,19 +212,29 @@ export async function createStripeConnectAccountAction() {
 }
 
 export async function openStripeDashboardAction() {
-  const { expert } = await getCurrentExpert();
+  const { user, expert } = await getCurrentExpert();
 
-  const stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
+  await assertStripeConnectRateLimit(user.id, "dashboard");
 
-  if (!stripeAccountId) {
+  const account = await syncStripeAccountStatus({
+    expertId: expert.id,
+    stripeAccountId: expert.stripeAccountId,
+  });
+
+  if (!account) {
+    revalidateStripeConnectPaths(expert.id);
     redirect("/expert/settings?error=stripe-account-missing");
   }
 
   try {
-    const loginLink = await stripe.accounts.createLoginLink(stripeAccountId);
+    const loginLink = await stripe.accounts.createLoginLink(account.id);
+
+    revalidateStripeConnectPaths(expert.id);
 
     redirect(loginLink.url);
-  } catch {
+  } catch (error) {
+    console.error("Stripe dashboard link error:", error);
+
     redirect("/expert/settings?error=stripe-dashboard-unavailable");
   }
 }
@@ -158,26 +244,29 @@ export async function createStripeConnectDashboardAction() {
 }
 
 export async function refreshStripeConnectStatusAction() {
-  const { expert } = await getCurrentExpert();
+  const { user, expert } = await getCurrentExpert();
 
-  const stripeAccountId = await getValidStripeAccountId(expert.stripeAccountId);
+  await assertStripeConnectRateLimit(user.id, "refresh");
 
-  if (!stripeAccountId) {
-    await prisma.expertProfile.update({
-      where: {
-        id: expert.id,
-      },
-      data: {
-        stripeAccountId: null,
-      },
-    });
+  const account = await syncStripeAccountStatus({
+    expertId: expert.id,
+    stripeAccountId: expert.stripeAccountId,
+  });
 
-    revalidateStripeConnectPaths(expert.id);
+  revalidateStripeConnectPaths(expert.id);
 
+  if (!account) {
     redirect("/expert/settings?error=stripe-account-invalid");
   }
 
-  revalidateStripeConnectPaths(expert.id);
+  const isReady =
+    account.charges_enabled &&
+    account.payouts_enabled &&
+    account.details_submitted;
+
+  if (!isReady) {
+    redirect("/expert/settings?stripe=incomplete");
+  }
 
   redirect("/expert/settings?stripe=checked");
 }

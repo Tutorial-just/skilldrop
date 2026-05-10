@@ -2,29 +2,18 @@ export const PRICING_CONFIG = {
   providerCommissionRate: 0.1,
   clientServiceFeeRate: 0.05,
   currency: "EUR",
-};
+  minServicePriceCents: 500,
+  maxServicePriceCents: 50000,
+} as const;
 
 export type PricingBreakdown = {
   servicePriceCents: number;
-
   providerCommissionCents: number;
   providerNetCents: number;
-
   clientServiceFeeCents: number;
   clientTotalCents: number;
-
-  /**
-   * Backward-compatible alias.
-   * Same value as providerCommissionCents.
-   */
   platformFeeCents: number;
-
-  /**
-   * Total SkillDrop fee collected in Stripe Checkout:
-   * provider commission + client service fee.
-   */
   platformGrossFeeCents: number;
-
   currency: string;
 };
 
@@ -50,17 +39,43 @@ export function calculatePricingBreakdown(
 
   return {
     servicePriceCents: safeServicePriceCents,
-
     providerCommissionCents,
     providerNetCents,
-
     clientServiceFeeCents,
     clientTotalCents,
-
     platformFeeCents: providerCommissionCents,
     platformGrossFeeCents,
-
     currency: PRICING_CONFIG.currency,
+  };
+}
+
+export function validateServicePrice(priceCents: number) {
+  const normalizedPrice = Math.round(priceCents);
+
+  if (!Number.isFinite(normalizedPrice)) {
+    return {
+      success: false,
+      message: "Invalid price.",
+    };
+  }
+
+  if (normalizedPrice < PRICING_CONFIG.minServicePriceCents) {
+    return {
+      success: false,
+      message: "The minimum price is €5.",
+    };
+  }
+
+  if (normalizedPrice > PRICING_CONFIG.maxServicePriceCents) {
+    return {
+      success: false,
+      message: "The maximum price is €500.",
+    };
+  }
+
+  return {
+    success: true,
+    message: null,
   };
 }
 
@@ -70,6 +85,10 @@ export function calculatePricingBreakdownFromEuros(priceEuros: number) {
   return calculatePricingBreakdown(priceCents);
 }
 
-export function formatMoneyFromCents(cents: number) {
-  return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
+export function formatMoneyFromCents(cents: number, currency = "EUR") {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100);
 }

@@ -8,7 +8,7 @@ export async function createClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing Supabase environment variables.");
+    throw new Error("Missing Supabase server environment variables.");
   }
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -23,7 +23,7 @@ export async function createClient() {
           });
         } catch {
           // Server Components cannot always set cookies.
-          // Middleware will refresh sessions when needed.
+          // Middleware refreshes sessions when needed.
         }
       },
     },

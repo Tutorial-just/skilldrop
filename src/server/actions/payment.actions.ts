@@ -1,11 +1,17 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth/get-current-user";
+import {
+  assertRateLimit,
+  getClientIp,
+  rateLimitPresets,
+} from "@/lib/rate-limit";
 import { calculatePricingBreakdown } from "@/config/pricing";
 
 function getCheckoutHref(bookingId: string, error?: string) {
@@ -70,7 +76,7 @@ async function cancelExpiredPendingBooking({
         status: "PENDING",
       },
       data: {
-        status: "CANCELLED",
+        status: "EXPIRED",
         cancelledAt: now,
         expiresAt: null,
       },
@@ -109,6 +115,7 @@ async function cancelExpiredPendingBooking({
 
 function getBookingPricing(booking: {
   priceCents: number;
+  currency: string;
   platformFeeCents: number | null;
   providerNetCents: number | null;
   clientServiceFeeCents: number | null;
@@ -116,55 +123,47 @@ function getBookingPricing(booking: {
 }) {
   const fallback = calculatePricingBreakdown(booking.priceCents);
 
+  const providerCommissionCents =
+    booking.platformFeeCents ?? fallback.providerCommissionCents;
+
+  const providerNetCents =
+    booking.providerNetCents ?? fallback.providerNetCents;
+
+  const clientServiceFeeCents =
+    booking.clientServiceFeeCents ?? fallback.clientServiceFeeCents;
+
+  const clientTotalCents =
+    booking.clientTotalCents ?? fallback.clientTotalCents;
+
+  const platformGrossFeeCents =
+    providerCommissionCents + clientServiceFeeCents;
+
   return {
     servicePriceCents: booking.priceCents,
-
-    providerCommissionCents:
-      booking.platformFeeCents ?? fallback.providerCommissionCents,
-
-    providerNetCents: booking.providerNetCents ?? fallback.providerNetCents,
-
-    clientServiceFeeCents:
-      booking.clientServiceFeeCents ?? fallback.clientServiceFeeCents,
-
-    clientTotalCents: booking.clientTotalCents ?? fallback.clientTotalCents,
-
-    platformFeeCents:
-      booking.platformFeeCents ?? fallback.providerCommissionCents,
-
-    platformGrossFeeCents:
-      (booking.platformFeeCents ?? fallback.providerCommissionCents) +
-      (booking.clientServiceFeeCents ?? fallback.clientServiceFeeCents),
-
-    currency: fallback.currency,
+    providerCommissionCents,
+    providerNetCents,
+    clientServiceFeeCents,
+    clientTotalCents,
+    platformFeeCents: providerCommissionCents,
+    platformGrossFeeCents,
+    currency: booking.currency || fallback.currency,
   };
 }
 
 export async function createCheckoutSessionAction(bookingId: string) {
   const { user } = await requireRole(["buyer", "admin"]);
 
-  const email = user.email?.toLowerCase();
+  const requestHeaders = await headers();
+  const ip = getClientIp(requestHeaders);
 
-  if (!email) {
-    redirect("/sign-in");
-  }
+  assertRateLimit(`checkout:${user.id}:${ip}`, rateLimitPresets.payment);
 
   const appUrl = getAppUrl();
-
-  const buyer = await prisma.user.findUnique({
-    where: {
-      email,
-    },
-  });
-
-  if (!buyer) {
-    redirect("/sign-in");
-  }
 
   const booking = await prisma.booking.findFirst({
     where: {
       id: bookingId,
-      buyerId: buyer.id,
+      buyerId: user.id,
       status: "PENDING",
     },
     include: {
@@ -195,6 +194,20 @@ export async function createCheckoutSessionAction(bookingId: string) {
     redirect("/buyer/bookings?error=booking-expired");
   }
 
+  if (booking.stripeCheckoutSessionId) {
+    try {
+      const existingSession = await stripe.checkout.sessions.retrieve(
+        booking.stripeCheckoutSessionId,
+      );
+
+      if (existingSession.status === "open" && existingSession.url) {
+        redirect(existingSession.url);
+      }
+    } catch {
+      // If Stripe session cannot be retrieved, create a fresh one below.
+    }
+  }
+
   const stripeAccountId = booking.expert.stripeAccountId;
 
   if (!stripeAccountId) {
@@ -214,20 +227,49 @@ export async function createCheckoutSessionAction(bookingId: string) {
   }
 
   if (!connectedAccount.charges_enabled || !connectedAccount.payouts_enabled) {
+    await prisma.expertProfile.update({
+      where: {
+        id: booking.expertId,
+      },
+      data: {
+        stripeChargesEnabled: Boolean(connectedAccount.charges_enabled),
+        stripePayoutsEnabled: Boolean(connectedAccount.payouts_enabled),
+        stripeDetailsSubmitted: Boolean(connectedAccount.details_submitted),
+      },
+    });
+
     redirect(getCheckoutHref(booking.id, "provider-payout-not-ready"));
   }
 
+  await prisma.expertProfile.update({
+    where: {
+      id: booking.expertId,
+    },
+    data: {
+      stripeChargesEnabled: Boolean(connectedAccount.charges_enabled),
+      stripePayoutsEnabled: Boolean(connectedAccount.payouts_enabled),
+      stripeDetailsSubmitted: Boolean(connectedAccount.details_submitted),
+      stripeOnboardingDoneAt: connectedAccount.details_submitted
+        ? new Date()
+        : null,
+    },
+  });
+
   const pricing = getBookingPricing(booking);
+
+  if (pricing.clientTotalCents <= 0) {
+    redirect(getCheckoutHref(booking.id, "invalid-price"));
+  }
 
   const providerName = booking.expert.user.name ?? "Provider";
   const serviceTitle = booking.service?.title ?? "SkillDrop call";
-  const currency = booking.currency.toLowerCase();
+  const currency = pricing.currency.toLowerCase();
 
   const stripeMetadata = {
     bookingId: booking.id,
-    buyerId: buyer.id,
+    buyerId: user.id,
     expertId: booking.expertId,
-    serviceId: booking.serviceId ?? "",
+    serviceId: booking.serviceId,
 
     servicePriceCents: String(pricing.servicePriceCents),
     providerCommissionCents: String(pricing.providerCommissionCents),
@@ -243,41 +285,47 @@ export async function createCheckoutSessionAction(bookingId: string) {
   let session;
 
   try {
-    session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: buyer.email,
+    session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        customer_email: user.email,
 
-      line_items: [
-        {
-          price_data: {
-            currency,
-            product_data: {
-              name: serviceTitle,
-              description: `Call with ${providerName}`,
-              metadata: {
-                bookingId: booking.id,
-                expertId: booking.expertId,
+        line_items: [
+          {
+            price_data: {
+              currency,
+              product_data: {
+                name: serviceTitle,
+                description: `Call with ${providerName}`,
+                metadata: {
+                  bookingId: booking.id,
+                  expertId: booking.expertId,
+                },
               },
+              unit_amount: pricing.clientTotalCents,
             },
-            unit_amount: pricing.clientTotalCents,
+            quantity: 1,
           },
-          quantity: 1,
-        },
-      ],
+        ],
 
-      payment_intent_data: {
-        application_fee_amount: pricing.platformGrossFeeCents,
-        transfer_data: {
-          destination: stripeAccountId,
+        payment_intent_data: {
+          application_fee_amount: pricing.platformGrossFeeCents,
+          transfer_data: {
+            destination: stripeAccountId,
+          },
+          metadata: stripeMetadata,
         },
+
+        success_url: `${appUrl}/buyer/bookings?payment=success&booking=${booking.id}`,
+        cancel_url: `${appUrl}${getCheckoutHref(booking.id)}`,
+
         metadata: stripeMetadata,
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       },
-
-      success_url: `${appUrl}/buyer/bookings?payment=success&booking=${booking.id}`,
-      cancel_url: `${appUrl}${getCheckoutHref(booking.id)}`,
-
-      metadata: stripeMetadata,
-    });
+      {
+        idempotencyKey: `checkout:${booking.id}:${booking.updatedAt.getTime()}`,
+      },
+    );
   } catch (error) {
     console.error("Stripe checkout session error:", error);
 
@@ -294,7 +342,6 @@ export async function createCheckoutSessionAction(bookingId: string) {
     },
     data: {
       stripeCheckoutSessionId: session.id,
-
       platformFeeCents: pricing.providerCommissionCents,
       providerNetCents: pricing.providerNetCents,
       clientServiceFeeCents: pricing.clientServiceFeeCents,

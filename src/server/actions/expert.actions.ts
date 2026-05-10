@@ -1,10 +1,17 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth/get-current-user";
+import {
+  assertRateLimit,
+  getClientIp,
+  rateLimitPresets,
+} from "@/lib/rate-limit";
+import { validateServicePrice } from "@/config/pricing";
 
 const MAX_AVATAR_SIZE_BYTES = 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -13,7 +20,8 @@ const ALLOWED_DURATIONS = [15, 30, 45, 60];
 
 const MAX_LIST_ITEMS = 24;
 const MAX_TAG_LENGTH = 40;
-const MAX_PRICE_EUR = 1000;
+const MAX_PRICE_EUR = 500;
+const MAX_ACTIVE_SERVICES = 12;
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -38,8 +46,13 @@ function redirectWithSearch(
   redirect(`${path}?${searchParams.toString()}`);
 }
 
-function redirectWithError(path: string, message: string): never {
+function redirectWithError(
+  path: string,
+  message: string,
+  extraParams: Record<string, string | number> = {},
+): never {
   redirectWithSearch(path, {
+    ...extraParams,
     error: message,
   });
 }
@@ -81,7 +94,14 @@ function parsePriceCents(value: string) {
     return null;
   }
 
-  return Math.round(price * 100);
+  const priceCents = Math.round(price * 100);
+  const validation = validateServicePrice(priceCents);
+
+  if (!validation.success) {
+    return null;
+  }
+
+  return priceCents;
 }
 
 function parseDuration(value: string) {
@@ -94,7 +114,26 @@ function parseDuration(value: string) {
   return duration;
 }
 
-async function getAvatarDataUrl(formData: FormData, errorPath: string) {
+async function assertExpertRateLimit(userId: string, action: string) {
+  const requestHeaders = await headers();
+  const ip = getClientIp(requestHeaders);
+
+  assertRateLimit(
+    `expert:${action}:${userId}:${ip}`,
+    rateLimitPresets.profileUpdate,
+    "Too many profile updates. Please try again later.",
+  );
+}
+
+/**
+ * Production note:
+ * For a real launch, avatars should be uploaded to Supabase Storage/S3,
+ * then avatarUrl should store only the public URL.
+ *
+ * This function currently validates avatar input but does not store base64
+ * in the database, because base64 avatars can quickly bloat User rows.
+ */
+async function validateAvatarFile(formData: FormData, errorPath: string) {
   const avatar = formData.get("avatar");
 
   if (!(avatar instanceof File)) {
@@ -113,26 +152,15 @@ async function getAvatarDataUrl(formData: FormData, errorPath: string) {
     redirectWithError(errorPath, "avatar-too-large");
   }
 
-  const buffer = Buffer.from(await avatar.arrayBuffer());
-  const base64 = buffer.toString("base64");
-
-  return `data:${avatar.type};base64,${base64}`;
+  return null;
 }
 
 async function getCurrentExpertProfile() {
   const { user } = await requireRole(["expert", "admin"]);
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
-  const expert = await prisma.expertProfile.findFirst({
+  const expert = await prisma.expertProfile.findUnique({
     where: {
-      user: {
-        email,
-      },
+      userId: user.id,
     },
     include: {
       user: true,
@@ -362,30 +390,66 @@ function revalidateExpertPaths(expertId: string) {
   revalidatePath("/admin/experts");
 }
 
+async function ensureCanCreateActiveService(expertId: string) {
+  const activeServicesCount = await prisma.service.count({
+    where: {
+      expertId,
+      isActive: true,
+    },
+  });
+
+  if (activeServicesCount >= MAX_ACTIVE_SERVICES) {
+    redirectWithError("/expert/services", "too-many-active-services");
+  }
+}
+
+async function hasActiveFutureBookings(serviceId: string) {
+  const booking = await prisma.booking.findFirst({
+    where: {
+      serviceId,
+      status: {
+        in: ["PENDING", "PAID", "CONFIRMED"],
+      },
+      startTime: {
+        gte: new Date(),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return Boolean(booking);
+}
+
 export async function createProviderProfileAction(formData: FormData) {
   const { user } = await requireRole(["buyer", "expert", "admin"]);
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirectWithError("/become-expert", "not-signed-in");
-  }
+  await assertExpertRateLimit(user.id, "create-profile");
 
   const existingUser = await prisma.user.findUnique({
     where: {
-      email,
+      id: user.id,
     },
     include: {
       expertProfile: true,
     },
   });
 
-  if (existingUser?.expertProfile) {
+  if (!existingUser) {
+    redirect("/sign-in");
+  }
+
+  if (existingUser.expertProfile) {
     redirectWithError("/become-expert", "profile-already-exists");
   }
 
+  await validateAvatarFile(formData, "/become-expert");
+
   const displayName = cleanText(
-    getStringValue(formData, "displayName") || user.name || email,
+    getStringValue(formData, "displayName") ||
+      user.name ||
+      user.email.split("@")[0],
     80,
   );
 
@@ -411,7 +475,6 @@ export async function createProviderProfileAction(formData: FormData) {
   );
 
   const priceCents = parsePriceCents(getStringValue(formData, "price"));
-  const avatarDataUrl = await getAvatarDataUrl(formData, "/become-expert");
 
   validateProviderProfileInput({
     displayName,
@@ -431,28 +494,13 @@ export async function createProviderProfileAction(formData: FormData) {
   const categorySlug = createSlug(categoryName);
 
   const expertProfileId = await prisma.$transaction(async (tx) => {
-    const dbUser = await tx.user.upsert({
+    const dbUser = await tx.user.update({
       where: {
-        email,
+        id: existingUser.id,
       },
-      update: {
+      data: {
         name: displayName,
         role: "EXPERT",
-        ...(avatarDataUrl
-          ? {
-              avatarUrl: avatarDataUrl,
-            }
-          : {}),
-      },
-      create: {
-        email,
-        name: displayName,
-        role: "EXPERT",
-        ...(avatarDataUrl
-          ? {
-              avatarUrl: avatarDataUrl,
-            }
-          : {}),
       },
     });
 
@@ -463,7 +511,7 @@ export async function createProviderProfileAction(formData: FormData) {
     });
 
     if (existingProfile) {
-      redirectWithError("/become-expert", "profile-already-exists");
+      throw new Error("profile-already-exists");
     }
 
     const category = await tx.category.upsert({
@@ -492,7 +540,7 @@ export async function createProviderProfileAction(formData: FormData) {
         languages,
         skills,
         tags,
-        status: "APPROVED",
+        status: "PENDING",
         isVerified: false,
       },
     });
@@ -521,11 +569,9 @@ export async function createProviderProfileAction(formData: FormData) {
 export async function updateProviderProfileAction(formData: FormData) {
   const { user } = await requireRole(["expert", "admin"]);
 
-  const email = user.email?.toLowerCase();
+  await assertExpertRateLimit(user.id, "update-profile");
 
-  if (!email) {
-    redirectWithError("/expert/profile", "not-signed-in");
-  }
+  await validateAvatarFile(formData, "/expert/profile");
 
   const displayName = cleanText(getStringValue(formData, "displayName"), 80);
   const headline = cleanText(getStringValue(formData, "headline"), 120);
@@ -538,7 +584,6 @@ export async function updateProviderProfileAction(formData: FormData) {
   const skills = parseList(getStringValue(formData, "skills"));
   const tags = parseList(getStringValue(formData, "tags"));
 
-  const avatarDataUrl = await getAvatarDataUrl(formData, "/expert/profile");
   const removeAvatar = getStringValue(formData, "removeAvatar") === "true";
 
   validateProfileUpdateInput({
@@ -552,7 +597,7 @@ export async function updateProviderProfileAction(formData: FormData) {
 
   const dbUser = await prisma.user.findUnique({
     where: {
-      email,
+      id: user.id,
     },
     include: {
       expertProfile: true,
@@ -572,12 +617,7 @@ export async function updateProviderProfileAction(formData: FormData) {
       },
       data: {
         name: displayName,
-        ...(avatarDataUrl
-          ? {
-              avatarUrl: avatarDataUrl,
-            }
-          : {}),
-        ...(removeAvatar && !avatarDataUrl
+        ...(removeAvatar
           ? {
               avatarUrl: null,
             }
@@ -609,6 +649,8 @@ export async function updateProviderProfileAction(formData: FormData) {
 export async function createProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
+  await assertExpertRateLimit(expert.userId, "create-service");
+
   const categoryName = cleanText(getStringValue(formData, "category"), 80);
   const title = cleanText(getStringValue(formData, "title"), 120);
   const description = getStringValue(formData, "description")
@@ -629,6 +671,8 @@ export async function createProviderServiceAction(formData: FormData) {
     priceCents,
     errorPath: "/expert/services",
   });
+
+  await ensureCanCreateActiveService(expert.id);
 
   const category = await getOrCreateCategory(categoryName);
 
@@ -652,6 +696,8 @@ export async function createProviderServiceAction(formData: FormData) {
 
 export async function updateProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
+
+  await assertExpertRateLimit(expert.userId, "update-service");
 
   const serviceId = getStringValue(formData, "serviceId");
   const categoryName = cleanText(getStringValue(formData, "category"), 80);
@@ -690,6 +736,18 @@ export async function updateProviderServiceAction(formData: FormData) {
     redirectWithError("/expert/services", "service-not-found");
   }
 
+  const activeFutureBookings = await hasActiveFutureBookings(serviceId);
+
+  if (activeFutureBookings) {
+    const changedCriticalFields =
+      existingService.durationMinutes !== durationMinutes ||
+      existingService.priceCents !== priceCents;
+
+    if (changedCriticalFields) {
+      redirectWithError("/expert/services", "service-has-active-bookings");
+    }
+  }
+
   const category = await getOrCreateCategory(categoryName);
 
   await prisma.service.update({
@@ -714,6 +772,8 @@ export async function updateProviderServiceAction(formData: FormData) {
 export async function toggleProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
+  await assertExpertRateLimit(expert.userId, "toggle-service");
+
   const serviceId = getStringValue(formData, "serviceId");
 
   if (!serviceId) {
@@ -729,6 +789,10 @@ export async function toggleProviderServiceAction(formData: FormData) {
 
   if (!service) {
     redirectWithError("/expert/services", "service-not-found");
+  }
+
+  if (!service.isActive) {
+    await ensureCanCreateActiveService(expert.id);
   }
 
   await prisma.service.update({
@@ -748,6 +812,8 @@ export async function toggleProviderServiceAction(formData: FormData) {
 export async function deleteProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
+  await assertExpertRateLimit(expert.userId, "delete-service");
+
   const serviceId = getStringValue(formData, "serviceId");
 
   if (!serviceId) {
@@ -761,11 +827,6 @@ export async function deleteProviderServiceAction(formData: FormData) {
     },
     include: {
       bookings: {
-        where: {
-          status: {
-            in: ["PENDING", "PAID", "CONFIRMED"],
-          },
-        },
         select: {
           id: true,
         },
@@ -779,7 +840,18 @@ export async function deleteProviderServiceAction(formData: FormData) {
   }
 
   if (service.bookings.length > 0) {
-    redirectWithError("/expert/services", "service-has-active-bookings");
+    await prisma.service.update({
+      where: {
+        id: service.id,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    revalidateExpertPaths(expert.id);
+
+    redirect("/expert/services?archived=1");
   }
 
   await prisma.service.delete({
@@ -790,5 +862,5 @@ export async function deleteProviderServiceAction(formData: FormData) {
 
   revalidateExpertPaths(expert.id);
 
-  redirect("/expert/services?saved=1");
+  redirect("/expert/services?deleted=1");
 }

@@ -1,66 +1,105 @@
-import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
 const protectedRoutes = [
-  {
-    prefix: "/admin",
-    allowedRoles: ["ADMIN"],
-    requiredLabel: "Admin",
-  },
-  {
-    prefix: "/expert",
-    allowedRoles: ["EXPERT", "ADMIN"],
-    requiredLabel: "Expert or Admin",
-  },
-  {
-    prefix: "/buyer",
-    allowedRoles: ["BUYER", "EXPERT", "ADMIN"],
-    requiredLabel: "Buyer, Expert or Admin",
-  },
-  {
-    prefix: "/dashboard",
-    allowedRoles: ["BUYER", "EXPERT", "ADMIN"],
-    requiredLabel: "Buyer, Expert or Admin",
-  },
+  "/admin",
+  "/expert",
+  "/buyer",
+  "/dashboard",
+  "/bookings",
+  "/settings",
+  "/calls",
 ];
 
-function createSafeNext(pathname: string, search: string) {
-  return pathname + search;
+function isProtectedRoute(pathname: string) {
+  return protectedRoutes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
 }
 
-export function middleware(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
-  const matchedRoute = protectedRoutes.find((route) =>
-    pathname.startsWith(route.prefix),
-  );
+function createSafeNext(pathname: string, search: string) {
+  const next = `${pathname}${search}`;
 
-  if (!matchedRoute) {
+  if (!next.startsWith("/")) {
+    return "/";
+  }
+
+  if (next.startsWith("//")) {
+    return "/";
+  }
+
+  return next;
+}
+
+export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  if (!isProtectedRoute(pathname)) {
     return NextResponse.next();
   }
 
-  const role = request.cookies.get("skilldrop_role")?.value;
-  const next = createSafeNext(request.nextUrl.pathname, request.nextUrl.search);
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!role) {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    const errorUrl = new URL("/sign-in", request.url);
+    errorUrl.searchParams.set("error", "auth-config-missing");
+
+    return NextResponse.redirect(errorUrl);
+  }
+
+  let response = NextResponse.next({
+    request,
+  });
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+
+        response = NextResponse.next({
+          request,
+        });
+
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
     const signInUrl = new URL("/sign-in", request.url);
-    signInUrl.searchParams.set("next", next);
-    signInUrl.searchParams.set("required", matchedRoute.requiredLabel);
+
+    signInUrl.searchParams.set(
+      "next",
+      createSafeNext(request.nextUrl.pathname, request.nextUrl.search),
+    );
 
     return NextResponse.redirect(signInUrl);
   }
 
-  if (!matchedRoute.allowedRoles.includes(role)) {
-    const accessDeniedUrl = new URL("/access-denied", request.url);
-
-    accessDeniedUrl.searchParams.set("next", next);
-    accessDeniedUrl.searchParams.set("current", role);
-    accessDeniedUrl.searchParams.set("required", matchedRoute.requiredLabel);
-
-    return NextResponse.redirect(accessDeniedUrl);
-  }
-
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/expert/:path*", "/buyer/:path*", "/dashboard/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/expert/:path*",
+    "/buyer/:path*",
+    "/dashboard/:path*",
+    "/bookings/:path*",
+    "/settings/:path*",
+    "/calls/:path*",
+  ],
 };

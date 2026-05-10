@@ -1,10 +1,16 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  assertRateLimit,
+  getClientIp,
+  rateLimitPresets,
+} from "@/lib/rate-limit";
 
 const DEFAULT_RETURN_TO = "/buyer/saved";
 
@@ -31,7 +37,17 @@ function getSafeReturnTo(value: string, fallback = DEFAULT_RETURN_TO) {
     return fallback;
   }
 
-  return value;
+  try {
+    const url = new URL(value, "http://skilldrop.local");
+
+    if (url.origin !== "http://skilldrop.local") {
+      return fallback;
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
 }
 
 function appendQueryParam(href: string, key: string, value: string) {
@@ -52,18 +68,23 @@ function revalidateSavedProviderPaths(expertId: string) {
   revalidatePath("/notifications");
 }
 
+async function assertSavedExpertRateLimit(userId: string, action: string) {
+  const requestHeaders = await headers();
+  const ip = getClientIp(requestHeaders);
+
+  assertRateLimit(
+    `saved-expert:${action}:${userId}:${ip}`,
+    rateLimitPresets.profileUpdate,
+    "Too many saved provider updates. Please try again later.",
+  );
+}
+
 async function getCurrentBuyerRecord() {
   const { user } = await requireRole(["buyer", "admin"]);
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
   const buyer = await prisma.user.findUnique({
     where: {
-      email,
+      id: user.id,
     },
   });
 
@@ -76,6 +97,8 @@ async function getCurrentBuyerRecord() {
 
 export async function saveExpertAction(formData: FormData) {
   const buyer = await getCurrentBuyerRecord();
+
+  await assertSavedExpertRateLimit(buyer.id, "save");
 
   const expertId = getStringValue(formData, "expertId");
 
@@ -128,6 +151,8 @@ export async function saveExpertAction(formData: FormData) {
 
 export async function unsaveExpertAction(formData: FormData) {
   const buyer = await getCurrentBuyerRecord();
+
+  await assertSavedExpertRateLimit(buyer.id, "unsave");
 
   const expertId = getStringValue(formData, "expertId");
   const returnTo = getSafeReturnTo(getStringValue(formData, "returnTo"));

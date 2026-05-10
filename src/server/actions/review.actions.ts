@@ -1,11 +1,19 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  assertRateLimit,
+  getClientIp,
+  rateLimitPresets,
+} from "@/lib/rate-limit";
 import { sendNotification } from "@/server/services/notification.service";
+
+const MAX_REVIEW_COMMENT_LENGTH = 1500;
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -50,7 +58,7 @@ function normalizeComment(comment: string) {
     return null;
   }
 
-  return normalized.slice(0, 1500);
+  return normalized.slice(0, MAX_REVIEW_COMMENT_LENGTH);
 }
 
 function revalidateReviewPaths(expertId: string, bookingId: string) {
@@ -76,18 +84,22 @@ function revalidateReviewPaths(expertId: string, bookingId: string) {
   revalidatePath("/notifications");
 }
 
+async function safeSendNotification(
+  input: Parameters<typeof sendNotification>[0],
+) {
+  try {
+    await sendNotification(input);
+  } catch (error) {
+    console.error("Notification error:", error);
+  }
+}
+
 async function getCurrentBuyerOrAdmin() {
   const { user } = await requireRole(["buyer", "admin"]);
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
   const currentUser = await prisma.user.findUnique({
     where: {
-      email,
+      id: user.id,
     },
   });
 
@@ -98,8 +110,21 @@ async function getCurrentBuyerOrAdmin() {
   return currentUser;
 }
 
+async function assertReviewRateLimit(userId: string) {
+  const requestHeaders = await headers();
+  const ip = getClientIp(requestHeaders);
+
+  assertRateLimit(
+    `review:create:${userId}:${ip}`,
+    rateLimitPresets.profileUpdate,
+    "Too many review attempts. Please try again later.",
+  );
+}
+
 export async function createReviewAction(formData: FormData) {
   const currentUser = await getCurrentBuyerOrAdmin();
+
+  await assertReviewRateLimit(currentUser.id);
 
   const bookingId = getStringValue(formData, "bookingId");
 
@@ -114,10 +139,15 @@ export async function createReviewAction(formData: FormData) {
     getStringValue(formData, "wouldRecommend"),
   );
 
-  const comment = normalizeComment(getStringValue(formData, "comment"));
+  const rawComment = getStringValue(formData, "comment");
+  const comment = normalizeComment(rawComment);
 
   if (!bookingId || rating === null || rating === undefined) {
     redirect("/buyer/reviews?error=invalid-review");
+  }
+
+  if (rawComment.length > MAX_REVIEW_COMMENT_LENGTH * 2) {
+    redirect(`/buyer/reviews?bookingId=${bookingId}&error=comment-too-long`);
   }
 
   if (helpfulness === null || clarity === null || professionalism === null) {
@@ -275,7 +305,7 @@ export async function createReviewAction(formData: FormData) {
     redirect("/buyer/reviews?error=invalid-review");
   }
 
-  await sendNotification({
+  await safeSendNotification({
     to: result.booking.expert.user.email,
     type: "REVIEW_RECEIVED",
     subject: "You received a new review",
@@ -285,21 +315,23 @@ export async function createReviewAction(formData: FormData) {
     metadata: {
       bookingId: result.booking.id,
       expertId: result.booking.expertId,
+      buyerId: result.booking.buyerId,
       reviewId: result.review.id,
       rating: finalRating,
       helpfulness: helpfulness ?? null,
       clarity: clarity ?? null,
       professionalism: professionalism ?? null,
       wouldRecommend,
+      hasComment: Boolean(comment),
       totalReviews: result.totalReviews,
       newRating: result.newRating,
     },
   });
 
   if (result.wasAutoVerified) {
-    await sendNotification({
+    await safeSendNotification({
       to: result.booking.expert.user.email,
-      type: "REVIEW_RECEIVED",
+      type: "EXPERT_APPROVED",
       subject: "Your SkillDrop profile is now verified",
       message:
         "Congratulations. Your profile was automatically verified after reaching 3 completed sessions and a rating of at least 3.8.",

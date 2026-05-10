@@ -45,15 +45,9 @@ export default async function BuyerBookingsPage({
   const { user } = await requireRole(["buyer", "admin"]);
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
   const buyer = await prisma.user.findUnique({
     where: {
-      email,
+      id: user.id,
     },
   });
 
@@ -88,10 +82,13 @@ export default async function BuyerBookingsPage({
     .filter(
       (booking) =>
         booking.startTime >= now &&
-        booking.status !== "CANCELLED" &&
-        booking.status !== "REFUNDED" &&
-        booking.status !== "COMPLETED" &&
-        booking.status !== "DISPUTED",
+        ![
+          "CANCELLED",
+          "REFUNDED",
+          "COMPLETED",
+          "DISPUTED",
+          "EXPIRED",
+        ].includes(booking.status),
     )
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
@@ -99,15 +96,8 @@ export default async function BuyerBookingsPage({
     (booking) => booking.status === "CONFIRMED",
   );
 
-  const completedBookings = bookings.filter(
-    (booking) => booking.status === "COMPLETED",
-  );
-
-  const closedBookings = bookings.filter(
-    (booking) =>
-      booking.status === "CANCELLED" ||
-      booking.status === "REFUNDED" ||
-      booking.status === "DISPUTED",
+  const closedBookings = bookings.filter((booking) =>
+    ["CANCELLED", "REFUNDED", "DISPUTED", "EXPIRED"].includes(booking.status),
   );
 
   const waitingReviewBookings = bookings.filter(
@@ -138,11 +128,8 @@ export default async function BuyerBookingsPage({
   });
 
   const totalPaidCents = bookings
-    .filter(
-      (booking) =>
-        booking.status === "PAID" ||
-        booking.status === "CONFIRMED" ||
-        booking.status === "COMPLETED",
+    .filter((booking) =>
+      ["PAID", "CONFIRMED", "COMPLETED"].includes(booking.status),
     )
     .reduce(
       (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
@@ -381,8 +368,8 @@ export default async function BuyerBookingsPage({
                 </h2>
 
                 <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
-                  Upcoming, completed, cancelled, refunded and disputed calls
-                  appear here.
+                  Upcoming, completed, cancelled, expired, refunded and disputed
+                  calls appear here.
                 </p>
               </div>
 
@@ -591,13 +578,15 @@ function BookingCard({
   const isCompleted = booking.status === "COMPLETED";
   const isDisputed = booking.status === "DISPUTED";
   const isRefunded = booking.status === "REFUNDED";
-  const isCancelled = booking.status === "CANCELLED" || isRefunded;
+  const isExpired = booking.status === "EXPIRED";
+  const isCancelled = booking.status === "CANCELLED";
+  const isClosed = isCancelled || isRefunded || isExpired || isDisputed;
 
-  const isUpcoming = booking.startTime >= now && !isCancelled && !isCompleted;
+  const isUpcoming = booking.startTime >= now && !isClosed && !isCompleted;
   const canJoin = canJoinBooking(booking);
-  const canCancel =
-    (booking.status === "PENDING" || booking.status === "CONFIRMED") &&
-    booking.startTime > now;
+  const canCancel = booking.status === "PENDING" && booking.startTime > now;
+  const needsSupportForCancellation =
+    booking.status === "CONFIRMED" && booking.startTime > now;
   const canReview = isCompleted && !booking.review;
 
   const providerName = booking.expert.user.name ?? booking.expert.user.email;
@@ -716,6 +705,13 @@ function BookingCard({
             />
           ) : null}
 
+          {needsSupportForCancellation ? (
+            <StatusExplanation
+              variant="primary"
+              text="Need to cancel this paid booking? Contact support so the refund policy can be applied correctly."
+            />
+          ) : null}
+
           {isDisputed ? (
             <StatusExplanation
               variant="danger"
@@ -723,11 +719,18 @@ function BookingCard({
             />
           ) : null}
 
-          {isCancelled ? (
+          {isExpired ? (
+            <StatusExplanation
+              variant="muted"
+              text="This booking expired because payment was not completed in time."
+            />
+          ) : null}
+
+          {isCancelled || isRefunded ? (
             <StatusExplanation variant="danger" text="This booking is closed." />
           ) : null}
 
-          {!isUpcoming && !isCompleted && !isCancelled && !isDisputed ? (
+          {!isUpcoming && !isCompleted && !isClosed && !isDisputed ? (
             <StatusExplanation variant="muted" text="This call time has passed." />
           ) : null}
         </div>
@@ -771,6 +774,17 @@ function BookingCard({
           >
             View provider
           </Link>
+
+          {needsSupportForCancellation ? (
+            <Link
+              href={`/contact?subject=${encodeURIComponent(
+                `Cancel booking ${booking.id}`,
+              )}`}
+              className="btn btn-secondary"
+            >
+              Contact support
+            </Link>
+          ) : null}
 
           {canCancel ? (
             <form action={cancelBookingAction}>
@@ -854,6 +868,10 @@ function StatusBadge({ status }: { status: string }) {
 
   if (status === "REFUNDED") {
     return <Badge variant="danger">Refunded</Badge>;
+  }
+
+  if (status === "EXPIRED") {
+    return <Badge variant="accent">Expired</Badge>;
   }
 
   if (status === "CONFIRMED") {
@@ -1074,6 +1092,10 @@ function formatStatus(status: string) {
     return "Refunded";
   }
 
+  if (status === "EXPIRED") {
+    return "Expired";
+  }
+
   if (status === "DISPUTED") {
     return "Disputed";
   }
@@ -1124,6 +1146,27 @@ function getTopMessage({
     return {
       variant: "danger" as const,
       text: "This booking cannot be cancelled anymore.",
+    };
+  }
+
+  if (error === "confirmed-booking-needs-refund") {
+    return {
+      variant: "danger" as const,
+      text: "This booking is already confirmed. Please contact support so the refund policy can be applied correctly.",
+    };
+  }
+
+  if (error === "refund-must-use-stripe") {
+    return {
+      variant: "danger" as const,
+      text: "Refunds must be processed through Stripe and support/admin workflow.",
+    };
+  }
+
+  if (error === "booking-closed") {
+    return {
+      variant: "danger" as const,
+      text: "This booking is already closed.",
     };
   }
 

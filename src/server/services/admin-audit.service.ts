@@ -12,22 +12,57 @@ type CreateAdminAuditLogInput = {
   metadata?: Prisma.InputJsonValue;
 };
 
-function normalizeText(value: string | null | undefined, fallback: string) {
+export const ADMIN_AUDIT_ACTIONS = {
+  EXPERT_STATUS_UPDATED: "EXPERT_STATUS_UPDATED",
+  EXPERT_VERIFICATION_TOGGLED: "EXPERT_VERIFICATION_TOGGLED",
+  USER_ROLE_UPDATED: "USER_ROLE_UPDATED",
+  BOOKING_STATUS_UPDATED: "BOOKING_STATUS_UPDATED",
+  BOOKING_REFUNDED: "BOOKING_REFUNDED",
+  BOOKING_REFUND_FAILED: "BOOKING_REFUND_FAILED",
+  BOOKING_DISPUTED: "BOOKING_DISPUTED",
+  DISPUTE_RESOLVED: "DISPUTE_RESOLVED",
+  SYSTEM_EVENT: "SYSTEM_EVENT",
+} as const;
+
+export const ADMIN_AUDIT_ENTITY_TYPES = {
+  USER: "USER",
+  EXPERT: "EXPERT",
+  BOOKING: "BOOKING",
+  REVIEW: "REVIEW",
+  SERVICE: "SERVICE",
+  PAYMENT: "PAYMENT",
+  SYSTEM: "SYSTEM",
+} as const;
+
+const MAX_ACTION_LENGTH = 120;
+const MAX_ENTITY_TYPE_LENGTH = 120;
+const MAX_ENTITY_ID_LENGTH = 200;
+const MAX_MESSAGE_LENGTH = 2000;
+const MAX_EMAIL_LENGTH = 320;
+
+function normalizeText(
+  value: string | null | undefined,
+  fallback: string,
+  maxLength: number,
+) {
   const normalized = value?.replace(/\s+/g, " ").trim();
 
-  return normalized || fallback;
+  return (normalized || fallback).slice(0, maxLength);
 }
 
-function normalizeOptionalText(value: string | null | undefined) {
+function normalizeOptionalText(
+  value: string | null | undefined,
+  maxLength: number,
+) {
   const normalized = value?.replace(/\s+/g, " ").trim();
 
-  return normalized || null;
+  return normalized ? normalized.slice(0, maxLength) : null;
 }
 
 function normalizeEmail(email?: string | null) {
   const normalized = email?.trim().toLowerCase();
 
-  return normalized || null;
+  return normalized ? normalized.slice(0, MAX_EMAIL_LENGTH) : null;
 }
 
 function normalizeMetadata(metadata?: Prisma.InputJsonValue) {
@@ -47,10 +82,14 @@ export async function createAdminAuditLog({
     data: {
       adminId: adminId || null,
       adminEmail: normalizeEmail(adminEmail),
-      action: normalizeText(action, "UNKNOWN_ACTION"),
-      entityType: normalizeText(entityType, "UNKNOWN_ENTITY"),
-      entityId: normalizeOptionalText(entityId),
-      message: normalizeOptionalText(message),
+      action: normalizeText(action, "UNKNOWN_ACTION", MAX_ACTION_LENGTH),
+      entityType: normalizeText(
+        entityType,
+        "UNKNOWN_ENTITY",
+        MAX_ENTITY_TYPE_LENGTH,
+      ),
+      entityId: normalizeOptionalText(entityId, MAX_ENTITY_ID_LENGTH),
+      message: normalizeOptionalText(message, MAX_MESSAGE_LENGTH),
       metadata: normalizeMetadata(metadata),
     },
   });
@@ -78,7 +117,7 @@ export async function createSystemAuditLog({
   message,
   metadata,
 }: Omit<CreateAdminAuditLogInput, "adminId" | "adminEmail">) {
-  return createAdminAuditLog({
+  return createAdminAuditLogSafe({
     adminId: null,
     adminEmail: "system@skilldrop.local",
     action,

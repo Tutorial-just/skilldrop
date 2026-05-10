@@ -1,10 +1,16 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  assertRateLimit,
+  getClientIp,
+  rateLimitPresets,
+} from "@/lib/rate-limit";
 
 const ALLOWED_DURATIONS = [15, 30, 45, 60];
 const ALLOWED_BREAKS = [0, 5, 10, 15, 30];
@@ -13,6 +19,7 @@ const ALLOWED_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 const MAX_FUTURE_SLOTS = 300;
 const MAX_BULK_SLOTS_PER_ACTION = 80;
 const MAX_REPEAT_WEEKS = 8;
+const MAX_SINGLE_SLOT_DAYS_AHEAD = 180;
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -56,20 +63,23 @@ function redirectWithError(
   });
 }
 
+async function assertAvailabilityRateLimit(key: string) {
+  const requestHeaders = await headers();
+  const ip = getClientIp(requestHeaders);
+
+  assertRateLimit(
+    `availability:${key}:${ip}`,
+    rateLimitPresets.profileUpdate,
+    "Too many availability updates. Please try again later.",
+  );
+}
+
 async function getCurrentExpertProfile() {
   const { user } = await requireRole(["expert", "admin"]);
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirectWithError("/expert/availability", "not-signed-in");
-  }
-
-  const expert = await prisma.expertProfile.findFirst({
+  const expert = await prisma.expertProfile.findUnique({
     where: {
-      user: {
-        email,
-      },
+      userId: user.id,
     },
   });
 
@@ -231,6 +241,16 @@ function hasOverlap(
   );
 }
 
+function isValidSlotRange(startTime: Date, endTime: Date) {
+  return startTime < endTime;
+}
+
+function isTooFarInFuture(startTime: Date) {
+  const maxDate = addDays(new Date(), MAX_SINGLE_SLOT_DAYS_AHEAD);
+
+  return startTime > maxDate;
+}
+
 async function countFutureSlots(expertId: string) {
   return prisma.availability.count({
     where: {
@@ -256,6 +276,8 @@ function revalidateAvailabilityPaths(expertId: string) {
 export async function createAvailabilityAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
+  await assertAvailabilityRateLimit(`create:${expert.id}`);
+
   const startTimeValue = getStringValue(formData, "startTime");
   const durationMinutes = parseDuration(
     getStringValue(formData, "durationMinutes"),
@@ -277,45 +299,74 @@ export async function createAvailabilityAction(formData: FormData) {
     redirectWithError("/expert/availability", "past-time");
   }
 
+  if (isTooFarInFuture(startTime)) {
+    redirectWithError("/expert/availability", "too-far-in-future");
+  }
+
   const endTime = addMinutes(startTime, durationMinutes);
 
-  if (endTime <= startTime) {
+  if (!isValidSlotRange(startTime, endTime)) {
     redirectWithError("/expert/availability", "invalid-time-range");
   }
 
-  const futureSlotsCount = await countFutureSlots(expert.id);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const futureSlotsCount = await tx.availability.count({
+        where: {
+          expertId: expert.id,
+          startTime: {
+            gte: now,
+          },
+        },
+      });
 
-  if (futureSlotsCount >= MAX_FUTURE_SLOTS) {
-    redirectWithError("/expert/availability", "too-many-slots");
+      if (futureSlotsCount >= MAX_FUTURE_SLOTS) {
+        throw new Error("too-many-slots");
+      }
+
+      const overlappingSlot = await tx.availability.findFirst({
+        where: {
+          expertId: expert.id,
+          startTime: {
+            lt: endTime,
+          },
+          endTime: {
+            gt: startTime,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (overlappingSlot) {
+        throw new Error("overlap");
+      }
+
+      await tx.availability.create({
+        data: {
+          expertId: expert.id,
+          startTime,
+          endTime,
+          isBooked: false,
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "too-many-slots") {
+        redirectWithError("/expert/availability", "too-many-slots");
+      }
+
+      if (error.message === "overlap") {
+        redirectWithError("/expert/availability", "overlap");
+      }
+    }
+
+    console.error("Create availability error:", error);
+
+    redirectWithError("/expert/availability", "create-failed");
   }
-
-  const overlappingSlot = await prisma.availability.findFirst({
-    where: {
-      expertId: expert.id,
-      startTime: {
-        lt: endTime,
-      },
-      endTime: {
-        gt: startTime,
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (overlappingSlot) {
-    redirectWithError("/expert/availability", "overlap");
-  }
-
-  await prisma.availability.create({
-    data: {
-      expertId: expert.id,
-      startTime,
-      endTime,
-      isBooked: false,
-    },
-  });
 
   revalidateAvailabilityPaths(expert.id);
 
@@ -328,6 +379,8 @@ export async function createAvailabilityAction(formData: FormData) {
 
 export async function createBulkAvailabilityAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
+
+  await assertAvailabilityRateLimit(`bulk:${expert.id}`);
 
   const startDateValue = getStringValue(formData, "startDate");
   const startTimeValue = getStringValue(formData, "startTime");
@@ -397,7 +450,7 @@ export async function createBulkAvailabilityAction(formData: FormData) {
       const slotStart = setMinutesFromMidnight(currentDay, cursorMinutes);
       const slotEnd = addMinutes(slotStart, durationMinutes);
 
-      if (slotStart > now) {
+      if (slotStart > now && !isTooFarInFuture(slotStart)) {
         const candidate = {
           startTime: slotStart,
           endTime: slotEnd,
@@ -421,59 +474,94 @@ export async function createBulkAvailabilityAction(formData: FormData) {
     redirectWithError("/expert/availability", "too-many-bulk-slots");
   }
 
-  const futureSlotsCount = await countFutureSlots(expert.id);
-
-  if (futureSlotsCount + candidateSlots.length > MAX_FUTURE_SLOTS) {
-    redirectWithError("/expert/availability", "too-many-slots");
-  }
-
   const sortedCandidateSlots = [...candidateSlots].sort(
     (a, b) => a.startTime.getTime() - b.startTime.getTime(),
   );
 
-  const firstSlotStart = sortedCandidateSlots[0].startTime;
+  const firstSlotStart = sortedCandidateSlots[0]?.startTime;
   const lastSlotEnd =
-    sortedCandidateSlots[sortedCandidateSlots.length - 1].endTime;
+    sortedCandidateSlots[sortedCandidateSlots.length - 1]?.endTime;
 
-  const existingSlots = await prisma.availability.findMany({
-    where: {
-      expertId: expert.id,
-      startTime: {
-        lt: lastSlotEnd,
-      },
-      endTime: {
-        gt: firstSlotStart,
-      },
-    },
-    select: {
-      startTime: true,
-      endTime: true,
-    },
-  });
-
-  const nonOverlappingSlots = sortedCandidateSlots.filter(
-    (candidateSlot) => !hasOverlap(candidateSlot, existingSlots),
-  );
-
-  if (nonOverlappingSlots.length === 0) {
-    redirectWithError("/expert/availability", "all-slots-overlap");
+  if (!firstSlotStart || !lastSlotEnd) {
+    redirectWithError("/expert/availability", "no-valid-slots");
   }
 
-  await prisma.availability.createMany({
-    data: nonOverlappingSlots.map((slot) => ({
-      expertId: expert.id,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      isBooked: false,
-    })),
-  });
+  let createdCount = 0;
+  let skippedCount = 0;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const futureSlotsCount = await tx.availability.count({
+        where: {
+          expertId: expert.id,
+          startTime: {
+            gte: now,
+          },
+        },
+      });
+
+      if (futureSlotsCount + sortedCandidateSlots.length > MAX_FUTURE_SLOTS) {
+        throw new Error("too-many-slots");
+      }
+
+      const existingSlots = await tx.availability.findMany({
+        where: {
+          expertId: expert.id,
+          startTime: {
+            lt: lastSlotEnd,
+          },
+          endTime: {
+            gt: firstSlotStart,
+          },
+        },
+        select: {
+          startTime: true,
+          endTime: true,
+        },
+      });
+
+      const nonOverlappingSlots = sortedCandidateSlots.filter(
+        (candidateSlot) => !hasOverlap(candidateSlot, existingSlots),
+      );
+
+      if (nonOverlappingSlots.length === 0) {
+        throw new Error("all-slots-overlap");
+      }
+
+      const result = await tx.availability.createMany({
+        data: nonOverlappingSlots.map((slot) => ({
+          expertId: expert.id,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          isBooked: false,
+        })),
+      });
+
+      createdCount = result.count;
+      skippedCount = sortedCandidateSlots.length - result.count;
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "too-many-slots") {
+        redirectWithError("/expert/availability", "too-many-slots");
+      }
+
+      if (error.message === "all-slots-overlap") {
+        redirectWithError("/expert/availability", "all-slots-overlap");
+      }
+    }
+
+    console.error("Create bulk availability error:", error);
+
+    redirectWithError("/expert/availability", "bulk-create-failed");
+  }
 
   revalidateAvailabilityPaths(expert.id);
 
   redirectWithSearch("/expert/availability", {
     saved: 1,
-    created: nonOverlappingSlots.length,
-    skipped: sortedCandidateSlots.length - nonOverlappingSlots.length,
+    created: createdCount,
+    skipped: skippedCount,
     view: "week",
   });
 }
@@ -481,36 +569,82 @@ export async function createBulkAvailabilityAction(formData: FormData) {
 export async function deleteAvailabilityAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
+  await assertAvailabilityRateLimit(`delete:${expert.id}`);
+
   const slotId = getStringValue(formData, "slotId");
 
   if (!slotId) {
     redirectWithError("/expert/availability", "slot-not-found");
   }
 
-  const slot = await prisma.availability.findFirst({
-    where: {
-      id: slotId,
-      expertId: expert.id,
-    },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const slot = await tx.availability.findFirst({
+        where: {
+          id: slotId,
+          expertId: expert.id,
+        },
+        include: {
+          booking: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
+        },
+      });
 
-  if (!slot) {
-    redirectWithError("/expert/availability", "slot-not-found");
+      if (!slot) {
+        throw new Error("slot-not-found");
+      }
+
+      if (slot.isBooked) {
+        throw new Error("cannot-delete-booked-slot");
+      }
+
+      if (slot.startTime < new Date()) {
+        throw new Error("cannot-delete-past-slot");
+      }
+
+      const hasActiveBooking = Boolean(
+        slot.booking &&
+          !["CANCELLED", "REFUNDED", "DISPUTED", "EXPIRED"].includes(
+            slot.booking.status,
+          ),
+      );
+
+      if (hasActiveBooking) {
+        throw new Error("cannot-delete-booked-slot");
+      }
+
+      await tx.availability.delete({
+        where: {
+          id: slot.id,
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "slot-not-found") {
+        redirectWithError("/expert/availability", "slot-not-found");
+      }
+
+      if (error.message === "cannot-delete-booked-slot") {
+        redirectWithError(
+          "/expert/availability",
+          "cannot-delete-booked-slot",
+        );
+      }
+
+      if (error.message === "cannot-delete-past-slot") {
+        redirectWithError("/expert/availability", "cannot-delete-past-slot");
+      }
+    }
+
+    console.error("Delete availability error:", error);
+
+    redirectWithError("/expert/availability", "delete-failed");
   }
-
-  if (slot.isBooked) {
-    redirectWithError("/expert/availability", "cannot-delete-booked-slot");
-  }
-
-  if (slot.startTime < new Date()) {
-    redirectWithError("/expert/availability", "cannot-delete-past-slot");
-  }
-
-  await prisma.availability.delete({
-    where: {
-      id: slot.id,
-    },
-  });
 
   revalidateAvailabilityPaths(expert.id);
 
@@ -523,6 +657,8 @@ export async function deleteAvailabilityAction(formData: FormData) {
 export async function deletePastOpenAvailabilityAction() {
   const expert = await getCurrentExpertProfile();
 
+  await assertAvailabilityRateLimit(`delete-past:${expert.id}`);
+
   const result = await prisma.availability.deleteMany({
     where: {
       expertId: expert.id,
@@ -530,6 +666,7 @@ export async function deletePastOpenAvailabilityAction() {
       startTime: {
         lt: new Date(),
       },
+      booking: null,
     },
   });
 
