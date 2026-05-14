@@ -40,8 +40,8 @@ export default async function BookPage({
       },
       availability: {
         where: {
-          isBooked: false,
-          startTime: {
+          isActive: true,
+          endTime: {
             gte: new Date(),
           },
         },
