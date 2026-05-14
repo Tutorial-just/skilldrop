@@ -232,11 +232,18 @@ export default async function AdminPage() {
       include: {
         user: true,
         availability: {
-          where: {
-            startTime: {
-              gte: new Date(),
+          some: {
+           isActive: true,
+           endTime: {
+             gte: new Date(),
+           },
+           bookings: {
+            none: {
+             status: {
+               in: ["PENDING", "PAID", "CONFIRMED"],
+              },
             },
-            isBooked: false,
+           },
           },
         },
         services: {
