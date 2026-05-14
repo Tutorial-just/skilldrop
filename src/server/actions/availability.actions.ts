@@ -16,10 +16,12 @@ const ALLOWED_DURATIONS = [15, 30, 45, 60];
 const ALLOWED_BREAKS = [0, 5, 10, 15, 30];
 const ALLOWED_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
-const MAX_FUTURE_SLOTS = 300;
-const MAX_BULK_SLOTS_PER_ACTION = 80;
+const MAX_FUTURE_WINDOWS = 300;
+const MAX_BULK_WINDOWS_PER_ACTION = 80;
 const MAX_REPEAT_WEEKS = 8;
-const MAX_SINGLE_SLOT_DAYS_AHEAD = 180;
+const MAX_SINGLE_WINDOW_DAYS_AHEAD = 180;
+
+const ACTIVE_BOOKING_STATUSES = ["PENDING", "PAID", "CONFIRMED"] as const;
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -107,12 +109,12 @@ async function getShortestActiveServiceDuration(expertId: string) {
   return shortestService?.durationMinutes ?? null;
 }
 
-async function ensureDurationMatchesActiveServices({
+async function ensureWindowCanFitActiveService({
   expertId,
-  durationMinutes,
+  windowDurationMinutes,
 }: {
   expertId: string;
-  durationMinutes: number;
+  windowDurationMinutes: number;
 }) {
   const shortestActiveServiceDuration =
     await getShortestActiveServiceDuration(expertId);
@@ -121,7 +123,7 @@ async function ensureDurationMatchesActiveServices({
     redirectWithError("/expert/availability", "no-active-service");
   }
 
-  if (durationMinutes < shortestActiveServiceDuration) {
+  if (windowDurationMinutes < shortestActiveServiceDuration) {
     redirectWithError("/expert/availability", "duration-too-short-for-service", {
       minDuration: shortestActiveServiceDuration,
     });
@@ -262,29 +264,33 @@ function setMinutesFromMidnight(date: Date, minutesFromMidnight: number) {
   return result;
 }
 
+function getDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+}
+
 function hasOverlap(
-  slot: {
+  window: {
     startTime: Date;
     endTime: Date;
   },
-  slots: {
+  windows: {
     startTime: Date;
     endTime: Date;
   }[],
 ) {
-  return slots.some(
-    (existingSlot) =>
-      existingSlot.startTime < slot.endTime &&
-      existingSlot.endTime > slot.startTime,
+  return windows.some(
+    (existingWindow) =>
+      existingWindow.startTime < window.endTime &&
+      existingWindow.endTime > window.startTime,
   );
 }
 
-function isValidSlotRange(startTime: Date, endTime: Date) {
+function isValidWindowRange(startTime: Date, endTime: Date) {
   return startTime < endTime;
 }
 
 function isTooFarInFuture(startTime: Date) {
-  const maxDate = addDays(new Date(), MAX_SINGLE_SLOT_DAYS_AHEAD);
+  const maxDate = addDays(new Date(), MAX_SINGLE_WINDOW_DAYS_AHEAD);
 
   return startTime > maxDate;
 }
@@ -320,9 +326,12 @@ export async function createAvailabilityAction(formData: FormData) {
     redirectWithError("/expert/availability", "invalid-duration");
   }
 
-  await ensureDurationMatchesActiveServices({
+  const endTime = addMinutes(startTime, durationMinutes);
+  const windowDurationMinutes = getDurationMinutes(startTime, endTime);
+
+  await ensureWindowCanFitActiveService({
     expertId: expert.id,
-    durationMinutes,
+    windowDurationMinutes,
   });
 
   const now = new Date();
@@ -335,30 +344,30 @@ export async function createAvailabilityAction(formData: FormData) {
     redirectWithError("/expert/availability", "too-far-in-future");
   }
 
-  const endTime = addMinutes(startTime, durationMinutes);
-
-  if (!isValidSlotRange(startTime, endTime)) {
+  if (!isValidWindowRange(startTime, endTime)) {
     redirectWithError("/expert/availability", "invalid-time-range");
   }
 
   try {
     await prisma.$transaction(async (tx) => {
-      const futureSlotsCount = await tx.availability.count({
+      const futureWindowsCount = await tx.availability.count({
         where: {
           expertId: expert.id,
-          startTime: {
+          isActive: true,
+          endTime: {
             gte: now,
           },
         },
       });
 
-      if (futureSlotsCount >= MAX_FUTURE_SLOTS) {
+      if (futureWindowsCount >= MAX_FUTURE_WINDOWS) {
         throw new Error("too-many-slots");
       }
 
-      const overlappingSlot = await tx.availability.findFirst({
+      const overlappingWindow = await tx.availability.findFirst({
         where: {
           expertId: expert.id,
+          isActive: true,
           startTime: {
             lt: endTime,
           },
@@ -371,7 +380,7 @@ export async function createAvailabilityAction(formData: FormData) {
         },
       });
 
-      if (overlappingSlot) {
+      if (overlappingWindow) {
         throw new Error("overlap");
       }
 
@@ -380,7 +389,7 @@ export async function createAvailabilityAction(formData: FormData) {
           expertId: expert.id,
           startTime,
           endTime,
-          isBooked: false,
+          isActive: true,
         },
       });
     });
@@ -395,7 +404,7 @@ export async function createAvailabilityAction(formData: FormData) {
       }
     }
 
-    console.error("Create availability error:", error);
+    console.error("Create availability window error:", error);
 
     redirectWithError("/expert/availability", "create-failed");
   }
@@ -418,16 +427,23 @@ export async function createBulkAvailabilityAction(formData: FormData) {
   const startTimeValue = getStringValue(formData, "startTime");
   const endTimeValue = getStringValue(formData, "endTime");
 
-  const durationMinutes = parseDuration(
-    getStringValue(formData, "durationMinutes"),
-  );
+  /**
+   * These fields are kept for compatibility with the current UI.
+   * In the new model, bulk availability creates one large window per day,
+   * not many small fixed slots.
+   */
+  const durationMinutesValue = getStringValue(formData, "durationMinutes");
+  const breakMinutesValue = getStringValue(formData, "breakMinutes");
 
-  const breakMinutes = parseBreakMinutes(
-    getStringValue(formData, "breakMinutes"),
-  );
+  const durationMinutes = durationMinutesValue
+    ? parseDuration(durationMinutesValue)
+    : 30;
+
+  const breakMinutes = breakMinutesValue
+    ? parseBreakMinutes(breakMinutesValue)
+    : 0;
 
   const repeatWeeks = parseRepeatWeeks(getStringValue(formData, "repeatWeeks"));
-
   const weekdays = parseWeekdays(getStringValues(formData, "weekdays"));
 
   const startDate = parseLocalDate(startDateValue);
@@ -446,11 +462,6 @@ export async function createBulkAvailabilityAction(formData: FormData) {
     redirectWithError("/expert/availability", "invalid-duration");
   }
 
-  await ensureDurationMatchesActiveServices({
-    expertId: expert.id,
-    durationMinutes,
-  });
-
   if (breakMinutes === null) {
     redirectWithError("/expert/availability", "invalid-break");
   }
@@ -463,13 +474,19 @@ export async function createBulkAvailabilityAction(formData: FormData) {
     redirectWithError("/expert/availability", "missing-weekdays");
   }
 
+  const windowDurationMinutes = endMinutes - startMinutes;
+
+  await ensureWindowCanFitActiveService({
+    expertId: expert.id,
+    windowDurationMinutes,
+  });
+
   const now = new Date();
   const firstDay = startOfDay(startDate);
 
-  const candidateSlots: {
+  const candidateWindows: {
     startTime: Date;
     endTime: Date;
-    isBooked: boolean;
   }[] = [];
 
   const totalDays = repeatWeeks * 7;
@@ -481,45 +498,42 @@ export async function createBulkAvailabilityAction(formData: FormData) {
       continue;
     }
 
-    let cursorMinutes = startMinutes;
+    const windowStart = setMinutesFromMidnight(currentDay, startMinutes);
+    const windowEnd = setMinutesFromMidnight(currentDay, endMinutes);
 
-    while (cursorMinutes + durationMinutes <= endMinutes) {
-      const slotStart = setMinutesFromMidnight(currentDay, cursorMinutes);
-      const slotEnd = addMinutes(slotStart, durationMinutes);
+    if (
+      windowStart > now &&
+      !isTooFarInFuture(windowStart) &&
+      isValidWindowRange(windowStart, windowEnd)
+    ) {
+      const candidate = {
+        startTime: windowStart,
+        endTime: windowEnd,
+      };
 
-      if (slotStart > now && !isTooFarInFuture(slotStart)) {
-        const candidate = {
-          startTime: slotStart,
-          endTime: slotEnd,
-          isBooked: false,
-        };
-
-        if (!hasOverlap(candidate, candidateSlots)) {
-          candidateSlots.push(candidate);
-        }
+      if (!hasOverlap(candidate, candidateWindows)) {
+        candidateWindows.push(candidate);
       }
-
-      cursorMinutes += durationMinutes + breakMinutes;
     }
   }
 
-  if (candidateSlots.length === 0) {
+  if (candidateWindows.length === 0) {
     redirectWithError("/expert/availability", "no-valid-slots");
   }
 
-  if (candidateSlots.length > MAX_BULK_SLOTS_PER_ACTION) {
+  if (candidateWindows.length > MAX_BULK_WINDOWS_PER_ACTION) {
     redirectWithError("/expert/availability", "too-many-bulk-slots");
   }
 
-  const sortedCandidateSlots = [...candidateSlots].sort(
+  const sortedCandidateWindows = [...candidateWindows].sort(
     (a, b) => a.startTime.getTime() - b.startTime.getTime(),
   );
 
-  const firstSlotStart = sortedCandidateSlots[0]?.startTime;
-  const lastSlotEnd =
-    sortedCandidateSlots[sortedCandidateSlots.length - 1]?.endTime;
+  const firstWindowStart = sortedCandidateWindows[0]?.startTime;
+  const lastWindowEnd =
+    sortedCandidateWindows[sortedCandidateWindows.length - 1]?.endTime;
 
-  if (!firstSlotStart || !lastSlotEnd) {
+  if (!firstWindowStart || !lastWindowEnd) {
     redirectWithError("/expert/availability", "no-valid-slots");
   }
 
@@ -528,27 +542,32 @@ export async function createBulkAvailabilityAction(formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const futureSlotsCount = await tx.availability.count({
+      const futureWindowsCount = await tx.availability.count({
         where: {
           expertId: expert.id,
-          startTime: {
+          isActive: true,
+          endTime: {
             gte: now,
           },
         },
       });
 
-      if (futureSlotsCount + sortedCandidateSlots.length > MAX_FUTURE_SLOTS) {
+      if (
+        futureWindowsCount + sortedCandidateWindows.length >
+        MAX_FUTURE_WINDOWS
+      ) {
         throw new Error("too-many-slots");
       }
 
-      const existingSlots = await tx.availability.findMany({
+      const existingWindows = await tx.availability.findMany({
         where: {
           expertId: expert.id,
+          isActive: true,
           startTime: {
-            lt: lastSlotEnd,
+            lt: lastWindowEnd,
           },
           endTime: {
-            gt: firstSlotStart,
+            gt: firstWindowStart,
           },
         },
         select: {
@@ -557,25 +576,25 @@ export async function createBulkAvailabilityAction(formData: FormData) {
         },
       });
 
-      const nonOverlappingSlots = sortedCandidateSlots.filter(
-        (candidateSlot) => !hasOverlap(candidateSlot, existingSlots),
+      const nonOverlappingWindows = sortedCandidateWindows.filter(
+        (candidateWindow) => !hasOverlap(candidateWindow, existingWindows),
       );
 
-      if (nonOverlappingSlots.length === 0) {
+      if (nonOverlappingWindows.length === 0) {
         throw new Error("all-slots-overlap");
       }
 
       const result = await tx.availability.createMany({
-        data: nonOverlappingSlots.map((slot) => ({
+        data: nonOverlappingWindows.map((window) => ({
           expertId: expert.id,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          isBooked: false,
+          startTime: window.startTime,
+          endTime: window.endTime,
+          isActive: true,
         })),
       });
 
       createdCount = result.count;
-      skippedCount = sortedCandidateSlots.length - result.count;
+      skippedCount = sortedCandidateWindows.length - result.count;
     });
   } catch (error) {
     if (error instanceof Error) {
@@ -588,7 +607,7 @@ export async function createBulkAvailabilityAction(formData: FormData) {
       }
     }
 
-    console.error("Create bulk availability error:", error);
+    console.error("Create bulk availability windows error:", error);
 
     redirectWithError("/expert/availability", "bulk-create-failed");
   }
@@ -608,21 +627,21 @@ export async function deleteAvailabilityAction(formData: FormData) {
 
   await assertAvailabilityRateLimit(`delete:${expert.id}`);
 
-  const slotId = getStringValue(formData, "slotId");
+  const availabilityId = getStringValue(formData, "slotId");
 
-  if (!slotId) {
+  if (!availabilityId) {
     redirectWithError("/expert/availability", "slot-not-found");
   }
 
   try {
     await prisma.$transaction(async (tx) => {
-      const slot = await tx.availability.findFirst({
+      const availability = await tx.availability.findFirst({
         where: {
-          id: slotId,
+          id: availabilityId,
           expertId: expert.id,
         },
         include: {
-          booking: {
+          bookings: {
             select: {
               id: true,
               status: true,
@@ -631,25 +650,18 @@ export async function deleteAvailabilityAction(formData: FormData) {
         },
       });
 
-      if (!slot) {
+      if (!availability) {
         throw new Error("slot-not-found");
       }
 
-      if (slot.isBooked) {
-        throw new Error("cannot-delete-booked-slot");
-      }
-
-      if (slot.startTime < new Date()) {
+      if (availability.startTime < new Date()) {
         throw new Error("cannot-delete-past-slot");
       }
 
-      const bookings = Array.isArray(slot.booking) ? slot.booking : [];
-
-      const hasActiveBooking = bookings.some(
-        (booking) =>
-          !["CANCELLED", "REFUNDED", "DISPUTED", "EXPIRED"].includes(
-            booking.status,
-          ),
+      const hasActiveBooking = availability.bookings.some((booking) =>
+        ACTIVE_BOOKING_STATUSES.includes(
+          booking.status as (typeof ACTIVE_BOOKING_STATUSES)[number],
+        ),
       );
 
       if (hasActiveBooking) {
@@ -658,7 +670,7 @@ export async function deleteAvailabilityAction(formData: FormData) {
 
       await tx.availability.delete({
         where: {
-          id: slot.id,
+          id: availability.id,
         },
       });
     });
@@ -680,7 +692,7 @@ export async function deleteAvailabilityAction(formData: FormData) {
       }
     }
 
-    console.error("Delete availability error:", error);
+    console.error("Delete availability window error:", error);
 
     redirectWithError("/expert/availability", "delete-failed");
   }
@@ -701,12 +713,15 @@ export async function deletePastOpenAvailabilityAction() {
   const result = await prisma.availability.deleteMany({
     where: {
       expertId: expert.id,
-      isBooked: false,
-      startTime: {
+      endTime: {
         lt: new Date(),
       },
-      booking: {
-        none: {},
+      bookings: {
+        none: {
+          status: {
+            in: [...ACTIVE_BOOKING_STATUSES],
+          },
+        },
       },
     },
   });

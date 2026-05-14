@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import {
+  BadgeCheck,
   Clock3,
   Euro,
+  Lightbulb,
   Pencil,
   Power,
   Save,
+  Search,
+  Target,
   X,
 } from "lucide-react";
 
@@ -18,18 +22,38 @@ import { PricingPreview } from "@/components/pricing/pricing-preview";
 import { Badge } from "@/components/ui/badge";
 
 const categoryOptions = [
-  "Psychology & Support",
-  "Translation & Languages",
-  "Life Advice",
   "Career & Jobs",
-  "Family & Relationships",
   "Documents & Admin Help",
+  "Translation & Languages",
   "Moving Abroad",
+  "Study & Applications",
+  "Tech Help",
   "Business & Freelance",
-  "Anything you want",
+  "Local Help",
+  "Life Advice",
+  "Family & Relationships",
+  "Cooking & Daily Skills",
+  "Psychology & Support",
+  "Other Practical Help",
 ];
 
 const durationOptions = [15, 30, 45, 60];
+
+const offerTitleExamples = [
+  "Review your CV and give clear next steps",
+  "Help you understand an official document",
+  "Practice a job interview with feedback",
+  "Translate or correct an important message",
+  "Explain a website or coding problem",
+];
+
+const descriptionChecklist = [
+  "Who this offer is for",
+  "What problem you solve",
+  "What happens during the call",
+  "What the buyer gets by the end",
+  "What the buyer should prepare before the call",
+];
 
 type ServiceOfferCardProps = {
   service: {
@@ -56,26 +80,39 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
             </Badge>
 
             <Badge>{service.categoryName || "Category"}</Badge>
+
+            <Badge>
+              <Clock3 size={14} />
+              {service.durationMinutes} min
+            </Badge>
           </div>
 
-          <h3 className="mt-4 text-xl font-black tracking-[-0.03em]">
+          <p className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-muted">
+            Buyer problem / offer
+          </p>
+
+          <h3 className="mt-2 text-xl font-black tracking-[-0.03em]">
             {service.title}
           </h3>
 
-          <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">
+          <p className="mt-2 line-clamp-3 text-sm font-semibold leading-6 text-muted">
             {service.description}
           </p>
 
-          <div className="mt-4 flex flex-wrap items-center gap-4 text-sm font-bold text-muted">
-            <span className="inline-flex items-center gap-2">
-              <Clock3 size={15} />
-              {service.durationMinutes} min
-            </span>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <MiniInfo
+              icon={Target}
+              label="Purpose"
+              value="Problem-focused"
+            />
 
-            <span className="inline-flex items-center gap-2">
-              <Euro size={15} />
-              {service.price}
-            </span>
+            <MiniInfo
+              icon={Clock3}
+              label="Duration"
+              value={`${service.durationMinutes} min`}
+            />
+
+            <MiniInfo icon={Euro} label="Price" value={`€${service.price}`} />
           </div>
         </div>
 
@@ -110,11 +147,12 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
               </Badge>
 
               <h4 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                {service.title}
+                Make this offer clear and searchable
               </h4>
 
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Update the offer and check the price breakdown before saving.
+              <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                Update what problem you solve, who this is for, and what the
+                buyer gets after the call.
               </p>
             </div>
 
@@ -126,6 +164,20 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
             >
               <X size={19} />
             </button>
+          </div>
+
+          <div className="mb-5 grid gap-4 md:grid-cols-2">
+            <HelpBox
+              icon={Lightbulb}
+              title="Write for buyers"
+              text="Use simple words people would search for: CV, visa, documents, coding, interview, translation, study, relocation or business."
+            />
+
+            <HelpBox
+              icon={Search}
+              title="Search matters"
+              text="SkillDrop search uses your offer title and description, so make them specific and problem-focused."
+            />
           </div>
 
           <form action={updateProviderServiceAction} className="grid gap-5">
@@ -158,22 +210,31 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
                   maxLength={120}
                   defaultValue={service.title}
                   className="input mt-2"
+                  placeholder="Review your CV and give clear next steps"
                 />
               </Field>
             </div>
+
+            <ExampleBox title="Strong offer title examples" items={offerTitleExamples} />
 
             <Field label="Description" htmlFor={`description-${service.id}`}>
               <textarea
                 id={`description-${service.id}`}
                 name="description"
                 required
-                rows={4}
+                rows={6}
                 minLength={30}
                 maxLength={800}
                 defaultValue={service.description}
-                className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+                className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm font-semibold leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+                placeholder="Explain who this is for, what problem you solve, what happens during the call, and what the buyer gets by the end. Add searchable words like CV, visa, documents, coding, interview, translation, study or relocation when relevant."
               />
             </Field>
+
+            <ExampleBox
+              title="Your description should mention"
+              items={descriptionChecklist}
+            />
 
             <div className="grid gap-5 md:grid-cols-[1fr_1fr_auto] md:items-end">
               <Field label="Duration" htmlFor={`duration-${service.id}`}>
@@ -226,6 +287,57 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
   );
 }
 
+function MiniInfo({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Target;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white/55 p-3">
+      <div className="flex items-center gap-2 text-[var(--primary-dark)]">
+        <Icon size={15} />
+        <p className="text-xs font-black uppercase tracking-[0.12em]">
+          {label}
+        </p>
+      </div>
+
+      <p className="mt-2 text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
+function HelpBox({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: typeof Lightbulb;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+      <div className="flex gap-3">
+        <Icon
+          size={18}
+          className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+        />
+
+        <div>
+          <p className="text-sm font-black">{title}</p>
+          <p className="mt-1 text-sm font-semibold leading-6 text-muted">
+            {text}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Field({
   label,
   htmlFor,
@@ -242,6 +354,34 @@ function Field({
       </label>
 
       {children}
+    </div>
+  );
+}
+
+function ExampleBox({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-[24px] border border-[var(--border)] bg-white/55 p-4">
+      <div className="flex gap-3">
+        <BadgeCheck
+          size={18}
+          className="mt-0.5 shrink-0 text-[var(--success)]"
+        />
+
+        <div>
+          <p className="text-sm font-black">{title}</p>
+
+          <div className="mt-3 grid gap-2">
+            {items.map((item) => (
+              <div
+                key={item}
+                className="rounded-2xl border border-[var(--border)] bg-white/64 px-3 py-2 text-sm font-bold leading-6 text-muted"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

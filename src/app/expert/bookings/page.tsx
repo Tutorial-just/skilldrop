@@ -136,6 +136,8 @@ export default async function ExpertBookingsPage({
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-160px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
         <div className="relative p-6 md:p-8 lg:p-10">
           <Link
@@ -154,7 +156,7 @@ export default async function ExpertBookingsPage({
 
           {resolvedSearchParams.completed ? (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Call marked as completed. The client can now leave a review.
+              Call marked as completed. The buyer can now leave a review.
             </div>
           ) : null}
 
@@ -162,17 +164,17 @@ export default async function ExpertBookingsPage({
             <div>
               <Badge variant="primary">
                 <CalendarDays size={14} />
-                Bookings
+                Helper bookings
               </Badge>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Manage your client calls.
+                Manage your buyer calls.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Join upcoming sessions, read client notes, complete finished
-                calls, track payout estimates and manage booking status from one
-                workspace.
+                Join upcoming sessions, read buyer notes, complete finished
+                calls, track payout estimates and keep every booking clear from
+                one workspace.
               </p>
             </div>
 
@@ -244,7 +246,7 @@ export default async function ExpertBookingsPage({
               ) : (
                 <EmptyState
                   title="No upcoming calls"
-                  text="When clients book your open slots, the next call will appear here."
+                  text="When buyers book your open slots, the next call will appear here."
                 />
               )}
             </Card>
@@ -261,8 +263,8 @@ export default async function ExpertBookingsPage({
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  Mark completed calls as completed so clients can leave reviews
-                  and earnings can be counted correctly.
+                  Mark completed calls as completed so buyers can leave reviews
+                  and your earnings can be counted correctly.
                 </p>
 
                 <div className="mt-6 grid gap-4">
@@ -286,11 +288,11 @@ export default async function ExpertBookingsPage({
                 </Badge>
 
                 <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                  Clients reserved these slots.
+                  Buyers reserved these slots.
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  These reservations are waiting for client payment. If payment
+                  These reservations are waiting for buyer payment. If payment
                   is not completed in time, the slot becomes available again.
                 </p>
 
@@ -340,14 +342,14 @@ export default async function ExpertBookingsPage({
             <Card soft className="p-5 md:p-6">
               <Badge variant="primary">
                 <ShieldCheck size={14} />
-                Provider tips
+                Helper tips
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <Tip text="Read the client note before the call so you can prepare faster." />
+                <Tip text="Read the buyer note before the call so you can prepare faster." />
                 <Tip text="Paid bookings are confirmed automatically after Stripe webhook success." />
-                <Tip text="Complete calls after the session so clients can leave reviews." />
-                <Tip text="Keep your availability fresh every week to appear bookable." />
+                <Tip text="Complete calls after the session so buyers can leave reviews." />
+                <Tip text="Keep your availability fresh every week to stay bookable." />
               </div>
             </Card>
           </div>
@@ -367,7 +369,7 @@ export default async function ExpertBookingsPage({
 
                   <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
                     Pending, paid, confirmed, completed, cancelled, refunded and
-                    disputed client calls.
+                    disputed buyer calls.
                   </p>
                 </div>
 
@@ -386,7 +388,7 @@ export default async function ExpertBookingsPage({
                 ) : (
                   <EmptyState
                     title="No bookings yet"
-                    text="Bookings will appear here after clients reserve your time."
+                    text="Bookings will appear here after buyers reserve your time."
                   />
                 )}
               </div>
@@ -443,17 +445,18 @@ function NextBookingPanel({ booking }: { booking: ExpertBooking }) {
   const pricing = getBookingPricing(booking);
   const canJoin = canJoinBooking(booking);
   const now = new Date();
+  const buyerName = booking.buyer.name ?? booking.buyer.email;
 
   return (
     <div className="mt-5">
       <h2 className="text-3xl font-black tracking-[-0.05em]">
-        {booking.service?.title ?? "Client call"}
+        {booking.service?.title ?? "Buyer call"}
       </h2>
 
       <p className="mt-3 text-sm font-semibold leading-6 text-muted">
-        Client:{" "}
+        Buyer:{" "}
         <span className="font-black text-[var(--foreground)]">
-          {booking.buyer.name ?? booking.buyer.email}
+          {buyerName}
         </span>
       </p>
 
@@ -469,7 +472,7 @@ function NextBookingPanel({ booking }: { booking: ExpertBooking }) {
         />
 
         <InfoRow
-          label="Service price"
+          label="Offer price"
           value={formatMoney(pricing.servicePriceCents)}
         />
 
@@ -482,7 +485,22 @@ function NextBookingPanel({ booking }: { booking: ExpertBooking }) {
         <InfoRow label="Status" value={formatStatus(booking.status)} />
       </div>
 
-      {booking.note ? <ClientNote note={booking.note} className="mt-5" /> : null}
+      {booking.note ? <BuyerNote note={booking.note} className="mt-5" /> : null}
+
+      {!booking.note && booking.status === "CONFIRMED" ? (
+        <div className="mt-5 rounded-2xl border border-dashed border-[var(--border-strong)] bg-white/55 p-4">
+          <div className="flex gap-3">
+            <MessageCircle
+              size={18}
+              className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+            />
+            <p className="text-sm font-bold leading-6 text-muted">
+              No buyer note was added. Prepare a few clarifying questions before
+              the call.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         {canJoin ? (
@@ -540,7 +558,7 @@ function BookingCard({
   const canJoin = canJoinBooking(booking);
   const canComplete = isConfirmed && booking.endTime <= now;
   const canCancel = (isPending || isConfirmed) && booking.startTime > now;
-  const clientName = booking.buyer.name ?? "Client";
+  const buyerName = booking.buyer.name ?? "Buyer";
 
   return (
     <div
@@ -571,7 +589,7 @@ function BookingCard({
             {booking.note ? (
               <Badge variant="primary">
                 <MessageCircle size={14} />
-                Client note
+                Buyer note
               </Badge>
             ) : null}
 
@@ -616,13 +634,13 @@ function BookingCard({
           </div>
 
           <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-            {booking.service?.title ?? "Client call"}
+            {booking.service?.title ?? "Buyer call"}
           </h3>
 
           <div className="mt-3 grid gap-2 text-sm font-semibold leading-6 text-muted">
             <p className="inline-flex items-center gap-2">
               <UserRound size={15} />
-              {clientName}
+              {buyerName}
             </p>
 
             <p className="inline-flex items-center gap-2">
@@ -650,7 +668,7 @@ function BookingCard({
 
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <MiniMoney
-              label="Service"
+              label="Offer"
               value={formatMoney(pricing.servicePriceCents)}
             />
 
@@ -667,13 +685,13 @@ function BookingCard({
           </div>
 
           {booking.note ? (
-            <ClientNote note={booking.note} className="mt-4" />
+            <BuyerNote note={booking.note} className="mt-4" />
           ) : null}
 
           {isPending ? (
             <StatusExplanation
               variant="warning"
-              text="This reservation is waiting for client payment."
+              text="This reservation is waiting for buyer payment."
             />
           ) : null}
 
@@ -709,7 +727,7 @@ function BookingCard({
             <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
               <p className="flex items-center gap-2 text-sm font-black">
                 <Star size={15} fill="currentColor" />
-                Client review: {booking.review.rating}/5
+                Buyer review: {booking.review.rating}/5
               </p>
 
               <p className="mt-2 text-sm font-semibold leading-6 text-muted">
@@ -736,7 +754,7 @@ function BookingCard({
   );
 }
 
-function ClientNote({
+function BuyerNote({
   note,
   className = "",
 }: {
@@ -754,7 +772,7 @@ function ClientNote({
         />
 
         <div>
-          <p className="text-sm font-black">Client note</p>
+          <p className="text-sm font-black">Buyer note</p>
           <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
             {note}
           </p>

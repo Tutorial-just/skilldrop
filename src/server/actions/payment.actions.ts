@@ -78,6 +78,7 @@ async function cancelExpiredPendingBooking({
       data: {
         status: "EXPIRED",
         cancelledAt: now,
+        cancelReason: "PAYMENT_EXPIRED",
         expiresAt: null,
       },
     });
@@ -211,7 +212,7 @@ export async function createCheckoutSessionAction(bookingId: string) {
   const stripeAccountId = booking.expert.stripeAccountId;
 
   if (!stripeAccountId) {
-    redirect(getCheckoutHref(booking.id, "provider-payout-not-ready"));
+    redirect(getCheckoutHref(booking.id, "expert-payout-not-ready"));
   }
 
   let connectedAccount;
@@ -219,26 +220,31 @@ export async function createCheckoutSessionAction(bookingId: string) {
   try {
     connectedAccount = await stripe.accounts.retrieve(stripeAccountId);
   } catch {
-    redirect(getCheckoutHref(booking.id, "provider-payout-not-ready"));
+    redirect(getCheckoutHref(booking.id, "expert-payout-not-ready"));
   }
 
   if (connectedAccount.deleted) {
-    redirect(getCheckoutHref(booking.id, "provider-payout-not-ready"));
+    redirect(getCheckoutHref(booking.id, "expert-payout-not-ready"));
   }
 
-  if (!connectedAccount.charges_enabled || !connectedAccount.payouts_enabled) {
+  const chargesEnabled = Boolean(connectedAccount.charges_enabled);
+  const payoutsEnabled = Boolean(connectedAccount.payouts_enabled);
+  const detailsSubmitted = Boolean(connectedAccount.details_submitted);
+
+  if (!chargesEnabled || !payoutsEnabled || !detailsSubmitted) {
     await prisma.expertProfile.update({
       where: {
         id: booking.expertId,
       },
       data: {
-        stripeChargesEnabled: Boolean(connectedAccount.charges_enabled),
-        stripePayoutsEnabled: Boolean(connectedAccount.payouts_enabled),
-        stripeDetailsSubmitted: Boolean(connectedAccount.details_submitted),
+        stripeChargesEnabled: chargesEnabled,
+        stripePayoutsEnabled: payoutsEnabled,
+        stripeDetailsSubmitted: detailsSubmitted,
+        stripeOnboardingDoneAt: detailsSubmitted ? new Date() : null,
       },
     });
 
-    redirect(getCheckoutHref(booking.id, "provider-payout-not-ready"));
+    redirect(getCheckoutHref(booking.id, "expert-payout-not-ready"));
   }
 
   await prisma.expertProfile.update({
@@ -246,12 +252,10 @@ export async function createCheckoutSessionAction(bookingId: string) {
       id: booking.expertId,
     },
     data: {
-      stripeChargesEnabled: Boolean(connectedAccount.charges_enabled),
-      stripePayoutsEnabled: Boolean(connectedAccount.payouts_enabled),
-      stripeDetailsSubmitted: Boolean(connectedAccount.details_submitted),
-      stripeOnboardingDoneAt: connectedAccount.details_submitted
-        ? new Date()
-        : null,
+      stripeChargesEnabled: chargesEnabled,
+      stripePayoutsEnabled: payoutsEnabled,
+      stripeDetailsSubmitted: detailsSubmitted,
+      stripeOnboardingDoneAt: detailsSubmitted ? new Date() : null,
     },
   });
 
@@ -261,7 +265,11 @@ export async function createCheckoutSessionAction(bookingId: string) {
     redirect(getCheckoutHref(booking.id, "invalid-price"));
   }
 
-  const providerName = booking.expert.user.name ?? "Provider";
+  if (pricing.providerNetCents <= 0) {
+    redirect(getCheckoutHref(booking.id, "invalid-price"));
+  }
+
+  const helperName = booking.expert.user.name ?? "SkillDrop helper";
   const serviceTitle = booking.service?.title ?? "SkillDrop call";
   const currency = pricing.currency.toLowerCase();
 
@@ -296,7 +304,7 @@ export async function createCheckoutSessionAction(bookingId: string) {
               currency,
               product_data: {
                 name: serviceTitle,
-                description: `Call with ${providerName}`,
+                description: `SkillDrop call with ${helperName}`,
                 metadata: {
                   bookingId: booking.id,
                   expertId: booking.expertId,

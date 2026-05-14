@@ -74,6 +74,16 @@ function revalidateCallPaths(expertId: string, bookingId: string) {
   revalidatePath("/notifications");
 }
 
+async function safeSendNotification(
+  input: Parameters<typeof sendNotification>[0],
+) {
+  try {
+    await sendNotification(input);
+  } catch (error) {
+    console.error("Notification error:", error);
+  }
+}
+
 export async function createOrOpenCallRoomAction(formData: FormData) {
   const { user } = await requireRole(["buyer", "expert", "admin"]);
 
@@ -206,13 +216,13 @@ export async function markCallCompletedAction(formData: FormData) {
   }
 
   if (booking.status !== "CONFIRMED") {
-    redirect(`/calls/${booking.id}?error=not-confirmed`);
+    redirect(`${getBookingsHref(currentUser.role)}?error=not-confirmed`);
   }
 
   const now = new Date();
 
   if (now < booking.endTime && !isAdmin) {
-    redirect(`/calls/${booking.id}?error=call-not-ended`);
+    redirect(`${getBookingsHref(currentUser.role)}?error=call-not-ended`);
   }
 
   const completed = await prisma.$transaction(async (tx) => {
@@ -254,6 +264,8 @@ export async function markCallCompletedAction(formData: FormData) {
         data: {
           isVerified: true,
           verifiedAt: now,
+          verificationNote:
+            "Automatically verified after 3 completed sessions and 3.8+ rating.",
         },
       });
     }
@@ -275,30 +287,32 @@ export async function markCallCompletedAction(formData: FormData) {
     redirect(getCompletedRedirectHref(currentUser.role, booking.id));
   }
 
-  await sendNotification({
+  await safeSendNotification({
     to: booking.buyer.email,
     type: "REVIEW_REQUESTED",
     subject: "How was your SkillDrop call?",
     message: `Your call "${
       booking.service?.title ?? "Booked call"
-    }" is completed. You can now leave a review.`,
+    }" is complete. You can now leave a review to help other buyers choose with confidence.`,
     metadata: {
       bookingId: booking.id,
       expertId: booking.expertId,
+      serviceId: booking.serviceId,
       serviceTitle: booking.service?.title ?? "Booked call",
     },
   });
 
-  await sendNotification({
+  await safeSendNotification({
     to: booking.expert.user.email,
     type: "CALL_COMPLETED",
     subject: "Call marked as completed",
     message: `Your call "${
       booking.service?.title ?? "Booked call"
-    }" was marked as completed.`,
+    }" was marked as completed. The buyer can now leave a review.`,
     metadata: {
       bookingId: booking.id,
       expertId: booking.expertId,
+      serviceId: booking.serviceId,
       serviceTitle: booking.service?.title ?? "Booked call",
     },
   });

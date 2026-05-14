@@ -16,7 +16,7 @@ model User {
   role      UserRole @default(BUYER)
 
   expertProfile  ExpertProfile?
-  bookings       Booking[] @relation("BuyerBookings")
+  bookings       Booking[]       @relation("BuyerBookings")
   reviews        Review[]
   savedExperts   SavedExpert[]
   buyerSettings  BuyerSettings?
@@ -62,15 +62,15 @@ model ExpertProfile {
   totalReviews  Int   @default(0)
   totalSessions Int   @default(0)
 
-  stripeAccountId         String? @unique
-  stripeChargesEnabled    Boolean @default(false)
-  stripePayoutsEnabled    Boolean @default(false)
-  stripeDetailsSubmitted  Boolean @default(false)
-  stripeOnboardingDoneAt  DateTime?
+  stripeAccountId        String?   @unique
+  stripeChargesEnabled   Boolean   @default(false)
+  stripePayoutsEnabled   Boolean   @default(false)
+  stripeDetailsSubmitted Boolean   @default(false)
+  stripeOnboardingDoneAt DateTime?
 
   services     Service[]
   availability Availability[]
-  bookings     Booking[] @relation("ExpertBookings")
+  bookings     Booking[]      @relation("ExpertBookings")
   reviews      Review[]
   savedBy      SavedExpert[]
 
@@ -149,9 +149,13 @@ model Availability {
 
   startTime DateTime
   endTime   DateTime
-  isBooked  Boolean  @default(false)
 
-  booking Booking?
+  /// Availability is now a bookable time window.
+  /// Example: helper is available from 10:00 to 14:00.
+  /// Buyers can book smaller calls inside this window.
+  isActive Boolean @default(true)
+
+  bookings Booking[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -159,9 +163,9 @@ model Availability {
   @@index([expertId])
   @@index([startTime])
   @@index([endTime])
-  @@index([isBooked])
+  @@index([isActive])
+  @@index([expertId, isActive])
   @@index([expertId, startTime])
-  @@index([expertId, isBooked])
   @@index([expertId, startTime, endTime])
 }
 
@@ -177,30 +181,30 @@ model Booking {
   serviceId String
   service   Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
 
-  availabilityId String?       @unique
+  availabilityId String?
   availability   Availability? @relation(fields: [availabilityId], references: [id], onDelete: SetNull)
 
   startTime DateTime
   endTime   DateTime
   status    BookingStatus @default(PENDING)
 
-  expiresAt    DateTime?
-  paidAt       DateTime?
-  confirmedAt  DateTime?
-  cancelledAt  DateTime?
-  completedAt  DateTime?
-  refundedAt   DateTime?
-  disputedAt   DateTime?
+  expiresAt   DateTime?
+  paidAt      DateTime?
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  completedAt DateTime?
+  refundedAt  DateTime?
+  disputedAt  DateTime?
 
   cancelReason  String?
   disputeReason String?
   disputeNote   String?
 
-  priceCents    Int
-  currency      String @default("EUR")
+  priceCents Int
+  currency   String @default("EUR")
 
-  platformFeeCents     Int?
-  providerNetCents     Int?
+  platformFeeCents      Int?
+  providerNetCents      Int?
   clientServiceFeeCents Int?
   clientTotalCents      Int?
 
@@ -220,6 +224,7 @@ model Booking {
   @@index([buyerId])
   @@index([expertId])
   @@index([serviceId])
+  @@index([availabilityId])
   @@index([status])
   @@index([expiresAt])
   @@index([startTime])
@@ -228,6 +233,9 @@ model Booking {
   @@index([buyerId, status])
   @@index([expertId, status])
   @@index([expertId, startTime])
+  @@index([expertId, startTime, endTime])
+  @@index([expertId, status, startTime])
+  @@index([availabilityId, status, startTime])
 }
 
 enum BookingStatus {
@@ -248,7 +256,7 @@ model Review {
   booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   buyerId String
-  buyer   User @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyer   User   @relation(fields: [buyerId], references: [id], onDelete: Cascade)
 
   expertId String
   expert   ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
@@ -274,7 +282,7 @@ model CallRoom {
   bookingId String  @unique
   booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
-  provider String @default("JITSI")
+  provider String         @default("JITSI")
   roomName String
   roomUrl  String
   status   CallRoomStatus @default(CREATED)
@@ -300,7 +308,7 @@ model SavedExpert {
   id String @id @default(cuid())
 
   buyerId String
-  buyer   User @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyer   User   @relation(fields: [buyerId], references: [id], onDelete: Cascade)
 
   expertId String
   expert   ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
@@ -365,7 +373,7 @@ model Notification {
   id String @id @default(cuid())
 
   userId String?
-  user   User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   email String?
 
@@ -408,10 +416,10 @@ enum NotificationType {
 }
 
 model StripeEvent {
-  id        String   @id
-  type      String
-  processed Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id          String    @id
+  type        String
+  processed   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
   processedAt DateTime?
 
   @@index([type])

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BookingStatus } from "@prisma/client";
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,7 +29,11 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-
+const activeBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+];
 
 export default async function ExpertStatsPage() {
   const { user } = await requireRole(["expert", "admin"]);
@@ -39,6 +44,8 @@ export default async function ExpertStatsPage() {
     redirect("/sign-in");
   }
 
+  const now = new Date();
+
   const expert = await prisma.expertProfile.findFirst({
     where: {
       user: {
@@ -48,7 +55,26 @@ export default async function ExpertStatsPage() {
     include: {
       user: true,
       services: true,
-      availability: true,
+      availability: {
+        include: {
+          bookings: {
+            where: {
+              status: {
+                in: activeBookingStatuses,
+              },
+            },
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              status: true,
+            },
+          },
+        },
+        orderBy: {
+          startTime: "asc",
+        },
+      },
       bookings: {
         include: {
           service: true,
@@ -70,27 +96,33 @@ export default async function ExpertStatsPage() {
     redirect("/become-expert");
   }
 
-  const now = new Date();
-
   const completedBookings = expert.bookings.filter(
-    (booking) => booking.status === "COMPLETED",
+    (booking) => booking.status === BookingStatus.COMPLETED,
   );
 
   const upcomingBookings = expert.bookings.filter(
     (booking) =>
       booking.startTime >= now &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED",
+      booking.status !== BookingStatus.CANCELLED &&
+      booking.status !== BookingStatus.REFUNDED &&
+      booking.status !== BookingStatus.COMPLETED &&
+      booking.status !== BookingStatus.DISPUTED &&
+      booking.status !== BookingStatus.EXPIRED,
   );
 
   const cancelledBookings = expert.bookings.filter(
-    (booking) => booking.status === "CANCELLED" || booking.status === "REFUNDED",
+    (booking) =>
+      booking.status === BookingStatus.CANCELLED ||
+      booking.status === BookingStatus.REFUNDED,
   );
 
   const activeServices = expert.services.filter((service) => service.isActive);
 
   const openSlots = expert.availability.filter(
-    (slot) => !slot.isBooked && slot.startTime >= now,
+    (window) =>
+      window.isActive &&
+      window.endTime >= now &&
+      getWindowFreeMinutes(window) > 0,
   );
 
   const completedRevenueCents = completedBookings.reduce(
@@ -104,10 +136,12 @@ export default async function ExpertStatsPage() {
   );
 
   const totalRevenueCents = completedRevenueCents + upcomingRevenueCents;
+
   const platformFeeCents = [...completedBookings, ...upcomingBookings].reduce(
     (sum, booking) => sum + getBookingPricing(booking).platformFeeCents,
     0,
   );
+
   const estimatedPayoutCents = [...completedBookings, ...upcomingBookings].reduce(
     (sum, booking) => sum + getBookingPricing(booking).providerNetCents,
     0,
@@ -145,7 +179,7 @@ export default async function ExpertStatsPage() {
     );
 
     const completedServiceBookings = serviceBookings.filter(
-      (booking) => booking.status === "COMPLETED",
+      (booking) => booking.status === BookingStatus.COMPLETED,
     );
 
     const revenueCents = completedServiceBookings.reduce(
@@ -455,7 +489,7 @@ export default async function ExpertStatsPage() {
                   <ActivityRow label="Upcoming calls" value={upcomingBookings.length} />
                   <ActivityRow label="Completed calls" value={completedBookings.length} />
                   <ActivityRow label="Cancelled calls" value={cancelledBookings.length} />
-                  <ActivityRow label="Open slots" value={openSlots.length} />
+                  <ActivityRow label="Open availability" value={openSlots.length} />
                   <ActivityRow
                     label="Average booking"
                     value={formatMoney(averageBookingValueCents)}
@@ -475,8 +509,8 @@ export default async function ExpertStatsPage() {
                     icon={openSlots.length > 0 ? BadgeCheck : ShieldCheck}
                     text={
                       openSlots.length > 0
-                        ? "You have open slots. Keep them fresh weekly."
-                        : "Add open slots for the next 7 days."
+                        ? "You have open availability. Keep it fresh weekly."
+                        : "Add open availability for the next 7 days."
                     }
                   />
 
@@ -825,7 +859,7 @@ function buildMonthlyStats(
   });
 
   bookings.forEach((booking) => {
-    if (booking.status !== "COMPLETED") {
+    if (booking.status !== BookingStatus.COMPLETED) {
       return;
     }
 
@@ -878,8 +912,37 @@ function getBookingPricing(booking: {
   };
 }
 
+function getWindowFreeMinutes(window: {
+  startTime: Date;
+  endTime: Date;
+  bookings: {
+    startTime: Date;
+    endTime: Date;
+    status: BookingStatus;
+  }[];
+}) {
+  const totalMinutes = getDurationMinutes(window.startTime, window.endTime);
+
+  const bookedMinutes = window.bookings
+    .filter((booking) => activeBookingStatuses.includes(booking.status))
+    .reduce(
+      (sum, booking) =>
+        sum + getDurationMinutes(booking.startTime, booking.endTime),
+      0,
+    );
+
+  return Math.max(totalMinutes - bookedMinutes, 0);
+}
+
+function getDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.max(
+    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
+    0,
+  );
+}
+
 function formatMoney(cents: number) {
-   return formatMoneyFromCents(cents);
+  return formatMoneyFromCents(cents);
 }
 
 function formatDate(date: Date) {

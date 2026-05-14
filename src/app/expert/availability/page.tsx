@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BookingStatus } from "@prisma/client";
 import {
   ArrowLeft,
   ArrowRight,
   CalendarClock,
   CalendarDays,
+  CheckCircle2,
   Clock3,
+  Globe2,
   Layers3,
   Plus,
   Repeat,
+  ShieldCheck,
   Trash2,
   Video,
 } from "lucide-react";
@@ -38,10 +42,36 @@ type ExpertAvailabilityPageProps = {
 
 type AvailabilityView = "all" | "open" | "booked" | "today" | "week" | "past";
 
+type AvailabilityWindowWithDetails = {
+  id: string;
+  startTime: Date;
+  endTime: Date;
+  isActive: boolean;
+  bookings: {
+    id: string;
+    startTime: Date;
+    endTime: Date;
+    status: BookingStatus;
+    service: {
+      title: string;
+    } | null;
+    buyer: {
+      name: string | null;
+      email: string;
+    };
+  }[];
+};
+
 const durationOptions = [15, 30, 45, 60];
 const breakOptions = [0, 5, 10, 15, 30];
 const repeatWeekOptions = [1, 2, 3, 4, 6, 8];
-const MAX_VISIBLE_SLOTS = 60;
+const MAX_VISIBLE_WINDOWS = 60;
+
+const activeBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+];
 
 const viewTabs: {
   label: string;
@@ -93,6 +123,22 @@ export default async function ExpertAvailabilityPage({
         },
       },
       availability: {
+        include: {
+          bookings: {
+            where: {
+              status: {
+                in: activeBookingStatuses,
+              },
+            },
+            include: {
+              service: true,
+              buyer: true,
+            },
+            orderBy: {
+              startTime: "asc",
+            },
+          },
+        },
         orderBy: {
           startTime: "asc",
         },
@@ -103,7 +149,7 @@ export default async function ExpertAvailabilityPage({
             gte: now,
           },
           status: {
-            in: ["PENDING", "PAID", "CONFIRMED"],
+            in: activeBookingStatuses,
           },
         },
         include: {
@@ -122,21 +168,37 @@ export default async function ExpertAvailabilityPage({
     redirect("/become-expert");
   }
 
-  const upcomingSlots = expert.availability.filter((slot) => slot.startTime >= now);
-  const openSlots = upcomingSlots.filter((slot) => !slot.isBooked);
-  const bookedSlots = upcomingSlots.filter((slot) => slot.isBooked);
-  const pastSlots = expert.availability.filter((slot) => slot.startTime < now);
-  const pastOpenSlots = pastSlots.filter((slot) => !slot.isBooked);
+  const upcomingWindows = expert.availability.filter(
+    (window) => window.endTime >= now && window.isActive,
+  );
 
-  const filteredSlots = filterSlotsByView({
-    slots: expert.availability,
+  const openWindows = upcomingWindows.filter(
+    (window) => getWindowFreeMinutes(window) > 0,
+  );
+
+  const bookedWindows = upcomingWindows.filter(
+    (window) => window.bookings.length > 0,
+  );
+
+  const pastWindows = expert.availability.filter((window) => window.endTime < now);
+
+  const pastOpenWindows = pastWindows.filter(
+    (window) => window.bookings.length === 0,
+  );
+
+  const filteredWindows = filterWindowsByView({
+    windows: expert.availability,
     view: currentView,
     now,
   });
 
-  const visibleSlots = filteredSlots.slice(0, MAX_VISIBLE_SLOTS);
-  const hiddenSlotsCount = Math.max(filteredSlots.length - visibleSlots.length, 0);
-  const groupedSlots = groupSlotsByDate(visibleSlots);
+  const visibleWindows = filteredWindows.slice(0, MAX_VISIBLE_WINDOWS);
+  const hiddenWindowsCount = Math.max(
+    filteredWindows.length - visibleWindows.length,
+    0,
+  );
+
+  const groupedWindows = groupWindowsByDate(visibleWindows);
 
   const minDateTime = toDateTimeLocalValue(now);
   const minDate = toDateValue(now);
@@ -160,13 +222,24 @@ export default async function ExpertAvailabilityPage({
     ? durationOptions.filter((duration) => duration >= shortestServiceDuration)
     : durationOptions;
 
-  const defaultSingleDuration = String(shortestServiceDuration ?? 15);
-  const defaultBulkDuration = String(shortestServiceDuration ?? 30);
+  const defaultSingleDuration = String(shortestServiceDuration ?? 60);
+  const defaultBulkDuration = String(shortestServiceDuration ?? 60);
+
+  const isPaymentReady =
+    Boolean(expert.stripeAccountId) &&
+    expert.stripeChargesEnabled &&
+    expert.stripePayoutsEnabled &&
+    expert.stripeDetailsSubmitted;
+
+  const isReadyForBookings =
+    expert.services.length > 0 && openWindows.length > 0 && isPaymentReady;
 
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-160px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
         <div className="relative p-6 md:p-8 lg:p-10">
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
@@ -182,24 +255,24 @@ export default async function ExpertAvailabilityPage({
               {resolvedSearchParams.saved ? (
                 <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
                   {createdCount && createdCount > 0
-                    ? `${createdCount} availability slot${
+                    ? `${createdCount} availability window${
                         createdCount === 1 ? "" : "s"
                       } created.${
                         skippedCount && skippedCount > 0
-                          ? ` ${skippedCount} overlapping slot${
+                          ? ` ${skippedCount} overlapping window${
                               skippedCount === 1 ? "" : "s"
                             } skipped.`
                           : ""
                       }`
-                    : "Availability added. Clients can now book this open time."}
+                    : "Availability window added. Buyers can now book time inside it."}
                 </div>
               ) : null}
 
               {resolvedSearchParams.deleted ? (
                 <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
                   {deletedCount && deletedCount > 1
-                    ? `${deletedCount} old open slots removed.`
-                    : "Availability slot removed."}
+                    ? `${deletedCount} old availability windows removed.`
+                    : "Availability window removed."}
                 </div>
               ) : null}
 
@@ -209,20 +282,39 @@ export default async function ExpertAvailabilityPage({
                 </div>
               ) : null}
 
-              <div className="mt-6">
+              <div className="mt-6 flex flex-wrap gap-2">
                 <Badge variant="primary">
                   <CalendarDays size={14} />
                   Availability
                 </Badge>
+
+                <Badge variant={isReadyForBookings ? "success" : "accent"}>
+                  {isReadyForBookings ? (
+                    <>
+                      <CheckCircle2 size={14} />
+                      Bookable
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={14} />
+                      Setup needed
+                    </>
+                  )}
+                </Badge>
+
+                <Badge variant="accent">
+                  <Globe2 size={14} />
+                  Timezone-aware scheduling
+                </Badge>
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Manage your bookable time.
+                Manage your bookable time windows.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Add single slots, bulk-create weekly availability, filter your
-                calendar and keep your bookable schedule clean.
+                Add time windows when you are available. Buyers will be able to
+                choose a short 1:1 call inside those windows based on your offers.
               </p>
             </div>
 
@@ -239,9 +331,9 @@ export default async function ExpertAvailabilityPage({
           </div>
 
           <div className="mt-8 grid gap-3 md:grid-cols-4">
-            <MiniStat label="Open" value={String(openSlots.length)} />
-            <MiniStat label="Booked" value={String(bookedSlots.length)} />
-            <MiniStat label="Past" value={String(pastSlots.length)} />
+            <MiniStat label="Open windows" value={String(openWindows.length)} />
+            <MiniStat label="With bookings" value={String(bookedWindows.length)} />
+            <MiniStat label="Past" value={String(pastWindows.length)} />
             <MiniStat label="Total" value={String(expert.availability.length)} />
           </div>
         </div>
@@ -258,32 +350,32 @@ export default async function ExpertAvailabilityPage({
           >
             <Badge variant={shortestServiceDuration ? "accent" : "danger"}>
               <Clock3 size={14} />
-              Slot duration rule
+              Window duration rule
             </Badge>
 
             {shortestServiceDuration ? (
               <>
                 <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                  Create slots long enough for your services.
+                  Create windows long enough for your current offers.
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  Buyers only see time slots that are at least as long as the
-                  selected service. Your shortest active service is{" "}
+                  Your shortest active offer is{" "}
                   <span className="font-black text-[var(--foreground)]">
                     {shortestServiceDuration} minutes
                   </span>
-                  , so slots shorter than {shortestServiceDuration} minutes will
-                  not be bookable.
+                  . A buyer can only book inside a window if there is enough free
+                  time for the selected call duration.
                 </p>
 
                 <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-4 text-sm font-bold leading-6 text-muted">
-                  Example: if your service is 30 minutes, a 15-minute slot will
-                  not appear to buyers. Create 30, 45 or 60 minute slots instead.
+                  Example: if you create a 10:00–14:00 window, buyers can book
+                  15, 30, 45 or 60 minute calls inside it, as long as the time is
+                  still free.
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-4 text-sm font-bold leading-6 text-muted">
-                  Shortest service:{" "}
+                  Shortest offer:{" "}
                   <span className="font-black text-[var(--foreground)]">
                     {shortestActiveService?.title}
                   </span>{" "}
@@ -293,23 +385,39 @@ export default async function ExpertAvailabilityPage({
             ) : (
               <>
                 <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                  Create an active service first.
+                  Create an active offer first.
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  Availability works together with your services. Add at least
-                  one active service before creating time slots, so buyers can
-                  book the right duration.
+                  Availability works together with your offers. Add at least one
+                  active offer before creating time windows.
                 </p>
 
                 <div className="mt-4">
                   <ButtonLink href="/expert/services">
-                    Create service
+                    Create offer
                     <ArrowRight size={18} />
                   </ButtonLink>
                 </div>
               </>
             )}
+          </Card>
+
+          <Card className="border-[var(--primary)]/15 bg-[var(--primary-soft)] p-5">
+            <Badge variant="primary">
+              <Globe2 size={14} />
+              Global scheduling note
+            </Badge>
+
+            <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              Your windows should work for buyers in different timezones.
+            </h2>
+
+            <p className="mt-2 text-sm font-bold leading-6 text-[var(--primary-dark)]/80">
+              Add availability in your local time. The platform stores dates as
+              DateTime and should display equivalent local times to buyer and
+              helper during booking.
+            </p>
           </Card>
 
           <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr] xl:items-start">
@@ -322,16 +430,16 @@ export default async function ExpertAvailabilityPage({
 
                   <div>
                     <p className="font-black tracking-[-0.02em]">
-                      Add available time
+                      Add available window
                     </p>
                     <p className="mt-1 text-sm font-semibold text-muted">
-                      Add one bookable slot.
+                      Add one bookable time window.
                     </p>
                   </div>
                 </div>
 
                 <div className="btn btn-primary hidden sm:inline-flex">
-                  Add slot
+                  Add window
                   <ArrowRight size={17} />
                 </div>
               </summary>
@@ -354,6 +462,11 @@ export default async function ExpertAvailabilityPage({
                       required
                       className="input mt-2"
                     />
+
+                    <p className="mt-2 text-xs font-bold leading-5 text-muted">
+                      Use your local time. Buyers should see the equivalent time
+                      in their own timezone.
+                    </p>
                   </div>
 
                   <div>
@@ -361,7 +474,7 @@ export default async function ExpertAvailabilityPage({
                       htmlFor="durationMinutes"
                       className="text-sm font-black"
                     >
-                      Duration
+                      Window length
                     </label>
 
                     <select
@@ -380,8 +493,7 @@ export default async function ExpertAvailabilityPage({
 
                     {shortestServiceDuration ? (
                       <p className="mt-2 text-xs font-bold leading-5 text-muted">
-                        Minimum recommended duration: {shortestServiceDuration}{" "}
-                        min.
+                        Minimum recommended: {shortestServiceDuration} min.
                       </p>
                     ) : null}
                   </div>
@@ -407,10 +519,10 @@ export default async function ExpertAvailabilityPage({
 
                   <div>
                     <p className="font-black tracking-[-0.02em]">
-                      Bulk create slots
+                      Bulk create windows
                     </p>
                     <p className="mt-1 text-sm font-semibold text-muted">
-                      Create repeated availability for the next weeks.
+                      Create repeated weekly availability windows.
                     </p>
                   </div>
                 </div>
@@ -499,7 +611,7 @@ export default async function ExpertAvailabilityPage({
                         htmlFor="bulkDurationMinutes"
                         className="text-sm font-black"
                       >
-                        Slot duration
+                        Minimum call length
                       </label>
 
                       <select
@@ -518,8 +630,7 @@ export default async function ExpertAvailabilityPage({
 
                       {shortestServiceDuration ? (
                         <p className="mt-2 text-xs font-bold leading-5 text-muted">
-                          Slots shorter than {shortestServiceDuration} min will
-                          not be visible to buyers.
+                          Window must fit at least {shortestServiceDuration} min.
                         </p>
                       ) : null}
                     </div>
@@ -529,7 +640,7 @@ export default async function ExpertAvailabilityPage({
                         htmlFor="breakMinutes"
                         className="text-sm font-black"
                       >
-                        Break
+                        Break between calls
                       </label>
 
                       <select
@@ -545,6 +656,10 @@ export default async function ExpertAvailabilityPage({
                           </option>
                         ))}
                       </select>
+
+                      <p className="mt-2 text-xs font-bold leading-5 text-muted">
+                        Used later when generating buyer start times.
+                      </p>
                     </div>
 
                     <div>
@@ -570,9 +685,8 @@ export default async function ExpertAvailabilityPage({
 
                   <div className="rounded-2xl border border-[var(--border)] bg-white/55 p-4">
                     <p className="text-sm font-bold leading-6 text-muted">
-                      Existing overlapping slots will be skipped automatically.
-                      Maximum bulk creation is limited to keep your calendar
-                      clean.
+                      Existing overlapping windows will be skipped automatically.
+                      Each selected day creates one availability window.
                     </p>
                   </div>
 
@@ -581,7 +695,7 @@ export default async function ExpertAvailabilityPage({
                     className="btn btn-primary w-full"
                     disabled={!shortestServiceDuration}
                   >
-                    Create weekly slots
+                    Create weekly windows
                     <ArrowRight size={18} />
                   </button>
                 </form>
@@ -594,30 +708,34 @@ export default async function ExpertAvailabilityPage({
               <div>
                 <Badge variant="primary">
                   <Layers3 size={14} />
-                  Compact calendar
+                  Availability calendar
                 </Badge>
 
                 <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                  Time slots
+                  Time windows
                 </h2>
 
                 <p className="mt-2 max-w-2xl leading-7 text-muted">
-                  Showing {visibleSlots.length} of {filteredSlots.length} slots.
+                  Showing {visibleWindows.length} of {filteredWindows.length}{" "}
+                  windows. Keep your open schedule fresh so buyers can book
+                  quickly.
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {pastOpenSlots.length > 0 ? (
+                {pastOpenWindows.length > 0 ? (
                   <form action={deletePastOpenAvailabilityAction}>
                     <button type="submit" className="btn btn-secondary">
-                      Clean past open slots
+                      Clean past windows
                       <Trash2 size={17} />
                     </button>
                   </form>
                 ) : null}
 
-                {hiddenSlotsCount > 0 ? (
-                  <Badge variant="accent">+{hiddenSlotsCount} more hidden</Badge>
+                {hiddenWindowsCount > 0 ? (
+                  <Badge variant="accent">
+                    +{hiddenWindowsCount} more hidden
+                  </Badge>
                 ) : null}
               </div>
             </div>
@@ -639,8 +757,8 @@ export default async function ExpertAvailabilityPage({
             </div>
 
             <div className="mt-6 grid gap-4">
-              {groupedSlots.length > 0 ? (
-                groupedSlots.map((group) => (
+              {groupedWindows.length > 0 ? (
+                groupedWindows.map((group) => (
                   <details
                     key={group.label}
                     open
@@ -653,16 +771,17 @@ export default async function ExpertAvailabilityPage({
                         </p>
 
                         <p className="mt-1 text-xs font-bold text-muted">
-                          {group.openCount} open · {group.bookedCount} booked
+                          {group.openCount} open · {group.bookedCount} with
+                          bookings
                         </p>
                       </div>
 
-                      <Badge>{group.slots.length} slots</Badge>
+                      <Badge>{group.windows.length} windows</Badge>
                     </summary>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {group.slots.map((slot) => (
-                        <SlotChip key={slot.id} slot={slot} />
+                      {group.windows.map((window) => (
+                        <WindowChip key={window.id} window={window} />
                       ))}
                     </div>
                   </details>
@@ -702,7 +821,7 @@ export default async function ExpertAvailabilityPage({
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-black">
-                            {booking.service?.title ?? "Provider call"}
+                            {booking.service?.title ?? "1:1 call"}
                           </p>
 
                           <p className="mt-1 text-sm text-muted">
@@ -722,8 +841,8 @@ export default async function ExpertAvailabilityPage({
                   <div className="rounded-[22px] border border-dashed border-[var(--border-strong)] bg-white/55 p-5">
                     <p className="font-black">No upcoming bookings</p>
                     <p className="mt-2 text-sm leading-6 text-muted">
-                      Client bookings will appear here after someone reserves
-                      your time.
+                      Buyer bookings will appear here after someone reserves
+                      time inside your availability windows.
                     </p>
                   </div>
                 )}
@@ -737,10 +856,11 @@ export default async function ExpertAvailabilityPage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <CompactTip text="Keep 7–14 days of open slots visible." />
+                <CompactTip text="Keep 7–14 days of availability windows visible." />
                 <CompactTip text="Use bulk create to prepare your week faster." />
-                <CompactTip text="Delete old open slots to keep the calendar clean." />
-                <CompactTip text="Create slots that are at least as long as your shortest active service." />
+                <CompactTip text="Delete old windows to keep the calendar clean." />
+                <CompactTip text="Create windows that are long enough for your current offers." />
+                <CompactTip text="Flexible calls let buyers choose 15–60 minutes inside available windows." />
               </div>
             </Card>
           </div>
@@ -750,56 +870,65 @@ export default async function ExpertAvailabilityPage({
   );
 }
 
-function SlotChip({
-  slot,
+function WindowChip({
+  window,
 }: {
-  slot: {
-    id: string;
-    startTime: Date;
-    endTime: Date;
-    isBooked: boolean;
-  };
+  window: AvailabilityWindowWithDetails;
 }) {
-  const isPast = slot.startTime < new Date();
+  const isPast = window.endTime < new Date();
+  const hasBookings = window.bookings.length > 0;
+  const freeMinutes = getWindowFreeMinutes(window);
+  const totalMinutes = getDurationMinutes(window.startTime, window.endTime);
 
   return (
     <div
       className={
-        slot.isBooked
-          ? "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--success)]/20 bg-[var(--success-soft)] px-3 py-2 text-sm font-black text-[var(--success)]"
+        hasBookings
+          ? "group inline-flex min-h-10 flex-wrap items-center gap-2 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] px-3 py-2 text-sm font-black text-[var(--success)]"
           : isPast
-            ? "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-white/45 px-3 py-2 text-sm font-black text-muted"
-            : "group inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]"
+            ? "group inline-flex min-h-10 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/45 px-3 py-2 text-sm font-black text-muted"
+            : "group inline-flex min-h-10 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]"
       }
-      title={`${formatTime(slot.startTime)} — ${formatTime(slot.endTime)}`}
+      title={`${formatTime(window.startTime)} — ${formatTime(window.endTime)}`}
     >
       <Clock3 size={14} />
 
       <span>
-        {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
+        {formatTime(window.startTime)}–{formatTime(window.endTime)}
       </span>
 
-      {slot.isBooked ? (
+      <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+        {totalMinutes} min
+      </span>
+
+      {hasBookings ? (
         <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
-          Booked
+          {window.bookings.length} booking
+          {window.bookings.length === 1 ? "" : "s"}
         </span>
       ) : isPast ? (
         <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
           Past
         </span>
       ) : (
-        <form action={deleteAvailabilityAction}>
-          <input type="hidden" name="slotId" value={slot.id} />
+        <>
+          <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+            {freeMinutes} min free
+          </span>
 
-          <button
-            type="submit"
-            className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-muted transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
-            aria-label="Delete slot"
-            title="Delete slot"
-          >
-            <Trash2 size={13} />
-          </button>
-        </form>
+          <form action={deleteAvailabilityAction}>
+            <input type="hidden" name="slotId" value={window.id} />
+
+            <button
+              type="submit"
+              className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-muted transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+              aria-label="Delete window"
+              title="Delete window"
+            >
+              <Trash2 size={13} />
+            </button>
+          </form>
+        </>
       )}
     </div>
   );
@@ -833,12 +962,12 @@ function EmptyState({ view }: { view: AvailabilityView }) {
       </div>
 
       <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-        No slots found
+        No windows found
       </h3>
 
       <p className="mx-auto mt-3 max-w-md leading-7 text-muted">
-        There are no slots for the “{view}” filter. Add availability or choose
-        another filter.
+        There are no availability windows for the “{view}” filter. Add
+        availability or choose another filter.
       </p>
     </div>
   );
@@ -858,17 +987,12 @@ function getValidView(value: string | undefined): AvailabilityView {
   return "all";
 }
 
-function filterSlotsByView({
-  slots,
+function filterWindowsByView({
+  windows,
   view,
   now,
 }: {
-  slots: {
-    id: string;
-    startTime: Date;
-    endTime: Date;
-    isBooked: boolean;
-  }[];
+  windows: AvailabilityWindowWithDetails[];
   view: AvailabilityView;
   now: Date;
 }) {
@@ -883,71 +1007,76 @@ function filterSlotsByView({
   weekEnd.setHours(23, 59, 59, 999);
 
   if (view === "open") {
-    return slots.filter((slot) => slot.startTime >= now && !slot.isBooked);
+    return windows.filter(
+      (window) =>
+        window.isActive && window.endTime >= now && getWindowFreeMinutes(window) > 0,
+    );
   }
 
   if (view === "booked") {
-    return slots.filter((slot) => slot.startTime >= now && slot.isBooked);
+    return windows.filter(
+      (window) =>
+        window.isActive && window.endTime >= now && window.bookings.length > 0,
+    );
   }
 
   if (view === "today") {
-    return slots.filter(
-      (slot) => slot.startTime >= todayStart && slot.startTime <= todayEnd,
+    return windows.filter(
+      (window) =>
+        window.startTime >= todayStart &&
+        window.startTime <= todayEnd &&
+        window.isActive,
     );
   }
 
   if (view === "week") {
-    return slots.filter((slot) => slot.startTime >= now && slot.startTime <= weekEnd);
+    return windows.filter(
+      (window) =>
+        window.endTime >= now && window.startTime <= weekEnd && window.isActive,
+    );
   }
 
   if (view === "past") {
-    return slots
-      .filter((slot) => slot.startTime < now)
+    return windows
+      .filter((window) => window.endTime < now)
       .sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
   }
 
-  return slots.filter((slot) => slot.startTime >= now);
+  return windows.filter((window) => window.endTime >= now && window.isActive);
 }
 
-function groupSlotsByDate(
-  slots: {
-    id: string;
-    startTime: Date;
-    endTime: Date;
-    isBooked: boolean;
-  }[],
-) {
+function groupWindowsByDate(windows: AvailabilityWindowWithDetails[]) {
   const groups = new Map<
     string,
     {
       label: string;
       openCount: number;
       bookedCount: number;
-      slots: {
-        id: string;
-        startTime: Date;
-        endTime: Date;
-        isBooked: boolean;
-      }[];
+      windows: AvailabilityWindowWithDetails[];
     }
   >();
 
-  slots.forEach((slot) => {
+  windows.forEach((window) => {
     const label = new Intl.DateTimeFormat("en", {
       weekday: "long",
       month: "short",
       day: "numeric",
-    }).format(slot.startTime);
+    }).format(window.startTime);
+
+    const hasBookings = window.bookings.length > 0;
+    const hasFreeTime = getWindowFreeMinutes(window) > 0;
 
     const existing = groups.get(label);
 
     if (existing) {
-      existing.slots.push(slot);
+      existing.windows.push(window);
 
-      if (slot.isBooked) {
-        existing.bookedCount += 1;
-      } else {
+      if (hasFreeTime) {
         existing.openCount += 1;
+      }
+
+      if (hasBookings) {
+        existing.bookedCount += 1;
       }
 
       return;
@@ -955,13 +1084,42 @@ function groupSlotsByDate(
 
     groups.set(label, {
       label,
-      openCount: slot.isBooked ? 0 : 1,
-      bookedCount: slot.isBooked ? 1 : 0,
-      slots: [slot],
+      openCount: hasFreeTime ? 1 : 0,
+      bookedCount: hasBookings ? 1 : 0,
+      windows: [window],
     });
   });
 
   return Array.from(groups.values());
+}
+
+function getWindowFreeMinutes(window: {
+  startTime: Date;
+  endTime: Date;
+  bookings: {
+    startTime: Date;
+    endTime: Date;
+    status: BookingStatus;
+  }[];
+}) {
+  const totalMinutes = getDurationMinutes(window.startTime, window.endTime);
+
+  const bookedMinutes = window.bookings
+    .filter((booking) => activeBookingStatuses.includes(booking.status))
+    .reduce(
+      (sum, booking) =>
+        sum + Math.max(getDurationMinutes(booking.startTime, booking.endTime), 0),
+      0,
+    );
+
+  return Math.max(totalMinutes - bookedMinutes, 0);
+}
+
+function getDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.max(
+    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
+    0,
+  );
 }
 
 function toDateTimeLocalValue(date: Date) {
@@ -1032,7 +1190,11 @@ function formatAvailabilityError(error: string) {
   }
 
   if (error === "duration-too-short-for-service") {
-    return "This slot is shorter than your shortest active service. Create a longer slot or update your service duration.";
+    return "This window is shorter than your shortest active offer. Create a longer window or update your offer duration.";
+  }
+
+  if (error === "no-active-service") {
+    return "Create at least one active offer before adding availability.";
   }
 
   if (error === "invalid-time-range") {
@@ -1052,35 +1214,39 @@ function formatAvailabilityError(error: string) {
   }
 
   if (error === "no-valid-slots") {
-    return "No valid future slots could be created.";
+    return "No valid future windows could be created.";
   }
 
   if (error === "overlap") {
-    return "This slot overlaps with another availability slot.";
+    return "This window overlaps with another availability window.";
   }
 
   if (error === "all-slots-overlap") {
-    return "All generated slots overlap with existing availability.";
+    return "All generated windows overlap with existing availability.";
   }
 
   if (error === "too-many-slots") {
-    return "You already have too many future slots. Delete some old slots first.";
+    return "You already have too many future windows. Delete some old windows first.";
   }
 
   if (error === "too-many-bulk-slots") {
-    return "This bulk action would create too many slots at once. Reduce weeks or time range.";
+    return "This bulk action would create too many windows at once. Reduce weeks or time range.";
+  }
+
+  if (error === "too-far-in-future") {
+    return "This availability is too far in the future.";
   }
 
   if (error === "slot-not-found") {
-    return "Availability slot was not found.";
+    return "Availability window was not found.";
   }
 
   if (error === "cannot-delete-booked-slot") {
-    return "You cannot delete a slot that already has a booking.";
+    return "You cannot delete a window that already has an active booking.";
   }
 
   if (error === "cannot-delete-past-slot") {
-    return "You cannot delete a past slot here.";
+    return "You cannot delete a past window here.";
   }
 
   if (error === "not-signed-in") {

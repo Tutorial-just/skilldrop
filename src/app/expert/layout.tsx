@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BookingStatus } from "@prisma/client";
 import {
   BarChart3,
   Bell,
@@ -15,6 +16,7 @@ import {
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import { getUnreadNotificationCount } from "@/server/services/notification-count.service";
 
 const expertLinks = [
   {
@@ -38,11 +40,6 @@ const expertLinks = [
     icon: Video,
   },
   {
-    label: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-  },
-  {
     label: "Earnings",
     href: "/expert/earnings",
     icon: CircleDollarSign,
@@ -53,10 +50,22 @@ const expertLinks = [
     icon: BarChart3,
   },
   {
+    label: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+    badge: "notifications",
+  },
+  {
     label: "Settings",
     href: "/expert/settings",
     icon: Settings,
   },
+];
+
+const activeBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
 ];
 
 export default async function ExpertLayout({
@@ -72,6 +81,8 @@ export default async function ExpertLayout({
     redirect("/sign-in");
   }
 
+  const now = new Date();
+
   const expert = await prisma.expertProfile.findFirst({
     where: {
       user: {
@@ -84,6 +95,30 @@ export default async function ExpertLayout({
         take: 20,
       },
       availability: {
+        where: {
+          isActive: true,
+          endTime: {
+            gte: now,
+          },
+        },
+        include: {
+          bookings: {
+            where: {
+              status: {
+                in: activeBookingStatuses,
+              },
+            },
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              status: true,
+            },
+            orderBy: {
+              startTime: "asc",
+            },
+          },
+        },
         take: 30,
         orderBy: {
           startTime: "asc",
@@ -105,34 +140,37 @@ export default async function ExpertLayout({
     redirect("/become-expert");
   }
 
-  const unreadNotificationsCount = await prisma.notification.count({
-    where: {
-      isRead: false,
-      OR: [
-        {
-          userId: expert.user.id,
-        },
-        {
-          email: expert.user.email,
-        },
-      ],
-    },
+  const unreadNotifications = await getUnreadNotificationCount({
+    userId: expert.user.id,
+    email: expert.user.email,
   });
-
-  const now = new Date();
 
   const activeServices = expert.services.filter((service) => service.isActive);
 
-  const openSlots = expert.availability.filter(
-    (slot) => !slot.isBooked && slot.startTime >= now,
+  const openWindows = expert.availability.filter(
+    (window) =>
+      window.isActive &&
+      window.endTime >= now &&
+      getWindowFreeMinutes(window) > 0,
   );
 
   const upcomingBookings = expert.bookings.filter(
     (booking) =>
       booking.startTime >= now &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED",
+      booking.status !== BookingStatus.CANCELLED &&
+      booking.status !== BookingStatus.REFUNDED &&
+      booking.status !== BookingStatus.COMPLETED &&
+      booking.status !== BookingStatus.DISPUTED &&
+      booking.status !== BookingStatus.EXPIRED,
+  );
+
+  const completedBookings = expert.bookings.filter(
+    (booking) => booking.status === BookingStatus.COMPLETED,
+  );
+
+  const needsCompletionBookings = expert.bookings.filter(
+    (booking) =>
+      booking.endTime < now && booking.status === BookingStatus.CONFIRMED,
   );
 
   const profileScore = calculateExpertProfileScore({
@@ -141,7 +179,7 @@ export default async function ExpertLayout({
     hasSkills: expert.skills.length >= 3,
     hasLanguages: expert.languages.length > 0,
     hasServices: activeServices.length > 0,
-    hasAvailability: openSlots.length > 0,
+    hasAvailability: openWindows.length > 0,
     isVerified: expert.isVerified,
   });
 
@@ -192,15 +230,56 @@ export default async function ExpertLayout({
                     />
                   </div>
                 </div>
+
+                {needsCompletionBookings.length > 0 ? (
+                  <Link
+                    href="/expert/bookings"
+                    className="rounded-2xl bg-white/12 p-3 transition hover:bg-white/18"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
+                        Needs action
+                      </p>
+
+                      <p className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#111827]">
+                        {needsCompletionBookings.length}
+                      </p>
+                    </div>
+
+                    <p className="mt-1 text-sm font-black">
+                      Complete finished calls
+                    </p>
+                  </Link>
+                ) : null}
+
+                {unreadNotifications > 0 ? (
+                  <Link
+                    href="/notifications?filter=unread"
+                    className="rounded-2xl bg-white/12 p-3 transition hover:bg-white/18"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
+                        Unread
+                      </p>
+
+                      <p className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#111827]">
+                        {unreadNotifications}
+                      </p>
+                    </div>
+
+                    <p className="mt-1 text-sm font-black">
+                      Notifications waiting
+                    </p>
+                  </Link>
+                ) : null}
               </div>
             </div>
 
             <nav className="mt-4 grid gap-1.5">
               {expertLinks.map((link) => {
                 const Icon = link.icon;
-                const showUnreadBadge =
-                  link.href === "/notifications" &&
-                  unreadNotificationsCount > 0;
+                const badgeValue =
+                  link.badge === "notifications" ? unreadNotifications : 0;
 
                 return (
                   <Link
@@ -208,22 +287,21 @@ export default async function ExpertLayout({
                     href={link.href}
                     className="group flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-sm font-black text-[var(--foreground)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
                   >
-                    <span className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className="flex min-w-0 items-center gap-3">
                       <Icon size={17} className="shrink-0" />
-
                       <span className="truncate">{link.label}</span>
-
-                      {showUnreadBadge ? (
-                        <span className="ml-auto rounded-full bg-[var(--danger)] px-2 py-0.5 text-xs font-black text-white">
-                          {unreadNotificationsCount > 99
-                            ? "99+"
-                            : unreadNotificationsCount}
-                        </span>
-                      ) : null}
                     </span>
 
-                    <span className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]">
-                      ›
+                    <span className="flex shrink-0 items-center gap-2">
+                      {badgeValue > 0 ? (
+                        <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-black text-white">
+                          {badgeValue}
+                        </span>
+                      ) : null}
+
+                      <span className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]">
+                        ›
+                      </span>
                     </span>
                   </Link>
                 );
@@ -233,7 +311,10 @@ export default async function ExpertLayout({
             <div className="mt-4 grid gap-2">
               <SidebarStat label="Offers" value={String(activeServices.length)} />
 
-              <SidebarStat label="Open slots" value={String(openSlots.length)} />
+              <SidebarStat
+                label="Open windows"
+                value={String(openWindows.length)}
+              />
 
               <SidebarStat
                 label="Upcoming"
@@ -241,9 +322,16 @@ export default async function ExpertLayout({
               />
 
               <SidebarStat
-                label="Unread"
-                value={String(unreadNotificationsCount)}
+                label="Needs action"
+                value={String(needsCompletionBookings.length)}
               />
+
+              <SidebarStat
+                label="Completed"
+                value={String(completedBookings.length)}
+              />
+
+              <SidebarStat label="Unread" value={String(unreadNotifications)} />
             </div>
 
             <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/62 p-4">
@@ -254,7 +342,8 @@ export default async function ExpertLayout({
               </div>
 
               <p className="mt-2 text-xs font-semibold leading-5 text-muted">
-                Keep your offers clear and add fresh availability every week.
+                Keep your offers clear, complete finished calls, and add fresh
+                availability windows every week.
               </p>
             </div>
           </div>
@@ -317,4 +406,33 @@ function calculateExpertProfileScore({
   ];
 
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function getWindowFreeMinutes(window: {
+  startTime: Date;
+  endTime: Date;
+  bookings: {
+    startTime: Date;
+    endTime: Date;
+    status: BookingStatus;
+  }[];
+}) {
+  const totalMinutes = getDurationMinutes(window.startTime, window.endTime);
+
+  const bookedMinutes = window.bookings
+    .filter((booking) => activeBookingStatuses.includes(booking.status))
+    .reduce(
+      (sum, booking) =>
+        sum + getDurationMinutes(booking.startTime, booking.endTime),
+      0,
+    );
+
+  return Math.max(totalMinutes - bookedMinutes, 0);
+}
+
+function getDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.max(
+    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
+    0,
+  );
 }

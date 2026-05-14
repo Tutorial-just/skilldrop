@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ArrowLeft,
-  ArrowRight,
   BadgeCheck,
   BriefcaseBusiness,
   Camera,
@@ -44,47 +43,70 @@ type ExpertProfilePageProps = {
 
 const fallbackLanguageSuggestions = [
   "English",
-  "French",
   "Spanish",
+  "French",
   "German",
   "Italian",
+  "Portuguese",
   "Russian",
   "Ukrainian",
   "Arabic",
-  "Portuguese",
   "Turkish",
   "Polish",
   "Romanian",
   "Dutch",
+  "Chinese",
+  "Japanese",
+  "Korean",
+  "Hindi",
+  "Urdu",
+  "Bengali",
+  "Vietnamese",
+  "Indonesian",
+  "Greek",
+  "Swedish",
+  "Norwegian",
 ];
 
 const fallbackSkillSuggestions = [
   "Translation",
   "Document help",
+  "Admin help",
+  "Official forms",
+  "Application help",
   "Career advice",
   "CV review",
+  "Resume review",
   "Interview preparation",
+  "Job search",
+  "LinkedIn review",
   "Moving abroad",
+  "Relocation advice",
   "Visa documents",
-  "Admin help",
-  "Tech help",
-  "Cooking help",
-  "Recipe help",
+  "Immigration steps",
+  "Housing advice",
+  "Local guidance",
+  "Language practice",
+  "Conversation practice",
+  "Message correction",
+  "Study abroad",
+  "University application",
+  "Motivation letter",
   "School help",
   "Math help",
-  "Emotional support",
-  "Life advice",
-  "Relationship advice",
-  "Family advice",
+  "Tech help",
+  "Coding help",
+  "Website help",
+  "IT support",
   "Business advice",
   "Freelance advice",
-  "Language practice",
-  "French paperwork",
-  "Job search",
-  "Study abroad",
-  "Housing advice",
   "Small business",
   "Client communication",
+  "Cooking help",
+  "Recipe help",
+  "Life advice",
+  "Confidence coaching",
+  "Communication help",
   "Conflict resolution",
 ];
 
@@ -93,34 +115,48 @@ const fallbackTagSuggestions = [
   "advice",
   "translation",
   "documents",
+  "forms",
+  "admin",
   "career",
   "jobs",
-  "relocation",
-  "family",
-  "relationships",
-  "business",
-  "freelance",
-  "language",
   "interview",
   "cv",
+  "resume",
+  "linkedin",
+  "relocation",
+  "moving-abroad",
   "visa",
+  "immigration",
   "housing",
-  "confidence",
-  "communication",
+  "local-help",
+  "language",
+  "conversation",
+  "study",
+  "university",
+  "motivation-letter",
+  "tech",
+  "coding",
+  "website",
+  "it-support",
+  "business",
+  "freelance",
+  "clients",
   "beginner-friendly",
   "fast-help",
   "practical",
   "friendly",
   "student-help",
-  "french-admin",
   "expat-help",
+  "global-help",
 ];
 
 const headlineExamples = [
   "I help people improve their CV and prepare for interviews",
-  "I explain French paperwork and admin steps in simple words",
-  "I help beginners practice French conversation with confidence",
+  "I help people understand official documents and forms",
+  "I help beginners practice a language with confidence",
   "I help people plan their first steps after moving abroad",
+  "I help students prepare applications and motivation letters",
+  "I help people solve practical tech and website problems",
 ];
 
 const bioChecklist = [
@@ -238,11 +274,11 @@ export default async function ExpertProfilePage({
     hasTimezone: Boolean(expert.timezone),
   });
 
-  const providerName = expert.user.name ?? "Provider";
+  const helperName = expert.user.name ?? "Helper";
   const avatarLetter = (
     expert.user.name?.charAt(0) ||
     expert.user.email.charAt(0) ||
-    "P"
+    "H"
   ).toUpperCase();
 
   const profileTone =
@@ -301,7 +337,7 @@ export default async function ExpertProfilePage({
               <div className="mt-6 flex flex-wrap gap-2">
                 <Badge variant="primary">
                   <UserRound size={14} />
-                  Provider profile
+                  Helper profile
                 </Badge>
 
                 <Badge variant={expert.isVerified ? "success" : "accent"}>
@@ -325,12 +361,13 @@ export default async function ExpertProfilePage({
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Build a profile people can trust and book.
+                Build a profile people can trust and find worldwide.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Your profile decides if clients click, trust you and book a call.
-                Make it clear, human, specific and easy to find in search.
+                Your profile decides if buyers click, trust you and book a call.
+                Make it clear, human, specific and easy to find through global
+                search keywords.
               </p>
             </div>
 
@@ -388,7 +425,7 @@ export default async function ExpertProfilePage({
                   {expert.isVerified ? (
                     <>
                       <BadgeCheck size={14} />
-                      Verified provider
+                      Verified helper
                     </>
                   ) : (
                     <>
@@ -404,18 +441,19 @@ export default async function ExpertProfilePage({
               <div className="mt-6 flex items-start gap-4">
                 <AvatarPreview
                   avatarUrl={expert.user.avatarUrl}
-                  name={providerName}
+                  name={helperName}
                   fallbackLetter={avatarLetter}
                   size="md"
                 />
 
                 <div className="min-w-0">
                   <h2 className="text-2xl font-black tracking-[-0.04em]">
-                    {providerName}
+                    {helperName}
                   </h2>
 
                   <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
-                    {expert.headline || "Practical help through short calls"}
+                    {expert.headline ||
+                      "Practical help through short 1:1 calls"}
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -486,8 +524,8 @@ export default async function ExpertProfilePage({
                     />
 
                     <p className="text-sm font-black leading-6 text-[var(--success)]">
-                      Your profile looks strong. Keep offers and availability
-                      fresh.
+                      Your profile looks strong. Keep offers, keywords and
+                      availability fresh.
                     </p>
                   </div>
                 </div>
@@ -519,11 +557,12 @@ export default async function ExpertProfilePage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <Tip text="Your headline should explain who you help and with what." />
-                <Tip text="Your bio should sound human, not like a CV." />
-                <Tip text="Use skills clients would actually search for." />
-                <Tip text="Add languages exactly as clients would type them." />
-                <Tip text="After saving, open your public profile and check it like a client." />
+                <Tip text="Your headline should explain who you help and what problem you solve." />
+                <Tip text="Your bio should sound human, simple and specific." />
+                <Tip text="Use skills people would actually search for: CV, visa, coding, documents, interview, language." />
+                <Tip text="Add languages exactly as buyers would type them." />
+                <Tip text="Use global words, not only local words, unless your help is country-specific." />
+                <Tip text="After saving, open your public profile and check it like a buyer." />
               </div>
             </Card>
 
@@ -537,18 +576,19 @@ export default async function ExpertProfilePage({
                 <div className="flex items-start gap-4">
                   <AvatarPreview
                     avatarUrl={expert.user.avatarUrl}
-                    name={providerName}
+                    name={helperName}
                     fallbackLetter={avatarLetter}
                     size="sm"
                   />
 
                   <div className="min-w-0">
                     <p className="font-black tracking-[-0.02em]">
-                      {providerName}
+                      {helperName}
                     </p>
 
                     <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
-                      {expert.headline || "Practical help through short calls"}
+                      {expert.headline ||
+                        "Practical help through short 1:1 calls"}
                     </p>
                   </div>
                 </div>
@@ -583,7 +623,10 @@ export default async function ExpertProfilePage({
                   value={expert.tags.slice(0, 8).join(", ") || "Not set"}
                 />
 
-                <PreviewRow label="Country" value={expert.country ?? "Global"} />
+                <PreviewRow
+                  label="Country / region"
+                  value={expert.country ?? "Global"}
+                />
               </div>
             </Card>
           </div>
@@ -601,7 +644,8 @@ export default async function ExpertProfilePage({
 
               <p className="mt-3 leading-7 text-muted">
                 Update your public information. Changes will appear on your
-                marketplace profile and help clients find you.
+                marketplace profile and help buyers find you by problem, topic,
+                language or country.
               </p>
             </div>
 
@@ -657,7 +701,7 @@ export default async function ExpertProfilePage({
                     />
                   </Field>
 
-                  <Field label="Country" htmlFor="country">
+                  <Field label="Country / region" htmlFor="country">
                     <input
                       id="country"
                       name="country"
@@ -665,7 +709,7 @@ export default async function ExpertProfilePage({
                       maxLength={80}
                       defaultValue={expert.country ?? ""}
                       className="input mt-2"
-                      placeholder="France"
+                      placeholder="Country or region, e.g. Canada, Spain, Germany, Brazil"
                     />
                   </Field>
                 </div>
@@ -702,18 +746,39 @@ export default async function ExpertProfilePage({
                   helperText="Write like you are speaking to a real person. Clear profiles get more bookings."
                 />
 
-                <ExampleBox
-                  title="Your bio should mention"
-                  items={bioChecklist}
-                />
+                <ExampleBox title="Your bio should mention" items={bioChecklist} />
               </div>
 
               <div className="grid gap-5">
                 <SectionTitle
                   icon={Languages}
                   title="Search and discovery"
-                  text="Use clear languages, skills and tags to make your profile easier to find."
+                  text="Use simple global keywords so buyers can find you by problem, topic, language or country."
                 />
+
+                <div className="rounded-[24px] border border-[var(--border)] bg-[var(--primary-soft)] p-5">
+                  <div className="flex gap-3">
+                    <Lightbulb
+                      size={20}
+                      className="mt-1 shrink-0 text-[var(--primary-dark)]"
+                    />
+
+                    <div>
+                      <p className="font-black text-[var(--primary-dark)]">
+                        Think like a buyer searching worldwide
+                      </p>
+
+                      <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
+                        Buyers can search with one word or a short phrase. Add
+                        global keywords that describe what you can help with:
+                        CV, resume, visa, documents, interview, coding,
+                        website, translation, language practice, study
+                        application, moving abroad, housing, business or local
+                        guidance.
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="grid gap-5 md:grid-cols-2">
                   <TagInput
@@ -722,7 +787,7 @@ export default async function ExpertProfilePage({
                     defaultValue={expert.languages}
                     suggestions={languageSuggestions}
                     required
-                    placeholder="English, French, Russian"
+                    placeholder="English, Spanish, Arabic, French, Russian..."
                     helperText="Press Enter after each language, or choose from suggestions."
                     maxItems={8}
                   />
@@ -736,7 +801,7 @@ export default async function ExpertProfilePage({
                       maxLength={80}
                       defaultValue={expert.timezone}
                       className="input mt-2"
-                      placeholder="Europe/Paris"
+                      placeholder="Europe/Paris, America/New_York, Asia/Dubai..."
                     />
                   </Field>
                 </div>
@@ -747,18 +812,18 @@ export default async function ExpertProfilePage({
                   defaultValue={expert.skills}
                   suggestions={skillSuggestions}
                   required
-                  placeholder="CV review, translation, documents, relocation"
-                  helperText="Add topics clients might search for."
+                  placeholder="CV review, translation, documents, relocation, coding, study help"
+                  helperText="Add words buyers might search for, like CV, visa, documents, coding, interview, language, relocation or study help."
                   maxItems={18}
                 />
 
                 <TagInput
                   name="tags"
-                  label="Tags"
+                  label="Tags / keywords"
                   defaultValue={expert.tags}
                   suggestions={tagSuggestions}
-                  placeholder="career, french, documents, moving abroad"
-                  helperText="Optional tags for extra discovery."
+                  placeholder="career, documents, visa, coding, study, language, moving abroad"
+                  helperText="Optional keywords that improve discovery. Use simple words people may type in search."
                   maxItems={18}
                 />
               </div>
@@ -767,13 +832,13 @@ export default async function ExpertProfilePage({
                 <SectionTitle
                   icon={Globe2}
                   title="Public trust"
-                  text="These details help clients understand if you are the right person."
+                  text="These details help buyers understand your location, languages and what kind of help you offer."
                 />
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <TrustBox
                     icon={MapPin}
-                    label="Country"
+                    label="Country / region"
                     value={expert.country ?? "Not set"}
                   />
 
@@ -803,13 +868,13 @@ export default async function ExpertProfilePage({
 
                     <div>
                       <p className="font-black text-[var(--primary-dark)]">
-                        Your profile is public
+                        Your profile is public worldwide
                       </p>
 
                       <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
-                        People can discover your profile after setup.
-                        Verification is earned after 3 successful calls and a
-                        3.8+ rating.
+                        Buyers can discover your profile through search after
+                        setup. Verification is earned after 3 successful calls
+                        and a 3.8+ rating.
                       </p>
                     </div>
                   </div>
@@ -820,7 +885,7 @@ export default async function ExpertProfilePage({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm font-bold text-muted">
                     Save your changes, then check your public profile as a
-                    client.
+                    buyer.
                   </p>
 
                   <div className="flex flex-col gap-3 sm:flex-row">
@@ -1110,7 +1175,7 @@ function getMissingProfileItems({
   const items: string[] = [];
 
   if (!hasAvatar) {
-    items.push("Add a profile photo so clients trust you faster.");
+    items.push("Add a profile photo so buyers trust you faster.");
   }
 
   if (headline.length < 8) {
@@ -1118,7 +1183,9 @@ function getMissingProfileItems({
   }
 
   if (bio.length < 120) {
-    items.push("Write a stronger biography with your experience and what clients get.");
+    items.push(
+      "Write a stronger biography with your experience and what buyers get.",
+    );
   }
 
   if (languages.length === 0) {
@@ -1142,11 +1209,11 @@ function getMissingProfileItems({
   }
 
   if (servicesCount === 0) {
-    items.push("Create at least one active offer so clients can book you.");
+    items.push("Create at least one active offer so buyers can book you.");
   }
 
   if (openSlotsCount === 0) {
-    items.push("Add availability so clients can choose a time.");
+    items.push("Add availability so buyers can choose a time.");
   }
 
   return items;

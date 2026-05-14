@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BookingStatus } from "@prisma/client";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -46,8 +47,25 @@ type ExpertPublicPageProps = {
   }>;
 };
 
-const MAX_VISIBLE_SLOTS = 24;
+type GeneratedBookableTime = {
+  id: string;
+  availabilityId: string;
+  startTime: Date;
+  endTime: Date;
+  windowStartTime: Date;
+  windowEndTime: Date;
+};
+
+const MAX_VISIBLE_WINDOWS = 24;
+const MAX_VISIBLE_TIMES = 80;
 const MAX_BOOKING_NOTE_LENGTH = 500;
+const BOOKING_STEP_MINUTES = 15;
+
+const activeBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+];
 
 export default async function ExpertPublicPage({
   params,
@@ -78,15 +96,33 @@ export default async function ExpertPublicPage({
       },
       availability: {
         where: {
-          startTime: {
+          isActive: true,
+          endTime: {
             gte: now,
           },
-          isBooked: false,
+        },
+        include: {
+          bookings: {
+            where: {
+              status: {
+                in: activeBookingStatuses,
+              },
+            },
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              status: true,
+            },
+            orderBy: {
+              startTime: "asc",
+            },
+          },
         },
         orderBy: {
           startTime: "asc",
         },
-        take: MAX_VISIBLE_SLOTS,
+        take: MAX_VISIBLE_WINDOWS,
       },
       reviews: {
         orderBy: {
@@ -134,21 +170,18 @@ export default async function ExpertPublicPage({
     ? calculatePricingBreakdown(selectedService.priceCents)
     : null;
 
-  const bookableAvailability = selectedService
-    ? expert.availability.filter((slot) => {
-        const slotDurationMinutes = getSlotDurationMinutes(
-          slot.startTime,
-          slot.endTime,
-        );
+  const bookableTimes = selectedService
+    ? generateBookableTimes({
+        windows: expert.availability,
+        durationMinutes: selectedService.durationMinutes,
+        now,
+      }).slice(0, MAX_VISIBLE_TIMES)
+    : [];
 
-        return slotDurationMinutes >= selectedService.durationMinutes;
-      })
-    : expert.availability;
-
-  const groupedSlots = groupSlotsByDate(bookableAvailability);
+  const groupedTimes = groupTimesByDate(bookableTimes);
 
   const hasServices = expert.services.length > 0;
-  const hasOpenSlots = bookableAvailability.length > 0;
+  const hasOpenTimes = bookableTimes.length > 0;
 
   const canBook =
     Boolean(currentUser) &&
@@ -157,7 +190,7 @@ export default async function ExpertPublicPage({
     isProviderApproved &&
     canAcceptPayments &&
     Boolean(selectedService) &&
-    hasOpenSlots;
+    hasOpenTimes;
 
   const bookingBlockedReason = getBookingBlockedReason({
     hasUser: Boolean(currentUser),
@@ -166,7 +199,7 @@ export default async function ExpertPublicPage({
     isProviderApproved,
     canAcceptPayments,
     hasServices,
-    hasOpenSlots,
+    hasOpenTimes,
   });
 
   const currentProfileUrl = `/experts/${expert.id}${
@@ -201,7 +234,7 @@ export default async function ExpertPublicPage({
     totalReviews: expert.totalReviews,
     totalSessions: expert.totalSessions,
     isVerified: expert.isVerified,
-    openSlots: bookableAvailability.length,
+    openTimes: bookableTimes.length,
     reviews: expert.reviews,
   });
 
@@ -231,20 +264,39 @@ export default async function ExpertPublicPage({
         )
       : null;
 
-  const displayName = expert.user.name || "Provider";
+  const displayName = expert.user.name || "Helper";
   const avatarLetter = (
     expert.user.name?.charAt(0) ||
     expert.user.email.charAt(0) ||
-    "P"
+    "H"
   ).toUpperCase();
 
   const bioText =
-    expert.bio || "This provider has not added a detailed bio yet.";
+    expert.bio || "This helper has not added a detailed description yet.";
+
+  const searchableKeywords = Array.from(
+    new Set(
+      [
+        ...expert.skills,
+        ...expert.tags,
+        ...expert.languages,
+        ...(expert.country ? [expert.country] : []),
+        ...expert.services.flatMap((service) => [
+          service.title,
+          service.category?.name ?? "",
+        ]),
+      ].filter(Boolean),
+    ),
+  ).slice(0, 24);
+
+  const mainHelpAreas = expert.services.slice(0, 3);
 
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-180px] top-[-200px] h-[440px] w-[440px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
         <div className="relative container-page py-8 md:py-10 lg:py-14">
           <Link
@@ -252,12 +304,12 @@ export default async function ExpertPublicPage({
             className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
           >
             <ArrowLeft size={16} />
-            Back to providers
+            Back to helpers
           </Link>
 
           {resolvedSearchParams.saved ? (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
-              Provider saved. You can find this profile in your saved list.
+              Helper saved. You can find this profile in your saved list.
             </div>
           ) : null}
 
@@ -267,7 +319,7 @@ export default async function ExpertPublicPage({
             </div>
           ) : null}
 
-          <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-start">
+          <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_380px] xl:items-start">
             <div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant={expert.isVerified ? "success" : "accent"}>
@@ -279,7 +331,7 @@ export default async function ExpertPublicPage({
                   ) : (
                     <>
                       <ShieldCheck size={14} />
-                      New provider
+                      New helper
                     </>
                   )}
                 </Badge>
@@ -308,7 +360,7 @@ export default async function ExpertPublicPage({
                   </Badge>
                 )}
 
-                {hasOpenSlots ? (
+                {hasOpenTimes ? (
                   <Badge variant="primary">
                     <CalendarDays size={14} />
                     Available now
@@ -354,7 +406,7 @@ export default async function ExpertPublicPage({
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     {expert.isVerified ? (
-                      <Badge variant="success">✔ Verified provider</Badge>
+                      <Badge variant="success">✔ Verified helper</Badge>
                     ) : null}
 
                     <Badge>
@@ -372,38 +424,84 @@ export default async function ExpertPublicPage({
                   </div>
 
                   <p className="mt-4 max-w-3xl text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
-                    {expert.headline || "Practical help through short calls"}
+                    {expert.headline ||
+                      "I can help with practical questions through short calls"}
                   </p>
 
                   <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
                     {bioText}
                   </p>
 
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    {[...expert.skills, ...expert.tags].slice(0, 16).map((tag) => (
-                      <HashTag key={tag} text={tag} />
-                    ))}
+                  {mainHelpAreas.length > 0 ? (
+                    <div className="mt-6 rounded-[26px] border border-[var(--border)] bg-white/60 p-5">
+                      <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                        Can help with
+                      </p>
 
-                    {expert.skills.length === 0 && expert.tags.length === 0 ? (
-                      <span className="text-sm font-semibold text-muted">
-                        No tags added yet.
-                      </span>
-                    ) : null}
+                      <div className="mt-4 grid gap-3">
+                        {mainHelpAreas.map((service) => (
+                          <div
+                            key={service.id}
+                            className="rounded-2xl border border-[var(--border)] bg-white/70 p-4"
+                          >
+                            <div className="flex flex-wrap gap-2">
+                              <Badge>{service.category?.name ?? "Help"}</Badge>
+                              <Badge>
+                                <Clock3 size={14} />
+                                {service.durationMinutes} min
+                              </Badge>
+                            </div>
+
+                            <p className="mt-3 font-black tracking-[-0.02em]">
+                              {service.title}
+                            </p>
+
+                            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+                              {service.description ||
+                                "Short practical help through a 1:1 call."}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-6 rounded-[26px] border border-[var(--border)] bg-white/55 p-5">
+                    <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                      Keywords people can use to find this helper
+                    </p>
+
+                    <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                      These tags and words help buyers find the right person when
+                      they search for a problem, topic, language or skill.
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {searchableKeywords.map((tag) => (
+                        <HashTag key={tag} text={tag} />
+                      ))}
+
+                      {searchableKeywords.length === 0 ? (
+                        <span className="text-sm font-semibold text-muted">
+                          No searchable keywords added yet.
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
-                  {bookableAvailability.length > 0 ? (
+                  {bookableTimes.length > 0 ? (
                     <div className="mt-7 rounded-[24px] border border-[var(--border)] bg-white/55 p-4">
                       <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
                         Next available
                       </p>
 
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {bookableAvailability.slice(0, 5).map((slot) => (
+                        {bookableTimes.slice(0, 5).map((time) => (
                           <span
-                            key={slot.id}
+                            key={time.id}
                             className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]"
                           >
-                            {formatDateTime(slot.startTime)}
+                            {formatDateTime(time.startTime)}
                           </span>
                         ))}
                       </div>
@@ -424,8 +522,9 @@ export default async function ExpertPublicPage({
               </h2>
 
               <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                Choose a service and an available time. Your slot is reserved
-                while you complete checkout.
+                Choose what you need help with, add context and pick an
+                available time. Your slot is reserved while you complete
+                checkout.
               </p>
 
               <div className="mt-5 grid gap-3">
@@ -456,7 +555,9 @@ export default async function ExpertPublicPage({
                   label="SkillDrop fee"
                   value={
                     selectedPricing
-                      ? formatMoneyFromCents(selectedPricing.clientServiceFeeCents)
+                      ? formatMoneyFromCents(
+                          selectedPricing.clientServiceFeeCents,
+                        )
                       : "—"
                   }
                 />
@@ -473,7 +574,7 @@ export default async function ExpertPublicPage({
 
                 <SummaryRow
                   label="Open times"
-                  value={String(bookableAvailability.length)}
+                  value={String(bookableTimes.length)}
                 />
               </div>
 
@@ -491,18 +592,18 @@ export default async function ExpertPublicPage({
               <div className="mt-5 grid gap-3">
                 <Step
                   number="1"
-                  title="Choose service"
-                  text="Pick the result you want from the call."
+                  title="Choose help"
+                  text="Pick the service that matches your problem."
                 />
                 <Step
                   number="2"
-                  title="Add context"
-                  text="Tell the provider what you need help with."
+                  title="Explain your situation"
+                  text="Tell the helper what you need before the call."
                 />
                 <Step
                   number="3"
                   title="Pick time"
-                  text="Select one of the provider’s open slots."
+                  text="Select one available time inside the helper’s schedule."
                 />
               </div>
 
@@ -512,7 +613,10 @@ export default async function ExpertPublicPage({
                   Safety
                 </Link>{" "}
                 and{" "}
-                <Link href="/legal/refunds" className="text-[var(--primary-dark)]">
+                <Link
+                  href="/legal/refunds"
+                  className="text-[var(--primary-dark)]"
+                >
                   Refund Policy
                 </Link>
                 .
@@ -525,7 +629,7 @@ export default async function ExpertPublicPage({
                   </Link>
                 ) : isOwnProfile ? (
                   <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-sm font-bold text-muted">
-                    This is your own provider profile.
+                    This is your own helper profile.
                   </div>
                 ) : savedExpert ? (
                   <form action={unsaveExpertAction}>
@@ -538,7 +642,7 @@ export default async function ExpertPublicPage({
 
                     <button type="submit" className="btn btn-danger w-full">
                       <Trash2 size={17} />
-                      Remove saved
+                      Remove saved helper
                     </button>
                   </form>
                 ) : (
@@ -547,7 +651,7 @@ export default async function ExpertPublicPage({
 
                     <button type="submit" className="btn btn-secondary w-full">
                       <Bookmark size={17} />
-                      Save provider
+                      Save helper
                     </button>
                   </form>
                 )}
@@ -555,7 +659,7 @@ export default async function ExpertPublicPage({
                 {savedExpert ? (
                   <Link href="/buyer/saved" className="btn btn-secondary">
                     <BookmarkCheck size={17} />
-                    View saved providers
+                    View saved helpers
                   </Link>
                 ) : null}
               </div>
@@ -578,8 +682,9 @@ export default async function ExpertPublicPage({
               </h2>
 
               <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
-                The total includes the provider price plus a small SkillDrop
-                service fee. You will confirm and pay after choosing a time.
+                Choose the type of help you need. The total includes the helper
+                price plus a small SkillDrop service fee. You will confirm and
+                pay after choosing a time.
               </p>
 
               <div className="mt-6 grid gap-4">
@@ -654,7 +759,7 @@ export default async function ExpertPublicPage({
                 ) : (
                   <EmptyState
                     title="No services yet"
-                    text="This provider has not added active services."
+                    text="This helper has not added active services."
                   />
                 )}
               </div>
@@ -673,12 +778,12 @@ export default async function ExpertPublicPage({
                   </h2>
 
                   <p className="mt-2 max-w-2xl leading-7 text-muted">
-                    Add a short note, then pick one available slot for your 1:1
+                    Add a short note, then pick one available time for your 1:1
                     call.
                   </p>
                 </div>
 
-                <Badge>{bookableAvailability.length} open</Badge>
+                <Badge>{bookableTimes.length} open</Badge>
               </div>
 
               {bookingBlockedReason ? (
@@ -688,7 +793,7 @@ export default async function ExpertPublicPage({
               ) : null}
 
               <div className="mt-6 grid gap-4">
-                {groupedSlots.length > 0 && selectedService && canBook ? (
+                {groupedTimes.length > 0 && selectedService && canBook ? (
                   <form action={createBookingAction} className="grid gap-4">
                     <input type="hidden" name="expertId" value={expert.id} />
                     <input
@@ -707,9 +812,10 @@ export default async function ExpertPublicPage({
                         </label>
 
                         <p className="text-sm font-semibold leading-6 text-muted">
-                          Add a short note so the provider can prepare before
-                          the call. Example: “I need a simple cake recipe”,
-                          “Please review my CV”, or “Help me fix my Wi-Fi”.
+                          Add a short note so the helper can prepare before the
+                          call. Example: “Please review my CV”, “I need help
+                          understanding this document”, “Help me prepare for an
+                          interview”, or “I have a problem with my website”.
                         </p>
 
                         <textarea
@@ -727,7 +833,7 @@ export default async function ExpertPublicPage({
                       </div>
                     </div>
 
-                    {groupedSlots.map((group) => (
+                    {groupedTimes.map((group) => (
                       <div
                         key={group.label}
                         className="rounded-[24px] border border-[var(--border)] bg-white/45 p-4"
@@ -739,27 +845,27 @@ export default async function ExpertPublicPage({
                             </p>
 
                             <p className="mt-1 text-xs font-bold text-muted">
-                              {group.slots.length} available
+                              {group.times.length} available
                             </p>
                           </div>
 
-                          <Badge>{group.slots.length}</Badge>
+                          <Badge>{group.times.length}</Badge>
                         </div>
 
                         <div className="mt-4 flex flex-wrap gap-2">
-                          {group.slots.map((slot) => (
+                          {group.times.map((time) => (
                             <button
-                              key={slot.id}
+                              key={time.id}
                               type="submit"
-                              name="availabilityId"
-                              value={slot.id}
+                              name="timeSlot"
+                              value={`${time.availabilityId}|${time.startTime.toISOString()}`}
                               className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
                               title={`${formatDateTime(
-                                slot.startTime,
-                              )} — ${formatTime(slot.endTime)}`}
+                                time.startTime,
+                              )} — ${formatTime(time.endTime)}`}
                             >
                               <Clock3 size={14} />
-                              {formatTime(slot.startTime)}
+                              {formatTime(time.startTime)}
                             </button>
                           ))}
                         </div>
@@ -768,7 +874,7 @@ export default async function ExpertPublicPage({
                   </form>
                 ) : null}
 
-                {groupedSlots.length > 0 && selectedService && !canBook ? (
+                {groupedTimes.length > 0 && selectedService && !canBook ? (
                   <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center">
                     <h3 className="text-2xl font-black tracking-[-0.04em]">
                       Booking is not available yet
@@ -776,7 +882,7 @@ export default async function ExpertPublicPage({
 
                     <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
                       {bookingBlockedReason ??
-                        "This provider cannot be booked right now."}
+                        "This helper cannot be booked right now."}
                     </p>
 
                     {!currentUser ? (
@@ -789,18 +895,18 @@ export default async function ExpertPublicPage({
                   </div>
                 ) : null}
 
-                {groupedSlots.length === 0 ? (
+                {groupedTimes.length === 0 ? (
                   <EmptyState
                     title="No open times"
                     text={
                       selectedService
-                        ? "This provider has no available time slots long enough for the selected service."
-                        : "This provider has no available time slots right now."
+                        ? "This helper has no available time for the selected service right now."
+                        : "This helper has no available time right now."
                     }
                   />
                 ) : null}
 
-                {groupedSlots.length > 0 && !selectedService ? (
+                {groupedTimes.length > 0 && !selectedService ? (
                   <EmptyState
                     title="Choose a service first"
                     text="Select a service before choosing a time."
@@ -819,7 +925,7 @@ export default async function ExpertPublicPage({
                 <Step
                   number="1"
                   title="Booking confirmed"
-                  text="Your selected time is reserved and the provider sees the booking."
+                  text="Your selected time is reserved and the helper sees the booking."
                 />
                 <Step
                   number="2"
@@ -829,7 +935,7 @@ export default async function ExpertPublicPage({
                 <Step
                   number="3"
                   title="Leave a review"
-                  text="After the call, you can rate the provider and share feedback."
+                  text="After the call, you can rate the helper and share feedback."
                 />
               </div>
             </Card>
@@ -863,7 +969,7 @@ export default async function ExpertPublicPage({
                   value={
                     expert.rating
                       ? `${expert.rating.toFixed(1)} / 5`
-                      : "New provider"
+                      : "New helper"
                   }
                 />
               </div>
@@ -933,7 +1039,7 @@ export default async function ExpertPublicPage({
                 ) : (
                   <EmptyState
                     title="No reviews yet"
-                    text="This provider is still collecting first reviews."
+                    text="This helper is still collecting first reviews."
                   />
                 )}
               </div>
@@ -1210,44 +1316,95 @@ function ReviewScore({
   );
 }
 
-function groupSlotsByDate(
-  slots: {
+function generateBookableTimes({
+  windows,
+  durationMinutes,
+  now,
+}: {
+  windows: {
     id: string;
     startTime: Date;
     endTime: Date;
-    isBooked: boolean;
-  }[],
-) {
+    bookings: {
+      id: string;
+      startTime: Date;
+      endTime: Date;
+      status: BookingStatus;
+    }[];
+  }[];
+  durationMinutes: number;
+  now: Date;
+}) {
+  const times: GeneratedBookableTime[] = [];
+
+  for (const window of windows) {
+    const windowStart =
+      window.startTime > now
+        ? window.startTime
+        : roundUpToStep(now, BOOKING_STEP_MINUTES);
+
+    let cursor = roundUpToStep(windowStart, BOOKING_STEP_MINUTES);
+
+    while (true) {
+      const candidateEnd = addMinutes(cursor, durationMinutes);
+
+      if (candidateEnd > window.endTime) {
+        break;
+      }
+
+      const overlapsExistingBooking = window.bookings.some((booking) =>
+        rangesOverlap({
+          startA: cursor,
+          endA: candidateEnd,
+          startB: booking.startTime,
+          endB: booking.endTime,
+        }),
+      );
+
+      if (!overlapsExistingBooking) {
+        times.push({
+          id: `${window.id}-${cursor.toISOString()}`,
+          availabilityId: window.id,
+          startTime: cursor,
+          endTime: candidateEnd,
+          windowStartTime: window.startTime,
+          windowEndTime: window.endTime,
+        });
+      }
+
+      cursor = addMinutes(cursor, BOOKING_STEP_MINUTES);
+    }
+  }
+
+  return times.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+}
+
+function groupTimesByDate(times: GeneratedBookableTime[]) {
   const groups = new Map<
     string,
     {
       label: string;
-      slots: {
-        id: string;
-        startTime: Date;
-        endTime: Date;
-        isBooked: boolean;
-      }[];
+      times: GeneratedBookableTime[];
     }
   >();
 
-  slots.forEach((slot) => {
+  times.forEach((time) => {
     const label = new Intl.DateTimeFormat("en", {
       weekday: "long",
       month: "short",
       day: "numeric",
-    }).format(slot.startTime);
+    }).format(time.startTime);
 
     const existing = groups.get(label);
 
     if (existing) {
-      existing.slots.push(slot);
+      existing.times.push(time);
       return;
     }
 
     groups.set(label, {
       label,
-      slots: [slot],
+      times: [time],
     });
   });
 
@@ -1261,7 +1418,7 @@ function getBookingBlockedReason({
   isProviderApproved,
   canAcceptPayments,
   hasServices,
-  hasOpenSlots,
+  hasOpenTimes,
 }: {
   hasUser: boolean;
   isBuyer: boolean;
@@ -1269,34 +1426,34 @@ function getBookingBlockedReason({
   isProviderApproved: boolean;
   canAcceptPayments: boolean;
   hasServices: boolean;
-  hasOpenSlots: boolean;
+  hasOpenTimes: boolean;
 }) {
   if (!hasUser) {
-    return "Sign in to book this provider.";
+    return "Sign in to book this helper.";
   }
 
   if (!isBuyer) {
-    return "Only buyer accounts can book provider calls.";
+    return "Only buyer accounts can book helper calls.";
   }
 
   if (isOwnProfile) {
-    return "You cannot book your own provider profile.";
+    return "You cannot book your own helper profile.";
   }
 
   if (!isProviderApproved) {
-    return "This provider is not approved for public bookings yet.";
+    return "This helper is not approved for public bookings yet.";
   }
 
   if (!canAcceptPayments) {
-    return "This provider is finishing payout setup. Booking is temporarily unavailable.";
+    return "This helper is finishing payout setup. Booking is temporarily unavailable.";
   }
 
   if (!hasServices) {
-    return "This provider has not added active services yet.";
+    return "This helper has not added active services yet.";
   }
 
-  if (!hasOpenSlots) {
-    return "This provider has no available time slots for the selected service right now.";
+  if (!hasOpenTimes) {
+    return "This helper has no available time for the selected service right now.";
   }
 
   return null;
@@ -1307,14 +1464,14 @@ function calculateMatchScore({
   totalReviews,
   totalSessions,
   isVerified,
-  openSlots,
+  openTimes,
   reviews,
 }: {
   rating: number;
   totalReviews: number;
   totalSessions: number;
   isVerified: boolean;
-  openSlots: number;
+  openTimes: number;
   reviews: {
     rating: number;
     helpfulness: number | null;
@@ -1368,7 +1525,7 @@ function calculateMatchScore({
 
   const sessionsScore = clamp((Math.min(totalSessions, 20) / 20) * 15, 0, 15);
   const verifiedScore = isVerified ? 10 : 0;
-  const availabilityScore = openSlots > 0 ? 5 : 0;
+  const availabilityScore = openTimes > 0 ? 5 : 0;
 
   return Math.round(
     ratingScore +
@@ -1396,8 +1553,36 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function getSlotDurationMinutes(startTime: Date, endTime: Date) {
-  return Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+function roundUpToStep(date: Date, stepMinutes: number) {
+  const result = new Date(date);
+  result.setSeconds(0, 0);
+
+  const minutes = result.getMinutes();
+  const remainder = minutes % stepMinutes;
+
+  if (remainder !== 0) {
+    result.setMinutes(minutes + (stepMinutes - remainder));
+  }
+
+  return result;
+}
+
+function rangesOverlap({
+  startA,
+  endA,
+  startB,
+  endB,
+}: {
+  startA: Date;
+  endA: Date;
+  startB: Date;
+  endB: Date;
+}) {
+  return startA < endB && endA > startB;
 }
 
 function formatDateTime(date: Date) {
@@ -1430,15 +1615,19 @@ function formatError(error: string) {
   }
 
   if (error === "cannot-save-yourself") {
-    return "You cannot save your own provider profile.";
+    return "You cannot save your own helper profile.";
   }
 
   if (error === "slot-not-available") {
-    return "This time slot is no longer available.";
+    return "This time is no longer available.";
   }
 
   if (error === "slot-too-short") {
-    return "This time slot is too short for the selected service.";
+    return "This time is too short for the selected service.";
+  }
+
+  if (error === "invalid-time") {
+    return "This selected time is invalid. Please choose another available time.";
   }
 
   if (error === "service-not-found") {
@@ -1450,15 +1639,15 @@ function formatError(error: string) {
   }
 
   if (error === "missing-booking-data") {
-    return "Please choose a service and a time slot.";
+    return "Please choose a service and a time.";
   }
 
   if (error === "provider-not-available") {
-    return "This provider is not available for public bookings yet.";
+    return "This helper is not available for public bookings yet.";
   }
 
   if (error === "expert-payout-not-ready") {
-    return "This provider is finishing payout setup. Booking is temporarily unavailable.";
+    return "This helper is finishing payout setup. Booking is temporarily unavailable.";
   }
 
   if (error === "booking-note-too-long") {

@@ -19,6 +19,10 @@ import {
   Video,
   WalletCards,
   Zap,
+  Code2,
+  GraduationCap,
+  MessageCircle,
+  MapPinned,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -26,96 +30,98 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 const popularSearches = [
-  "CV review",
-  "Translator",
-  "Documents",
-  "Moving abroad",
-  "Career help",
-  "Life guidance",
-  "Business advice",
-  "Language practice",
+  "Improve my CV",
+  "Understand a document",
+  "Practice French",
+  "Moving to France",
+  "Prepare interview",
+  "Translate a message",
+  "Fix a tech problem",
+  "Study application",
 ];
 
-const categories = [
+const problemCards = [
   {
-    title: "Career & Jobs",
+    title: "Improve my CV",
     description:
-      "Get help with CV reviews, LinkedIn profiles, interviews and job search decisions.",
+      "Book a short call with someone who can review your CV and give clear next steps.",
     icon: BriefcaseBusiness,
     tag: "Career",
+    query: "CV review",
   },
   {
-    title: "Translation & Languages",
+    title: "Prepare for an interview",
     description:
-      "Get help with translation, language practice, messages or documents.",
-    icon: Languages,
-    tag: "Languages",
+      "Practice questions, improve your answers and feel more confident before the real interview.",
+    icon: MessageCircle,
+    tag: "Career",
+    query: "interview preparation",
   },
   {
-    title: "Documents & Admin Help",
+    title: "Understand a document",
     description:
-      "Understand forms, letters, applications and everyday admin tasks.",
+      "Get help reading, understanding or preparing a form, letter or official message.",
     icon: FileText,
     tag: "Documents",
+    query: "documents",
   },
   {
-    title: "Moving Abroad",
-    description: "Ask people who already moved and know what to expect.",
-    icon: Globe2,
-    tag: "Relocation",
-  },
-  {
-    title: "Life Guidance",
+    title: "Translate or correct a message",
     description:
-      "Talk to someone with relevant experience and get practical perspective.",
+      "Find someone who can help you translate, correct or write a message in another language.",
+    icon: Languages,
+    tag: "Languages",
+    query: "translation",
+  },
+  {
+    title: "Ask about moving abroad",
+    description:
+      "Talk with someone who already moved and can explain practical steps, documents and local rules.",
+    icon: MapPinned,
+    tag: "Relocation",
+    query: "moving abroad",
+  },
+  {
+    title: "Get help with tech",
+    description:
+      "Ask someone about code, tools, websites, IT problems or digital projects.",
+    icon: Code2,
+    tag: "Tech",
+    query: "tech help",
+  },
+  {
+    title: "Prepare a study application",
+    description:
+      "Get help with motivation letters, school choices, applications and study plans.",
+    icon: GraduationCap,
+    tag: "Study",
+    query: "study application",
+  },
+  {
+    title: "Ask someone with experience",
+    description:
+      "When you need practical advice from a real person who has already faced a similar situation.",
     icon: HeartHandshake,
     tag: "Guidance",
-  },
-  {
-    title: "Business & Freelance",
-    description:
-      "Get advice about clients, pricing, freelancing and small business.",
-    icon: WalletCards,
-    tag: "Business",
-  },
-  {
-    title: "Study & Applications",
-    description:
-      "Get help with applications, motivation letters, study plans and choices.",
-    icon: FileText,
-    tag: "Study",
-  },
-  {
-    title: "Local Help",
-    description:
-      "Find people who can explain local rules, services, culture or practical steps.",
-    icon: Globe2,
-    tag: "Local",
-  },
-  {
-    title: "Other Practical Help",
-    description:
-      "Create or find useful short-call services based on real experience.",
-    icon: Sparkles,
-    tag: "More",
+    query: "life guidance",
   },
 ];
 
 const steps = [
   {
     icon: Search,
-    title: "Search your problem",
-    text: "Find help by topic, language, category or keyword.",
+    title: "Describe what you need",
+    text: "Search by problem, topic, language or keyword.",
   },
   {
     icon: BadgeCheck,
-    title: "Choose a provider",
-    text: "Compare profiles, services, prices, reviews and availability.",
+    title: "Choose the right person",
+    text: "Compare profiles, prices, reviews, languages and availability.",
   },
   {
     icon: Video,
     title: "Book a short call",
-    text: "Pay safely, join the call and leave with clear next steps.",
+    text: "Pay safely, join the call and leave with practical next steps.",
   },
 ];
 
@@ -123,6 +129,7 @@ const helpers = [
   {
     name: "Anna Keller",
     role: "CV & Interview Advisor",
+    canHelpWith: "CV review · LinkedIn · Interviews",
     tag: "Career",
     price: "€26.25",
     rating: "4.9",
@@ -130,13 +137,15 @@ const helpers = [
   {
     name: "Mira Ivanova",
     role: "French/Russian Translator",
-    tag: "Translation",
+    canHelpWith: "Translation · Messages · Documents",
+    tag: "Languages",
     price: "€21",
     rating: "4.8",
   },
   {
     name: "Daniel Moreau",
     role: "Relocation & Documents Helper",
+    canHelpWith: "Moving abroad · Admin steps · Forms",
     tag: "Relocation",
     price: "€18.90",
     rating: "4.7",
@@ -145,7 +154,7 @@ const helpers = [
 
 const trustItems = [
   "Clear total price before checkout",
-  "Provider payout status checked before booking",
+  "Short calls from 15 to 60 minutes",
   "Reviews after completed calls",
   "Verification earned through successful calls",
 ];
@@ -167,13 +176,13 @@ export default function HomePage() {
             </Badge>
 
             <h1 className="heading-display mt-7 max-w-5xl text-balance">
-              Get unstuck with a short 1:1 call from someone who can help.
+              Need help with something? Find someone who already knows.
             </h1>
 
             <p className="mt-7 max-w-2xl text-xl leading-8 text-muted">
-              SkillDrop helps you find people for practical questions: CVs,
-              documents, translation, relocation, career choices, business,
-              language practice and everyday problems.
+              SkillDrop helps you book short 1:1 calls with people who can help
+              with documents, career, languages, tech, relocation, studies and
+              everyday questions.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -200,7 +209,7 @@ export default function HomePage() {
                     <input
                       name="q"
                       type="search"
-                      placeholder="Try “CV review”, “documents”, “moving abroad”..."
+                      placeholder="What do you need help with?"
                       className="input min-h-[56px] border-transparent bg-white pl-12 shadow-none"
                     />
                   </div>
@@ -227,8 +236,8 @@ export default function HomePage() {
 
             <div className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
               <HeroStat value="15–60 min" label="focused calls" />
-              <HeroStat value="Transparent" label="price before checkout" />
-              <HeroStat value="Global" label="practical human help" />
+              <HeroStat value="1:1" label="human practical help" />
+              <HeroStat value="Clear" label="price before checkout" />
             </div>
           </div>
 
@@ -242,25 +251,56 @@ export default function HomePage() {
             <ValueCard
               icon={Zap}
               title="Fast to start"
-              text="No long courses, no complicated process. Search, choose, book and talk."
+              text="No long courses and no complicated process. Search, choose, book and talk."
             />
 
             <ValueCard
               icon={CheckCircle2}
-              title="Human and practical"
-              text="Ask someone who has experience, context or useful knowledge for your situation."
+              title="Focused on your problem"
+              text="You do not browse random services. You search for the help you actually need."
             />
 
             <ValueCard
               icon={ShieldCheck}
-              title="Clear and safer"
-              text="Profiles, prices, payout readiness, booking status and reviews are shown clearly."
+              title="Clear before payment"
+              text="Profiles, prices, reviews, duration and booking status are shown before checkout."
             />
           </div>
         </div>
       </section>
 
       <section className="section-page bg-white/35">
+        <div className="container-page">
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div>
+              <Badge variant="accent">Popular problems</Badge>
+
+              <h2 className="heading-xl mt-5 max-w-3xl text-balance">
+                Start with the problem, not with a complicated category.
+              </h2>
+
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
+                SkillDrop is built for real situations where a short
+                conversation with the right person can save time, reduce stress
+                and make the next step clear.
+              </p>
+            </div>
+
+            <ButtonLink href="/experts" variant="secondary">
+              Explore help
+              <ArrowRight size={18} />
+            </ButtonLink>
+          </div>
+
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {problemCards.map((problem) => (
+              <ProblemCard key={problem.title} problem={problem} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section-page">
         <div className="container-page">
           <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
             <div>
@@ -270,13 +310,13 @@ export default function HomePage() {
               </Badge>
 
               <h2 className="heading-xl mt-5 text-balance">
-                Built for small questions that still matter.
+                For small questions that still matter.
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
                 Sometimes you do not need a full course, a big freelance project
                 or a long coaching program. You just need a useful conversation
-                with the right person.
+                with someone who has the right knowledge or experience.
               </p>
             </div>
 
@@ -293,45 +333,14 @@ export default function HomePage() {
 
               <ReasonCard
                 title="Not anonymous advice"
-                text="Profiles, reviews, availability and prices help you choose carefully."
+                text="Profiles, reviews, languages, prices and availability help you choose."
               />
 
               <ReasonCard
                 title="Not complicated"
-                text="One service, one time slot, one checkout, one call."
+                text="One problem, one person, one time slot, one checkout, one call."
               />
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="section-page">
-        <div className="container-page">
-          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div>
-              <Badge variant="accent">Categories</Badge>
-
-              <h2 className="heading-xl mt-5 max-w-3xl text-balance">
-                Help for career, documents, language, relocation and everyday
-                questions.
-              </h2>
-
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
-                SkillDrop is built for useful short-call services. If someone
-                has relevant knowledge or real experience, they can offer help.
-              </p>
-            </div>
-
-            <ButtonLink href="/experts" variant="secondary">
-              Explore help
-              <ArrowRight size={18} />
-            </ButtonLink>
-          </div>
-
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {categories.map((category) => (
-              <CategoryCard key={category.title} category={category} />
-            ))}
           </div>
         </div>
       </section>
@@ -347,8 +356,8 @@ export default function HomePage() {
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                Search for your problem, choose a person with relevant
-                experience, book a time and talk directly.
+                Tell SkillDrop what you need help with, choose someone with
+                relevant experience, book a time and talk directly.
               </p>
 
               <div className="mt-7">
@@ -393,11 +402,11 @@ export default function HomePage() {
               icon={UserRound}
               badge="For people who need help"
               title="Find someone who can help with your next step."
-              text="Use SkillDrop when you need practical advice, translation, preparation, document help or real-life guidance."
+              text="Use SkillDrop when you need practical advice, translation, preparation, document help, technical help or real-life guidance."
               href="/sign-up?role=buyer"
               action="I need help"
               points={[
-                "Search by topic, language or need",
+                "Search by problem, language or topic",
                 "Compare profiles, prices and ratings",
                 "Book a short 1:1 call",
               ]}
@@ -411,9 +420,9 @@ export default function HomePage() {
               href="/sign-up?role=expert"
               action="I want to offer help"
               points={[
-                "Create services in your own category",
+                "Create services around problems you can solve",
                 "Set your own price and availability",
-                "Connect payouts securely",
+                "Receive bookings and build your reputation",
               ]}
             />
           </div>
@@ -434,8 +443,8 @@ export default function HomePage() {
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                SkillDrop shows clear prices, booking status, reviews and payout
-                readiness before people pay.
+                SkillDrop shows clear prices, booking details, reviews,
+                verification status and availability before people pay.
               </p>
             </div>
 
@@ -476,9 +485,8 @@ export default function HomePage() {
               </h2>
 
               <p className="mt-5 text-lg leading-8 text-muted">
-                Providers set their service price. Buyers see the service price,
-                SkillDrop fee and total before payment. Providers also see an
-                estimate of their net earnings.
+                Helpers set their price. Buyers choose a short call, see the
+                service price, SkillDrop fee and total before payment.
               </p>
             </div>
 
@@ -486,7 +494,7 @@ export default function HomePage() {
               <div className="grid gap-5 md:grid-cols-[0.8fr_1.2fr] md:items-center">
                 <div className="rounded-[28px] bg-gradient-to-br from-[#31265f] via-[#2b275f] to-[#1f2937] p-6 text-white">
                   <p className="text-sm font-bold text-white/55">
-                    Example service
+                    Example call
                   </p>
 
                   <p className="mt-4 text-5xl font-black tracking-[-0.06em]">
@@ -494,20 +502,26 @@ export default function HomePage() {
                   </p>
 
                   <p className="mt-2 text-sm text-white/60">
-                    Provider service price
+                    Helper service price
                   </p>
                 </div>
 
                 <div className="grid gap-3">
                   <CommissionRow
+                    icon={Clock3}
+                    title="Selected duration"
+                    value="30 min"
+                  />
+
+                  <CommissionRow
                     icon={CreditCard}
-                    title="Buyer service price"
+                    title="Service price"
                     value="€30"
                   />
 
                   <CommissionRow
                     icon={ShieldCheck}
-                    title="Buyer service fee"
+                    title="SkillDrop fee"
                     value="€1.50"
                   />
 
@@ -520,8 +534,8 @@ export default function HomePage() {
               </div>
 
               <p className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4 text-sm font-bold leading-6 text-muted">
-                Example based on a 5% buyer service fee. Provider commission is
-                handled separately in the expert earnings flow.
+                Example based on a 5% buyer service fee. Final pricing can
+                adapt to the selected call duration.
               </p>
             </Card>
           </div>
@@ -532,10 +546,10 @@ export default function HomePage() {
         <div className="container-page">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <Badge variant="success">Example providers</Badge>
+              <Badge variant="success">Example helpers</Badge>
 
               <h2 className="heading-xl mt-5 max-w-3xl text-balance">
-                See what expert profiles can look like.
+                Choose people by what they can help you with.
               </h2>
             </div>
 
@@ -600,8 +614,8 @@ function HeroMarketplacePreview() {
           </div>
 
           <div>
-            <p className="text-sm font-black">Next available</p>
-            <p className="text-xs text-muted">Today · 18:30</p>
+            <p className="text-sm font-black">Short calls</p>
+            <p className="text-xs text-muted">15 to 60 minutes</p>
           </div>
         </div>
       </div>
@@ -609,7 +623,7 @@ function HeroMarketplacePreview() {
       <Card className="relative overflow-hidden p-5 shadow-[var(--shadow-lg)]">
         <div className="rounded-[28px] bg-gradient-to-br from-[#31265f] via-[#2b275f] to-[#1f2937] p-5 text-white">
           <div className="flex items-center justify-between gap-4">
-            <Badge variant="primary">Example marketplace</Badge>
+            <Badge variant="primary">Example request</Badge>
 
             <div className="flex -space-x-2">
               <Avatar label="A" />
@@ -619,16 +633,18 @@ function HeroMarketplacePreview() {
           </div>
 
           <div className="mt-8">
-            <p className="text-sm font-bold text-white/50">Example request</p>
+            <p className="text-sm font-bold text-white/50">
+              What do you need help with?
+            </p>
 
             <h2 className="mt-2 text-4xl font-black leading-none tracking-[-0.055em]">
-              I need help with documents before moving abroad
+              I need help understanding documents before moving abroad
             </h2>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <MiniPanel label="Format" value="1:1 call" />
-            <MiniPanel label="Time" value="15 min" />
+            <MiniPanel label="Duration" value="15–60 min" />
             <MiniPanel label="Result" value="Next steps" />
           </div>
         </div>
@@ -701,37 +717,38 @@ function ReasonCard({ title, text }: { title: string; text: string }) {
   );
 }
 
-function CategoryCard({
-  category,
+function ProblemCard({
+  problem,
 }: {
-  category: {
+  problem: {
     title: string;
     description: string;
     icon: LucideIcon;
     tag: string;
+    query: string;
   };
 }) {
-  const Icon = category.icon;
+  const Icon = problem.icon;
 
   return (
-    <Link href={`/experts?q=${encodeURIComponent(category.title)}`} className="group">
+    <Link href={`/experts?q=${encodeURIComponent(problem.query)}`} className="group">
       <Card className="h-full p-6 transition group-hover:-translate-y-1 group-hover:shadow-[var(--shadow-md)]">
         <div className="flex items-center justify-between gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
             <Icon size={21} />
           </div>
 
-          <Badge>{category.tag}</Badge>
+          <Badge>{problem.tag}</Badge>
         </div>
 
         <h3 className="mt-7 text-2xl font-black tracking-[-0.04em]">
-          {category.title}
+          {problem.title}
         </h3>
 
-        <p className="mt-3 leading-7 text-muted">{category.description}</p>
+        <p className="mt-3 leading-7 text-muted">{problem.description}</p>
 
         <div className="mt-6 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]">
-          Explore
+          Find help
           <ArrowRight size={16} className="transition group-hover:translate-x-1" />
         </div>
       </Card>
@@ -832,6 +849,7 @@ function HelperPreviewCard({
   helper: {
     name: string;
     role: string;
+    canHelpWith: string;
     tag: string;
     price: string;
     rating: string;
@@ -854,7 +872,17 @@ function HelperPreviewCard({
         </div>
       </div>
 
-      <div className="mt-6 flex items-center justify-between rounded-2xl bg-[var(--card-soft)] p-4">
+      <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/70 p-4">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+          Can help with
+        </p>
+
+        <p className="mt-2 text-sm font-black leading-6">
+          {helper.canHelpWith}
+        </p>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between rounded-2xl bg-[var(--card-soft)] p-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
             Rating
@@ -892,6 +920,7 @@ function MiniHelper({
   helper: {
     name: string;
     role: string;
+    canHelpWith: string;
     tag: string;
     price: string;
     rating: string;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BookingStatus } from "@prisma/client";
 import {
   ArrowRight,
   BadgeCheck,
@@ -38,6 +39,12 @@ type ExpertDashboardPageProps = {
   }>;
 };
 
+const activeBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+];
+
 const workspaceLinks = [
   {
     title: "Profile",
@@ -53,7 +60,7 @@ const workspaceLinks = [
   },
   {
     title: "Availability",
-    text: "Add open time slots and manage your calendar.",
+    text: "Add availability windows and manage your calendar.",
     href: "/expert/availability",
     icon: CalendarDays,
   },
@@ -121,8 +128,27 @@ export default async function ExpertDashboardPage({
       },
       availability: {
         where: {
-          startTime: {
+          isActive: true,
+          endTime: {
             gte: now,
+          },
+        },
+        include: {
+          bookings: {
+            where: {
+              status: {
+                in: activeBookingStatuses,
+              },
+            },
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              status: true,
+            },
+            orderBy: {
+              startTime: "asc",
+            },
           },
         },
         orderBy: {
@@ -160,7 +186,14 @@ export default async function ExpertDashboardPage({
   }
 
   const activeServices = expert.services.filter((service) => service.isActive);
-  const openSlots = expert.availability.filter((slot) => !slot.isBooked);
+
+  const openSlots = expert.availability.filter(
+    (window) =>
+      window.isActive &&
+      window.endTime >= now &&
+      getWindowFreeMinutes(window) > 0,
+  );
+
   const nextOpenSlots = openSlots.slice(0, 8);
 
   const hasStripePayouts = Boolean(expert.stripeAccountId);
@@ -187,31 +220,32 @@ export default async function ExpertDashboardPage({
     .filter(
       (booking) =>
         booking.startTime >= now &&
-        booking.status !== "CANCELLED" &&
-        booking.status !== "REFUNDED" &&
-        booking.status !== "COMPLETED" &&
-        booking.status !== "DISPUTED",
+        booking.status !== BookingStatus.CANCELLED &&
+        booking.status !== BookingStatus.REFUNDED &&
+        booking.status !== BookingStatus.COMPLETED &&
+        booking.status !== BookingStatus.DISPUTED &&
+        booking.status !== BookingStatus.EXPIRED,
     )
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
   const pendingBookings = expert.bookings.filter(
-    (booking) => booking.status === "PENDING",
+    (booking) => booking.status === BookingStatus.PENDING,
   );
 
   const paidBookings = expert.bookings.filter(
-    (booking) => booking.status === "PAID",
+    (booking) => booking.status === BookingStatus.PAID,
   );
 
   const confirmedBookings = expert.bookings.filter(
-    (booking) => booking.status === "CONFIRMED",
+    (booking) => booking.status === BookingStatus.CONFIRMED,
   );
 
   const completedBookings = expert.bookings.filter(
-    (booking) => booking.status === "COMPLETED",
+    (booking) => booking.status === BookingStatus.COMPLETED,
   );
 
   const disputedBookings = expert.bookings.filter(
-    (booking) => booking.status === "DISPUTED",
+    (booking) => booking.status === BookingStatus.DISPUTED,
   );
 
   const todayStart = new Date(now);
@@ -277,7 +311,7 @@ export default async function ExpertDashboardPage({
     },
     {
       title: "Add open availability",
-      text: "Open slots make your profile bookable.",
+      text: "Open windows make your profile bookable.",
       done: openSlots.length > 0,
       href: "/expert/availability",
     },
@@ -394,14 +428,14 @@ export default async function ExpertDashboardPage({
               icon={Video}
               label="Calls today"
               value={String(todaysBookings.length)}
-              hint={`${todaysOpenSlots.length} open slots today`}
+              hint={`${todaysOpenSlots.length} open windows today`}
             />
 
             <MetricCard
               icon={CalendarDays}
-              label="Open slots"
+              label="Open windows"
               value={String(openSlots.length)}
-              hint="Future bookable times"
+              hint="Future bookable availability"
             />
 
             <MetricCard
@@ -530,7 +564,7 @@ export default async function ExpertDashboardPage({
                       </ButtonLink>
 
                       <ButtonLink href="/expert/availability" variant="secondary">
-                        Add slot
+                        Add availability
                         <Plus size={18} />
                       </ButtonLink>
                     </div>
@@ -582,19 +616,19 @@ export default async function ExpertDashboardPage({
                       </Link>
                     </div>
 
-                    {nextBooking.status === "PENDING" ? (
+                    {nextBooking.status === BookingStatus.PENDING ? (
                       <p className="mt-4 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-3 text-sm font-bold text-[var(--warning)]">
                         Waiting for client payment.
                       </p>
                     ) : null}
 
-                    {nextBooking.status === "PAID" ? (
+                    {nextBooking.status === BookingStatus.PAID ? (
                       <p className="mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]">
                         Payment received. Confirmation may still be processing.
                       </p>
                     ) : null}
 
-                    {nextBooking.status === "CONFIRMED" ? (
+                    {nextBooking.status === BookingStatus.CONFIRMED ? (
                       <p className="mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-bold text-[var(--success)]">
                         Booking confirmed. The call room opens 10 minutes before start.
                       </p>
@@ -610,23 +644,23 @@ export default async function ExpertDashboardPage({
 
                   <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
                     {nextTodayOpenSlot
-                      ? "You have open slots today."
+                      ? "You have open availability today."
                       : "No calls yet today."}
                   </h2>
 
                   <p className="mt-3 max-w-xl leading-7 text-muted">
                     {nextTodayOpenSlot
-                      ? `Your next open slot today is ${formatTime(
+                      ? `Your next open window today is ${formatTime(
                           nextTodayOpenSlot.startTime,
                         )}–${formatTime(
                           nextTodayOpenSlot.endTime,
-                        )}. Clients can book this time.`
+                        )}. Clients can book inside this window.`
                       : "You have no booked calls today. Add availability or improve offers to get your next client."}
                   </p>
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                     <ButtonLink href="/expert/availability">
-                      Add slot
+                      Add availability
                       <Plus size={18} />
                     </ButtonLink>
 
@@ -682,7 +716,7 @@ export default async function ExpertDashboardPage({
                   icon={Clock3}
                   title="Waiting for payment"
                   value={String(pendingBookings.length)}
-                  text="Clients reserved these slots but payment is not completed yet."
+                  text="Clients reserved these times but payment is not completed yet."
                   href="/expert/bookings"
                   variant="warning"
                 />
@@ -717,19 +751,19 @@ export default async function ExpertDashboardPage({
               <Card className="p-5 md:p-6">
                 <Badge variant="primary">
                   <CalendarDays size={14} />
-                  Upcoming open slots
+                  Upcoming availability
                 </Badge>
 
                 <div className="mt-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                   <div>
                     <h2 className="text-3xl font-black tracking-[-0.05em]">
                       {openSlots.length > 0
-                        ? `${openSlots.length} future slots`
-                        : "No open slots"}
+                        ? `${openSlots.length} future windows`
+                        : "No open availability"}
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-muted">
-                      These are future unbooked times that clients can reserve.
+                      These are future availability windows where clients can book.
                     </p>
                   </div>
 
@@ -1096,9 +1130,16 @@ function SlotChip({
     id: string;
     startTime: Date;
     endTime: Date;
-    isBooked: boolean;
+    isActive: boolean;
+    bookings: {
+      startTime: Date;
+      endTime: Date;
+      status: BookingStatus;
+    }[];
   };
 }) {
+  const freeMinutes = getWindowFreeMinutes(slot);
+
   return (
     <Link
       href="/expert/availability"
@@ -1110,6 +1151,10 @@ function SlotChip({
       <span>
         {formatShortDate(slot.startTime)} · {formatTime(slot.startTime)}–
         {formatTime(slot.endTime)}
+      </span>
+
+      <span className="rounded-full bg-[var(--primary-soft)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--primary-dark)]">
+        {freeMinutes} min free
       </span>
     </Link>
   );
@@ -1244,7 +1289,7 @@ function canJoinBooking(booking: {
   const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
 
   return (
-    booking.status === "CONFIRMED" &&
+    booking.status === BookingStatus.CONFIRMED &&
     Boolean(booking.callRoom?.roomUrl) &&
     now >= joinWindowStart &&
     now <= joinWindowEnd
@@ -1321,6 +1366,35 @@ function getProviderNetCents(booking: {
   return Math.max(booking.priceCents - Math.round(booking.priceCents * 0.1), 0);
 }
 
+function getWindowFreeMinutes(window: {
+  startTime: Date;
+  endTime: Date;
+  bookings: {
+    startTime: Date;
+    endTime: Date;
+    status: BookingStatus;
+  }[];
+}) {
+  const totalMinutes = getDurationMinutes(window.startTime, window.endTime);
+
+  const bookedMinutes = window.bookings
+    .filter((booking) => activeBookingStatuses.includes(booking.status))
+    .reduce(
+      (sum, booking) =>
+        sum + getDurationMinutes(booking.startTime, booking.endTime),
+      0,
+    );
+
+  return Math.max(totalMinutes - bookedMinutes, 0);
+}
+
+function getDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.max(
+    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
+    0,
+  );
+}
+
 function getSmartTip({
   hasServices,
   hasAvailability,
@@ -1355,7 +1429,7 @@ function getSmartTip({
   }
 
   if (!hasAvailability) {
-    return "Add open slots for the next 7 days. A profile without availability is harder for clients to book.";
+    return "Add open availability for the next 7 days. A profile without availability is harder for clients to book.";
   }
 
   if (!hasStripePayouts) {
@@ -1442,32 +1516,36 @@ function formatTime(date: Date) {
 }
 
 function formatStatus(status: string) {
-  if (status === "PENDING") {
+  if (status === BookingStatus.PENDING) {
     return "Pending payment";
   }
 
-  if (status === "PAID") {
+  if (status === BookingStatus.PAID) {
     return "Paid";
   }
 
-  if (status === "CONFIRMED") {
+  if (status === BookingStatus.CONFIRMED) {
     return "Confirmed";
   }
 
-  if (status === "COMPLETED") {
+  if (status === BookingStatus.COMPLETED) {
     return "Completed";
   }
 
-  if (status === "CANCELLED") {
+  if (status === BookingStatus.CANCELLED) {
     return "Cancelled";
   }
 
-  if (status === "REFUNDED") {
+  if (status === BookingStatus.REFUNDED) {
     return "Refunded";
   }
 
-  if (status === "DISPUTED") {
+  if (status === BookingStatus.DISPUTED) {
     return "Disputed";
+  }
+
+  if (status === BookingStatus.EXPIRED) {
+    return "Expired";
   }
 
   return status.toLowerCase();

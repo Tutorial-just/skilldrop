@@ -86,6 +86,21 @@ export default async function AdminExpertsPage({
               },
             },
             {
+              languages: {
+                has: query,
+              },
+            },
+            {
+              skills: {
+                has: query,
+              },
+            },
+            {
+              tags: {
+                has: query,
+              },
+            },
+            {
               user: {
                 is: {
                   OR: [
@@ -136,7 +151,7 @@ export default async function AdminExpertsPage({
             startTime: {
               gte: now,
             },
-            isBooked: false,
+            isActive: true,
           },
           orderBy: {
             startTime: "asc",
@@ -372,7 +387,7 @@ export default async function AdminExpertsPage({
                   name="q"
                   type="search"
                   defaultValue={query}
-                  placeholder="Search experts by name, email, headline or country..."
+                  placeholder="Search experts by name, email, headline, country, skill or tag..."
                   className="input min-h-12 w-full pl-11"
                 />
               </div>
@@ -571,7 +586,7 @@ function ExpertAdminCard({
       id: string;
       startTime: Date;
       endTime: Date;
-      isBooked: boolean;
+      isActive: boolean;
     }[];
     reviews: {
       id: string;
@@ -674,7 +689,7 @@ function ExpertAdminCard({
             <div className="mt-4 grid gap-2 md:grid-cols-4">
               <SmallFact label="Country" value={expert.country ?? "—"} />
               <SmallFact label="Services" value={String(expert.services.length)} />
-              <SmallFact label="Open slots" value={String(expert.availability.length)} />
+              <SmallFact label="Open windows" value={String(expert.availability.length)} />
               <SmallFact label="Sessions" value={String(expert.totalSessions)} />
             </div>
 
@@ -722,7 +737,7 @@ function ExpertAdminCard({
                 value={startingService?.title ?? "—"}
               />
               <SmallFact
-                label="Next slot"
+                label="Next window"
                 value={nextSlot ? formatDateTime(nextSlot.startTime) : "—"}
               />
             </div>

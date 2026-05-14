@@ -140,6 +140,8 @@ export default async function BuyerBookingsPage({
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-160px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
         <div className="relative p-6 md:p-8 lg:p-10">
           <Link
@@ -170,12 +172,13 @@ export default async function BuyerBookingsPage({
               </Badge>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Your calls and reservations.
+                Your calls, payments and reviews.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Complete payments, join confirmed calls, review past sessions and
-                manage every booking from one place.
+                Manage reserved calls, complete payments, join confirmed
+                sessions, review completed calls and keep your help history in
+                one place.
               </p>
             </div>
 
@@ -252,8 +255,8 @@ export default async function BuyerBookingsPage({
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  Pending reservations are held only for a short time. If the
-                  countdown expires, the slot becomes available again.
+                  Pending reservations are held only for a short time. If payment
+                  expires, the time slot becomes available again.
                 </p>
 
                 <div className="mt-6 grid gap-4">
@@ -308,7 +311,7 @@ export default async function BuyerBookingsPage({
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  Reviews help good providers grow and help other clients choose
+                  Reviews help good helpers grow and help other buyers choose
                   safely.
                 </p>
 
@@ -339,7 +342,7 @@ export default async function BuyerBookingsPage({
                 <Tip
                   icon={MessageCircle}
                   title="Booking note"
-                  text="Your note helps the provider understand your problem before the call."
+                  text="Your note helps the helper understand your problem before the call."
                 />
                 <Tip
                   icon={Video}
@@ -396,13 +399,13 @@ export default async function BuyerBookingsPage({
                   </h3>
 
                   <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
-                    Find an expert, choose a service and pick an available time.
+                    Find a helper, choose an offer and pick an available time.
                     Your booking will appear here.
                   </p>
 
                   <div className="mt-5">
                     <ButtonLink href="/experts">
-                      Browse experts
+                      Browse helpers
                       <Search size={18} />
                     </ButtonLink>
                   </div>
@@ -430,7 +433,7 @@ export default async function BuyerBookingsPage({
 
 function NextBookingPanel({ booking }: { booking: BookingCardBooking }) {
   const pricing = getBookingPricing(booking);
-  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const helperName = booking.expert.user.name ?? booking.expert.user.email;
   const canJoin = canJoinBooking(booking);
 
   return (
@@ -442,7 +445,7 @@ function NextBookingPanel({ booking }: { booking: BookingCardBooking }) {
       <p className="mt-3 text-sm font-semibold leading-6 text-muted">
         With{" "}
         <span className="font-black text-[var(--foreground)]">
-          {providerName}
+          {helperName}
         </span>
       </p>
 
@@ -486,7 +489,7 @@ function NextBookingPanel({ booking }: { booking: BookingCardBooking }) {
         ) : null}
 
         <ButtonLink href={`/experts/${booking.expertId}`} variant="secondary">
-          View provider
+          View helper
         </ButtonLink>
       </div>
 
@@ -517,7 +520,7 @@ function EmptyBookingsState() {
       </h2>
 
       <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-muted">
-        Find a provider, choose a service and book a time that works for you.
+        Find a helper, choose an offer and book a time that works for you.
       </p>
 
       <div className="mt-5">
@@ -589,7 +592,7 @@ function BookingCard({
     booking.status === "CONFIRMED" && booking.startTime > now;
   const canReview = isCompleted && !booking.review;
 
-  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const helperName = booking.expert.user.name ?? booking.expert.user.email;
 
   return (
     <div
@@ -646,7 +649,7 @@ function BookingCard({
           <p className="mt-2 text-sm font-semibold leading-6 text-muted">
             With{" "}
             <span className="font-black text-[var(--foreground)]">
-              {providerName}
+              {helperName}
             </span>
           </p>
 
@@ -666,7 +669,7 @@ function BookingCard({
 
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <MiniMoney
-              label="Service"
+              label="Offer"
               value={formatMoney(pricing.servicePriceCents)}
             />
             <MiniMoney
@@ -772,7 +775,7 @@ function BookingCard({
             href={`/experts/${booking.expertId}`}
             className="btn btn-secondary"
           >
-            View provider
+            View helper
           </Link>
 
           {needsSupportForCancellation ? (

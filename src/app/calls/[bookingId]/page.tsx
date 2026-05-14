@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   ExternalLink,
+  Globe2,
   MessageCircle,
   ShieldCheck,
   UserRound,
@@ -95,7 +96,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     return (
       <CallBlockedPage
         title="Video room is not ready yet."
-        text="Please try again later or contact SkillDrop support."
+        text="The booking is confirmed, but the video room has not been created yet. Please try again later or contact SkillDrop support."
         backHref={backHref}
       />
     );
@@ -113,10 +114,12 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     return (
       <CallBlockedPage
         title="Your call is not open yet."
-        text={`You can join ${JOIN_BEFORE_MINUTES} minutes before the scheduled start time.`}
+        text={`You can join ${JOIN_BEFORE_MINUTES} minutes before the scheduled start time. This helps keep the room protected and avoids early access confusion.`}
         backHref={backHref}
         timeLabel="Call starts"
         timeValue={formatDateTime(booking.startTime)}
+        secondaryLabel="Join opens"
+        secondaryValue={formatDateTime(joinOpensAt)}
       />
     );
   }
@@ -140,10 +143,12 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     return (
       <CallBlockedPage
         title="This call room is closed."
-        text="The video room is no longer available for this booking."
+        text="The video room is no longer available for this booking. Go back to your bookings to review the session or manage your next call."
         backHref={backHref}
         timeLabel="Call ended"
         timeValue={formatDateTime(booking.endTime)}
+        secondaryLabel="Room closed"
+        secondaryValue={formatDateTime(joinClosesAt)}
       />
     );
   }
@@ -163,7 +168,13 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
   }
 
   const canMarkCompleted =
-    (isExpert || isAdmin) && booking.status === "CONFIRMED" && now >= booking.startTime;
+    (isExpert || isAdmin) &&
+    booking.status === "CONFIRMED" &&
+    now >= booking.startTime;
+
+  const currentUserRoleLabel = isBuyer ? "Buyer" : isExpert ? "Helper" : "Admin";
+  const buyerName = booking.buyer.name ?? booking.buyer.email;
+  const helperName = booking.expert.user.name ?? booking.expert.user.email;
 
   return (
     <main className="p-6 md:p-8 lg:p-10">
@@ -188,14 +199,14 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
             </h1>
 
             <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-              Your booking is confirmed. Check the details and context below,
-              then open the protected video room.
+              Your booking is confirmed. Check the time, participants and call
+              context below, then open the protected video room.
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2">
               <InfoBox
                 icon={Video}
-                label="Service"
+                label="Offer"
                 value={booking.service?.title ?? "Booked call"}
               />
 
@@ -207,14 +218,14 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
 
               <InfoBox
                 icon={UserRound}
-                label="Client"
-                value={booking.buyer.name ?? booking.buyer.email}
+                label="Buyer"
+                value={buyerName}
               />
 
               <InfoBox
                 icon={ShieldCheck}
-                label="Provider"
-                value={booking.expert.user.name ?? booking.expert.user.email}
+                label="Helper"
+                value={helperName}
               />
             </div>
 
@@ -238,11 +249,24 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
                 <div className="mt-4 rounded-2xl border border-dashed border-[var(--border-strong)] bg-white/55 p-4">
                   <p className="text-sm font-semibold leading-7 text-muted">
                     No note was added for this booking. Start the call by
-                    clarifying the main question, expected result and available
+                    clarifying the main question, expected result and useful
                     context.
                   </p>
                 </div>
               )}
+            </div>
+
+            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+              <Badge variant="primary">
+                <Globe2 size={14} />
+                Timezone note
+              </Badge>
+
+              <p className="mt-4 text-sm font-bold leading-7 text-muted">
+                SkillDrop calls should be shown in each user’s local timezone.
+                The scheduled time above is displayed according to your current
+                browser locale and timezone.
+              </p>
             </div>
 
             <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
@@ -252,8 +276,8 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <SafetyRule text="Do not share passwords, bank codes or private account access." />
-                <SafetyRule text="Keep the conversation respectful and focused on the booked service." />
+                <SafetyRule text="Do not share passwords, bank codes, private account access or sensitive documents inside the call." />
+                <SafetyRule text="Keep the conversation respectful, practical and focused on the booked offer." />
                 <SafetyRule text="If something feels unsafe, leave the call and contact SkillDrop support." />
               </div>
             </div>
@@ -301,6 +325,8 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
             </div>
 
             <div className="mt-6 grid gap-3">
+              <SideFact label="Your role" value={currentUserRoleLabel} />
+
               <SideFact label="Status" value={formatStatus(booking.status)} />
 
               <SideFact
@@ -320,6 +346,11 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
                 label="Join window"
                 value={`${JOIN_BEFORE_MINUTES} min before`}
               />
+
+              <SideFact
+                label="Room closes"
+                value={`${JOIN_AFTER_END_MINUTES} min after end`}
+              />
             </div>
 
             {bookingNote ? (
@@ -331,12 +362,29 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
                   />
 
                   <div>
-                    <p className="text-sm font-black">Client note</p>
+                    <p className="text-sm font-black">Buyer note</p>
                     <p className="mt-1 line-clamp-5 text-sm font-semibold leading-6 text-muted">
                       {bookingNote}
                     </p>
                   </div>
                 </div>
+              </div>
+            ) : null}
+
+            {isBuyer ? (
+              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                <p className="text-sm font-bold leading-6 text-muted">
+                  After the call, you can leave a review from your bookings page.
+                </p>
+              </div>
+            ) : null}
+
+            {isExpert ? (
+              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                <p className="text-sm font-bold leading-6 text-muted">
+                  After the session, mark the call as completed so the buyer can
+                  review it and your earnings can be counted correctly.
+                </p>
               </div>
             ) : null}
           </Card>
@@ -352,12 +400,16 @@ function CallBlockedPage({
   backHref,
   timeLabel,
   timeValue,
+  secondaryLabel,
+  secondaryValue,
 }: {
   title: string;
   text: string;
   backHref: string;
   timeLabel?: string;
   timeValue?: string;
+  secondaryLabel?: string;
+  secondaryValue?: string;
 }) {
   return (
     <main className="p-6 md:p-8 lg:p-10">
@@ -389,15 +441,12 @@ function CallBlockedPage({
           </p>
 
           {timeLabel && timeValue ? (
-            <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-              <div className="flex items-center justify-between gap-4">
-                <p className="inline-flex items-center gap-2 text-sm font-bold text-muted">
-                  <Clock3 size={14} />
-                  {timeLabel}
-                </p>
+            <div className="mx-auto mt-6 grid max-w-sm gap-3">
+              <SideFact label={timeLabel} value={timeValue} />
 
-                <p className="text-right text-sm font-black">{timeValue}</p>
-              </div>
+              {secondaryLabel && secondaryValue ? (
+                <SideFact label={secondaryLabel} value={secondaryValue} />
+              ) : null}
             </div>
           ) : null}
 
@@ -447,7 +496,7 @@ function SafetyRule({ text }: { text: string }) {
 
 function SideFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-left">
       <p className="text-sm font-bold text-muted">{label}</p>
       <p className="text-right text-sm font-black">{value}</p>
     </div>
@@ -489,6 +538,10 @@ function getBlockedStatusText(status: string) {
 
   if (status === "DISPUTED") {
     return "This booking is under review. The video room is temporarily closed.";
+  }
+
+  if (status === "EXPIRED") {
+    return "This booking expired because payment was not completed in time.";
   }
 
   return "This booking is not available for joining right now.";
@@ -538,6 +591,10 @@ function formatStatus(status: string) {
 
   if (status === "DISPUTED") {
     return "Disputed";
+  }
+
+  if (status === "EXPIRED") {
+    return "Expired";
   }
 
   return status.toLowerCase();

@@ -38,19 +38,29 @@ type ExpertsPageProps = {
 
 const quickSearches = [
   {
-    label: "Cooking help",
-    href: "/experts?q=recipe cake cooking baking",
-    icon: HeartHandshake,
-  },
-  {
-    label: "CV review",
-    href: "/experts?q=CV resume review job",
+    label: "Improve my CV",
+    href: "/experts?q=CV resume review job career application",
     icon: WalletCards,
   },
   {
-    label: "Documents",
-    href: "/experts?q=documents admin help paperwork",
+    label: "Prepare interview",
+    href: "/experts?q=interview job career preparation mock interview",
+    icon: UserRound,
+  },
+  {
+    label: "Understand documents",
+    href: "/experts?q=documents admin help paperwork form letter",
     icon: Compass,
+  },
+  {
+    label: "Translate a message",
+    href: "/experts?q=translation language message document French English",
+    icon: Languages,
+  },
+  {
+    label: "Moving abroad",
+    href: "/experts?q=moving abroad relocation immigration country documents",
+    icon: Globe2,
   },
   {
     label: "Tech help",
@@ -58,18 +68,8 @@ const quickSearches = [
     icon: Sparkles,
   },
   {
-    label: "Moving abroad",
-    href: "/experts?q=moving abroad relocation immigration",
-    icon: Globe2,
-  },
-  {
-    label: "Languages",
-    href: "/experts?q=translation language speaking practice",
-    icon: Languages,
-  },
-  {
-    label: "Life advice",
-    href: "/experts?q=practical advice guidance life",
+    label: "Practical advice",
+    href: "/experts?q=practical advice guidance life experience",
     icon: HeartHandshake,
   },
 ];
@@ -206,14 +206,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             stripeAccountId: {
               not: null,
             },
-          }
-        : {}),
-
-      ...(language
-        ? {
-            languages: {
-              has: language,
-            },
+            stripeChargesEnabled: true,
+            stripePayoutsEnabled: true,
+            stripeDetailsSubmitted: true,
           }
         : {}),
 
@@ -276,15 +271,15 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       },
       availability: {
         where: {
-          startTime: {
+          isActive: true,
+          endTime: {
             gte: now,
           },
-          isBooked: false,
         },
         orderBy: {
           startTime: "asc",
         },
-        take: 3,
+        take: 8,
       },
       reviews: {
         orderBy: {
@@ -315,32 +310,49 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     take: 40,
   });
 
-  let experts = rawExperts.map((expert) => ({
-    ...expert,
-    qualityScore: calculateQualityScore({
-      rating: expert.rating,
-      totalReviews: expert.totalReviews,
-      totalSessions: expert.totalSessions,
-      isVerified: expert.isVerified,
-      openSlots: expert.availability.length,
-      reviews: expert.reviews,
-    }),
-    searchScore: calculateSearchScore({
-      query,
-      searchTerms,
-      headline: expert.headline,
-      bio: expert.bio,
-      country: expert.country,
-      skills: expert.skills,
-      tags: expert.tags,
-      languages: expert.languages,
-      services: expert.services.map((service) => ({
-        title: service.title,
-        description: service.description,
-        category: service.category?.name ?? "",
-      })),
-    }),
-  }));
+  let experts = rawExperts
+    .filter((expert) => {
+      if (!language) {
+        return true;
+      }
+
+      const normalizedLanguage = normalizeSearchTerm(language);
+
+      return expert.languages.some((expertLanguage) => {
+        const normalizedExpertLanguage = normalizeSearchTerm(expertLanguage);
+
+        return (
+          normalizedExpertLanguage === normalizedLanguage ||
+          normalizedExpertLanguage.includes(normalizedLanguage)
+        );
+      });
+    })
+    .map((expert) => ({
+      ...expert,
+      qualityScore: calculateQualityScore({
+        rating: expert.rating,
+        totalReviews: expert.totalReviews,
+        totalSessions: expert.totalSessions,
+        isVerified: expert.isVerified,
+        openSlots: expert.availability.length,
+        reviews: expert.reviews,
+      }),
+      searchScore: calculateSearchScore({
+        query,
+        searchTerms,
+        headline: expert.headline,
+        bio: expert.bio,
+        country: expert.country,
+        skills: expert.skills,
+        tags: expert.tags,
+        languages: expert.languages,
+        services: expert.services.map((service) => ({
+          title: service.title,
+          description: service.description,
+          category: service.category?.name ?? "",
+        })),
+      }),
+    }));
 
   if (sort === "best") {
     experts = experts.sort((a, b) => {
@@ -380,7 +392,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     });
   }
 
-  const totalOpenSlots = experts.reduce(
+  const totalOpenTimes = experts.reduce(
     (sum, expert) => sum + expert.availability.length,
     0,
   );
@@ -388,7 +400,11 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
   const verifiedCount = experts.filter((expert) => expert.isVerified).length;
 
   const paymentReadyCount = experts.filter(
-    (expert) => expert.stripeAccountId,
+    (expert) =>
+      expert.stripeAccountId &&
+      expert.stripeChargesEnabled &&
+      expert.stripePayoutsEnabled &&
+      expert.stripeDetailsSubmitted,
   ).length;
 
   const hasActiveFilters =
@@ -403,6 +419,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-180px] top-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute right-[-160px] top-[120px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
         <div className="relative container-page py-8 md:py-10 lg:py-14">
           <Badge variant="primary">
@@ -413,25 +431,24 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_380px] xl:items-end">
             <div>
               <h1 className="heading-lg max-w-5xl text-balance">
-                Find the right person for any practical problem.
+                Find the right person for the help you need.
               </h1>
 
               <p className="mt-5 max-w-3xl text-lg leading-8 text-muted">
-                Search by topic, skill, language, tag or simple problem. From
-                CV review to recipes, tech help, documents, languages, school
-                support or life advice — book a short 1:1 call with someone who
-                can help.
+                Search with simple words and discover people who can help with
+                documents, career, languages, moving abroad, tech, studies or
+                practical everyday questions.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2">
                 <Badge variant="success">
                   <CheckCircle2 size={14} />
-                  Approved providers
+                  Approved helpers
                 </Badge>
 
                 <Badge variant="primary">
                   <WalletCards size={14} />
-                  Payment status visible
+                  Clear price before checkout
                 </Badge>
 
                 <Badge variant="accent">
@@ -444,12 +461,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             <Card className="p-5">
               <Badge variant="accent">
                 <Sparkles size={14} />
-                Marketplace
+                Marketplace overview
               </Badge>
 
               <div className="mt-5 grid gap-3">
                 <StatRow
-                  label="Available providers"
+                  label="Available helpers"
                   value={String(experts.length)}
                 />
                 <StatRow label="Verified" value={String(verifiedCount)} />
@@ -457,23 +474,23 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   label="Payments ready"
                   value={String(paymentReadyCount)}
                 />
-                <StatRow label="Open time slots" value={String(totalOpenSlots)} />
+                <StatRow label="Open times" value={String(totalOpenTimes)} />
                 <StatRow label="Sort" value={sortLabels[sort] ?? "Best match"} />
               </div>
             </Card>
           </div>
 
           <form action="/experts" className="mt-8">
-            <div className="rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)]">
+            <div className="rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] backdrop-blur">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-white/64 px-4">
+                <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-white/70 px-4">
                   <Search size={18} className="text-muted" />
 
                   <input
                     name="q"
                     type="search"
                     defaultValue={query}
-                    placeholder="Search: recipe, CV, documents, tech help, French, math..."
+                    placeholder="What do you need help with?"
                     className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-muted"
                   />
                 </div>
@@ -481,7 +498,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  aria-label="Search providers"
+                  aria-label="Search helpers"
                 >
                   Search
                   <ArrowRight size={18} />
@@ -521,9 +538,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
                 >
                   <option value="">Any service price</option>
-                  <option value="20">Service price up to €20</option>
-                  <option value="50">Service price up to €50</option>
-                  <option value="100">Service price up to €100</option>
+                  <option value="20">Up to €20</option>
+                  <option value="50">Up to €50</option>
+                  <option value="100">Up to €100</option>
                 </select>
 
                 <input
@@ -579,22 +596,22 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 <Step
                   number="1"
                   title="Describe your problem"
-                  text="Search with simple words, tags or a topic."
+                  text="Use natural words like CV, document, French, website or moving."
                 />
                 <Step
                   number="2"
-                  title="Choose provider"
-                  text="Open a profile and check services."
+                  title="Choose a helper"
+                  text="Compare what they can help with, languages, reviews and price."
                 />
                 <Step
                   number="3"
-                  title="Pick time"
-                  text="Reserve an available slot."
+                  title="Pick a time"
+                  text="Check open times and choose a short 1:1 call."
                 />
                 <Step
                   number="4"
                   title="Pay safely"
-                  text="Confirm through checkout if payments are ready."
+                  text="Confirm through checkout and get your call details."
                 />
               </div>
             </Card>
@@ -602,26 +619,26 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             <Card soft className="p-5">
               <Badge variant="accent">
                 <Sparkles size={14} />
-                Good search
+                Good search examples
               </Badge>
 
               <p className="mt-4 text-sm font-bold leading-6 text-muted">
-                Try natural words like “recipe”, “wifi”, “French documents”,
-                “math”, “CV”, “interview”, “moving”, “translation” or
-                “website”.
+                Try “French documents”, “CV review”, “mock interview”, “moving
+                to France”, “website bug”, “translation”, “math help” or “admin
+                letter”.
               </p>
             </Card>
 
             <Card className="p-5">
               <Badge variant="success">
                 <CheckCircle2 size={14} />
-                Safe choice
+                Trust signals
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <TrustPoint text="Only approved providers with active services are shown." />
+                <TrustPoint text="Only approved helpers with active services are shown." />
                 <TrustPoint text="Payment readiness is visible before booking." />
-                <TrustPoint text="Profiles without open slots can still be discovered." />
+                <TrustPoint text="Reviews and completed sessions help you compare people." />
               </div>
             </Card>
           </aside>
@@ -630,12 +647,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
                 <h2 className="text-3xl font-black tracking-[-0.05em]">
-                  {query ? `Results for “${query}”` : "Available providers"}
+                  {query ? `Help for “${query}”` : "Available helpers"}
                 </h2>
 
                 <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                  Showing approved providers with active services, tags,
-                  payment readiness, availability and quality-based ranking.
+                  Choose someone by what they can help with, language, price,
+                  reviews, availability and trust signals.
                 </p>
               </div>
 
@@ -650,8 +667,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </div>
             ) : (
               <EmptyState
-                title="No providers found"
-                text="Try another keyword, remove filters, or check back later when more providers create active services."
+                title="No helpers found"
+                text="Try another keyword, remove filters, or check back later when more helpers create active services."
               />
             )}
           </div>
@@ -667,6 +684,9 @@ function ExpertSearchCard({
   expert: {
     id: string;
     stripeAccountId: string | null;
+    stripeChargesEnabled: boolean;
+    stripePayoutsEnabled: boolean;
+    stripeDetailsSubmitted: boolean;
     headline: string;
     bio: string;
     country: string | null;
@@ -698,7 +718,7 @@ function ExpertSearchCard({
       id: string;
       startTime: Date;
       endTime: Date;
-      isBooked: boolean;
+      isActive: boolean;
     }[];
   };
 }) {
@@ -708,7 +728,7 @@ function ExpertSearchCard({
   const avatarLetter = (
     expert.user.name?.charAt(0) ||
     expert.user.email.charAt(0) ||
-    "P"
+    "H"
   ).toUpperCase();
 
   const startingTotal = startingPrice
@@ -719,8 +739,20 @@ function ExpertSearchCard({
     new Set([...expert.tags, ...expert.skills]),
   ).slice(0, 8);
 
+  const mainService = expert.services[0] ?? null;
+
+  const isPaymentReady =
+    Boolean(expert.stripeAccountId) &&
+    expert.stripeChargesEnabled &&
+    expert.stripePayoutsEnabled &&
+    expert.stripeDetailsSubmitted;
+
+  const profileHref = mainService
+    ? `/experts/${expert.id}?service=${mainService.id}`
+    : `/experts/${expert.id}`;
+
   return (
-    <Link href={`/experts/${expert.id}`} className="group">
+    <Link href={profileHref} className="group">
       <Card className="p-5 transition group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)]">
         <div className="grid gap-5 lg:grid-cols-[1fr_240px] lg:items-start">
           <div className="flex gap-4">
@@ -738,10 +770,10 @@ function ExpertSearchCard({
                     Verified
                   </Badge>
                 ) : (
-                  <Badge variant="accent">New</Badge>
+                  <Badge variant="accent">New helper</Badge>
                 )}
 
-                {expert.stripeAccountId ? (
+                {isPaymentReady ? (
                   <Badge variant="success">
                     <WalletCards size={14} />
                     Payments ready
@@ -756,12 +788,12 @@ function ExpertSearchCard({
                 {expert.availability.length > 0 ? (
                   <Badge variant="primary">
                     <CalendarDays size={14} />
-                    Open slots
+                    Open times
                   </Badge>
                 ) : (
                   <Badge variant="accent">
                     <CalendarDays size={14} />
-                    No open slots
+                    No open times
                   </Badge>
                 )}
 
@@ -801,14 +833,30 @@ function ExpertSearchCard({
               </p>
 
               <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-muted">
-                {expert.bio || "This provider has not added a bio yet."}
+                {expert.bio || "This helper has not added a bio yet."}
               </p>
 
+              {mainService ? (
+                <div className="mt-4 rounded-[22px] border border-[var(--border)] bg-white/60 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+                    Can help with
+                  </p>
+
+                  <p className="mt-2 text-sm font-black leading-6">
+                    {mainService.title}
+                  </p>
+
+                  <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted">
+                    {mainService.description}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="mt-4 flex flex-wrap gap-2">
-                {expert.languages.slice(0, 3).map((language) => (
-                  <Badge key={language}>
+                {expert.languages.slice(0, 3).map((expertLanguage) => (
+                  <Badge key={expertLanguage}>
                     <Languages size={14} />
-                    {language}
+                    {expertLanguage}
                   </Badge>
                 ))}
 
@@ -833,13 +881,13 @@ function ExpertSearchCard({
               />
 
               <SideRow
-                label="Next slot"
+                label="Next time"
                 value={nextSlot ? formatShortDateTime(nextSlot.startTime) : "—"}
               />
 
               <SideRow
                 label="Payments"
-                value={expert.stripeAccountId ? "Ready" : "Not ready"}
+                value={isPaymentReady ? "Ready" : "Not ready"}
               />
 
               <SideRow label="Quality" value={`${expert.qualityScore}/100`} />
@@ -890,7 +938,7 @@ function ExpertSearchCard({
                   </div>
 
                   <p className="mt-3 text-xs font-bold text-muted">
-                    Includes SkillDrop fee. Service price:{" "}
+                    Total shown before checkout. Service price:{" "}
                     {formatMoney(pricing.servicePriceCents)}
                   </p>
                 </div>
@@ -1106,7 +1154,7 @@ function calculateSearchScore({
 
     if (
       normalizedLanguages.some(
-        (language) => language === term || language.includes(term),
+        (item) => item === term || item.includes(term),
       )
     ) {
       score += 12;

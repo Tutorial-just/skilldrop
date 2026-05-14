@@ -88,9 +88,9 @@ export default async function BookingCheckoutPage({
     redirect(`/buyer/bookings?error=booking-expired&booking=${booking.id}`);
   }
 
-  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const helperName = booking.expert.user.name ?? booking.expert.user.email;
   const serviceTitle = booking.service?.title ?? "Booked call";
-  const expertCanReceivePayouts = Boolean(booking.expert.stripeAccountId);
+  const helperCanReceivePayouts = Boolean(booking.expert.stripeAccountId);
   const durationMinutes = getDurationMinutes(booking.startTime, booking.endTime);
   const bookingNote = booking.note?.trim() || "";
 
@@ -126,15 +126,15 @@ export default async function BookingCheckoutPage({
                 Slot temporarily reserved
               </Badge>
 
-              {expertCanReceivePayouts ? (
+              {helperCanReceivePayouts ? (
                 <Badge variant="success">
                   <WalletCards size={14} />
-                  Provider payouts ready
+                  Helper payouts ready
                 </Badge>
               ) : (
                 <Badge variant="danger">
                   <ShieldAlert size={14} />
-                  Provider payouts missing
+                  Helper payouts missing
                 </Badge>
               )}
             </div>
@@ -155,8 +155,8 @@ export default async function BookingCheckoutPage({
             ) : null}
 
             <div className="mt-8 grid gap-4">
-              <InfoRow label="Provider" value={providerName} />
-              <InfoRow label="Service" value={serviceTitle} />
+              <InfoRow label="Helper" value={helperName} />
+              <InfoRow label="Offer" value={serviceTitle} />
               <InfoRow label="Date" value={formatDateTime(booking.startTime)} />
               <InfoRow label="Duration" value={`${durationMinutes} minutes`} />
               <InfoRow label="Status" value="Waiting for payment" />
@@ -166,7 +166,7 @@ export default async function BookingCheckoutPage({
           <Card className="p-6 md:p-8">
             <Badge variant="primary">
               <MessageCircle size={14} />
-              Your note for the provider
+              Your note for the helper
             </Badge>
 
             <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
@@ -182,14 +182,14 @@ export default async function BookingCheckoutPage({
             ) : (
               <div className="mt-5 rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-5">
                 <p className="text-sm font-bold leading-7 text-muted">
-                  No note was added. The provider will still receive your
-                  booking details after payment.
+                  No note was added. The helper will still receive your booking
+                  details after payment.
                 </p>
               </div>
             )}
 
             <p className="mt-4 text-sm font-semibold leading-6 text-muted">
-              This note helps the provider prepare before the call. You can add
+              This note helps the helper prepare before the call. You can add
               more context directly during the session.
             </p>
           </Card>
@@ -205,14 +205,13 @@ export default async function BookingCheckoutPage({
             </h2>
 
             <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-muted">
-              The provider sets the service price. SkillDrop adds a small
-              service fee to keep payments, safety tools and the marketplace
-              running.
+              The helper sets the offer price. SkillDrop adds a small service
+              fee to keep payments, safety tools and the marketplace running.
             </p>
 
             <div className="mt-6 grid gap-3">
               <InfoRow
-                label="Provider service price"
+                label="Helper offer price"
                 value={formatMoney(pricing.servicePriceCents)}
               />
 
@@ -297,13 +296,13 @@ export default async function BookingCheckoutPage({
           </h2>
 
           <p className="mt-3 text-sm font-semibold leading-6 text-muted">
-            Secure payment through Stripe. The provider receives their earnings
+            Secure payment through Stripe. The helper receives their earnings
             through Stripe Connect after platform commission.
           </p>
 
           <div className="mt-6 grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
-            <PaymentRow label="Provider" value={providerName} />
-            <PaymentRow label="Service" value={serviceTitle} />
+            <PaymentRow label="Helper" value={helperName} />
+            <PaymentRow label="Offer" value={serviceTitle} />
             <PaymentRow
               label="Time"
               value={formatShortDateTime(booking.startTime)}
@@ -313,7 +312,7 @@ export default async function BookingCheckoutPage({
             <div className="h-px bg-[var(--border)]" />
 
             <PaymentRow
-              label="Provider service"
+              label="Helper offer"
               value={formatMoney(pricing.servicePriceCents)}
             />
 
@@ -350,21 +349,21 @@ export default async function BookingCheckoutPage({
             </div>
           ) : null}
 
-          {!expertCanReceivePayouts ? (
+          {!helperCanReceivePayouts ? (
             <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
-              Payment is temporarily unavailable because this provider has not
-              completed payout setup yet. Please choose another provider or try
+              Payment is temporarily unavailable because this helper has not
+              completed payout setup yet. Please choose another helper or try
               again later.
             </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
-              This provider can receive payouts. You can safely continue to
-              Stripe checkout.
+              This helper can receive payouts. You can safely continue to Stripe
+              checkout.
             </div>
           )}
 
           <div className="mt-6 grid gap-3">
-            {expertCanReceivePayouts ? (
+            {helperCanReceivePayouts ? (
               <form
                 action={async () => {
                   "use server";
@@ -379,7 +378,7 @@ export default async function BookingCheckoutPage({
             ) : null}
 
             <ButtonLink href={`/experts/${booking.expertId}`} variant="secondary">
-              View provider
+              View helper
             </ButtonLink>
 
             <ButtonLink href="/buyer/bookings" variant="secondary">
@@ -591,7 +590,7 @@ function formatCheckoutError(error: string) {
     error === "provider-payout-not-ready" ||
     error === "expert-payout-not-ready"
   ) {
-    return "Payment is temporarily unavailable because this provider has not completed payout setup yet. Please choose another provider or try again later.";
+    return "Payment is temporarily unavailable because this helper has not completed payout setup yet. Please choose another helper or try again later.";
   }
 
   if (error === "booking-not-found") {

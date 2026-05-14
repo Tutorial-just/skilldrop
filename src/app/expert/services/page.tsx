@@ -11,9 +11,11 @@ import {
   Euro,
   Eye,
   FileText,
+  Globe2,
   Layers3,
   Lightbulb,
   Plus,
+  Search,
   ShieldCheck,
   Sparkles,
   Target,
@@ -42,21 +44,48 @@ type ExpertServicesPageProps = {
 };
 
 const categoryOptions = [
-  "Psychology & Support",
-  "Translation & Languages",
-  "Life Advice",
   "Career & Jobs",
-  "Family & Relationships",
   "Documents & Admin Help",
+  "Translation & Languages",
   "Moving Abroad",
-  "Business & Freelance",
   "Study & Applications",
   "Tech Help",
+  "Business & Freelance",
   "Local Help",
-  "Anything you want",
+  "Life Advice",
+  "Family & Relationships",
+  "Cooking & Daily Skills",
+  "Psychology & Support",
+  "Other Practical Help",
 ];
 
 const durationOptions = [15, 30, 45, 60];
+
+const offerTitleExamples = [
+  "Review your CV and give clear next steps",
+  "Help you understand an official document",
+  "Practice a job interview with feedback",
+  "Translate or correct an important message",
+  "Help you prepare a university application",
+  "Explain a website or coding problem",
+];
+
+const offerDescriptionChecklist = [
+  "Who this offer is for",
+  "What problem you help with",
+  "What happens during the call",
+  "What the buyer gets by the end",
+  "What the buyer should prepare before the call",
+];
+
+const keywordExamples = [
+  "CV, resume, interview, job search",
+  "visa, documents, forms, admin help",
+  "translation, message correction, language practice",
+  "coding, website, tech help, IT support",
+  "study application, motivation letter, university",
+  "moving abroad, housing, local guidance, relocation",
+];
 
 export default async function ExpertServicesPage({
   searchParams,
@@ -213,18 +242,17 @@ export default async function ExpertServicesPage({
               <div className="mt-6">
                 <Badge variant="primary">
                   <WalletCards size={14} />
-                  Offers
+                  Bookable offers
                 </Badge>
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Manage your bookable offers.
+                Create offers people can understand, find and book.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Create clear services with a result, duration and price. Buyers
-                understand exactly what they book, and you see your estimated
-                net payout before saving.
+                Each offer should solve one clear problem. Explain who it is for,
+                what happens during the call and what the buyer gets by the end.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2">
@@ -354,7 +382,7 @@ export default async function ExpertServicesPage({
 
                   <p className="mt-2 leading-7 text-muted">
                     You have active offers, open slots and payout setup. Keep
-                    your offers clear and your availability fresh.
+                    your offers clear, searchable and easy to book.
                   </p>
                 </div>
 
@@ -379,7 +407,7 @@ export default async function ExpertServicesPage({
                 </h2>
 
                 <p className="mt-3 text-sm font-bold leading-6 text-muted">
-                  Use this to understand your offer range and estimated provider
+                  Use this to understand your offer range and estimated helper
                   net after SkillDrop commission.
                 </p>
 
@@ -406,7 +434,7 @@ export default async function ExpertServicesPage({
                   />
 
                   <InfoRow
-                    label="Best service"
+                    label="Best offer"
                     value={bestService?.title ?? "Not enough data"}
                   />
                 </div>
@@ -427,7 +455,7 @@ export default async function ExpertServicesPage({
                     done={expert.services.some(
                       (service) => service.title.length >= 8,
                     )}
-                    text="Clear titles"
+                    text="Clear problem-focused title"
                   />
                   <CheckRow
                     done={expert.services.some(
@@ -457,14 +485,43 @@ export default async function ExpertServicesPage({
               <Card className="p-5 md:p-6">
                 <Badge variant="accent">
                   <Lightbulb size={14} />
-                  Tips
+                  Tips for better offers
                 </Badge>
 
                 <div className="mt-5 grid gap-3">
-                  <Tip text="Use result-focused titles like “Review your CV in 30 minutes”." />
-                  <Tip text="Explain exactly what happens during the call." />
+                  <Tip text="Use titles that start with the buyer’s problem: “Review your CV”, “Understand a document”, “Fix a website issue”." />
+                  <Tip text="Explain exactly what happens during the call and what result the buyer gets." />
+                  <Tip text="Use words buyers might search for: visa, CV, coding, translation, interview, study, relocation." />
                   <Tip text="Start with simple 15 or 30 minute offers to reduce buyer hesitation." />
-                  <Tip text="Create 2–3 offers for different needs instead of one vague offer." />
+                  <Tip text="Create 2–3 focused offers instead of one vague offer for everything." />
+                </div>
+              </Card>
+
+              <Card className="p-5 md:p-6">
+                <Badge variant="primary">
+                  <Search size={14} />
+                  Search discovery
+                </Badge>
+
+                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                  Your offer title and description help buyers find you.
+                </h2>
+
+                <p className="mt-3 text-sm font-bold leading-6 text-muted">
+                  SkillDrop search reads your profile, skills, tags and service
+                  details. Add simple words people would type when they need
+                  help.
+                </p>
+
+                <div className="mt-5 grid gap-3">
+                  {keywordExamples.map((example) => (
+                    <div
+                      key={example}
+                      className="rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-sm font-black text-[var(--muted-foreground)]"
+                    >
+                      {example}
+                    </div>
+                  ))}
                 </div>
               </Card>
             </div>
@@ -486,7 +543,7 @@ export default async function ExpertServicesPage({
                         Add new offer
                       </p>
                       <p className="mt-1 text-sm font-semibold text-muted">
-                        Create a compact service people can book.
+                        Create one clear service people can find and book.
                       </p>
                     </div>
                   </div>
@@ -498,6 +555,27 @@ export default async function ExpertServicesPage({
                 </summary>
 
                 <div className="mt-5 border-t border-[var(--border)] pt-5">
+                  <div className="mb-5 rounded-[24px] border border-[var(--border)] bg-[var(--primary-soft)] p-5">
+                    <div className="flex gap-3">
+                      <Lightbulb
+                        size={20}
+                        className="mt-1 shrink-0 text-[var(--primary-dark)]"
+                      />
+
+                      <div>
+                        <p className="font-black text-[var(--primary-dark)]">
+                          Build your offer around one buyer problem
+                        </p>
+
+                        <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
+                          A good offer answers four questions: what problem do
+                          you solve, who is it for, what happens during the
+                          call, and what result does the buyer get?
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <form action={createProviderServiceAction} className="grid gap-5">
                     <div className="grid gap-5 lg:grid-cols-2">
                       <Field label="Category" htmlFor="category-new">
@@ -529,23 +607,33 @@ export default async function ExpertServicesPage({
                           minLength={4}
                           maxLength={120}
                           className="input mt-2"
-                          placeholder="30-minute CV review call"
+                          placeholder="Review your CV and give clear next steps"
                         />
                       </Field>
                     </div>
+
+                    <ExampleBox
+                      title="Strong offer title examples"
+                      items={offerTitleExamples}
+                    />
 
                     <Field label="Description" htmlFor="description-new">
                       <textarea
                         id="description-new"
                         name="description"
                         required
-                        rows={4}
+                        rows={6}
                         minLength={30}
                         maxLength={800}
                         className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm font-semibold leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
-                        placeholder="Explain what happens during the call, who it is for, and what the client will get by the end."
+                        placeholder="Explain who this is for, what problem you solve, what happens during the call, and what the buyer gets by the end. Add searchable words like CV, visa, documents, coding, interview, translation, study or relocation when relevant."
                       />
                     </Field>
+
+                    <ExampleBox
+                      title="Your offer description should mention"
+                      items={offerDescriptionChecklist}
+                    />
 
                     <div className="grid gap-5 md:grid-cols-[1fr_1fr_auto] md:items-end">
                       <Field label="Duration" htmlFor="duration-new">
@@ -746,6 +834,34 @@ function Tip({ text }: { text: string }) {
   );
 }
 
+function ExampleBox({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-[24px] border border-[var(--border)] bg-white/55 p-4">
+      <div className="flex gap-3">
+        <Lightbulb
+          size={18}
+          className="mt-0.5 shrink-0 text-[var(--accent)]"
+        />
+
+        <div>
+          <p className="text-sm font-black">{title}</p>
+
+          <div className="mt-3 grid gap-2">
+            {items.map((item) => (
+              <div
+                key={item}
+                className="rounded-2xl border border-[var(--border)] bg-white/64 px-3 py-2 text-sm font-bold leading-6 text-muted"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
     <div className="rounded-[26px] border border-dashed border-[var(--border-strong)] bg-white/55 p-8 text-center">
@@ -758,7 +874,8 @@ function EmptyState() {
       </h3>
 
       <p className="mx-auto mt-3 max-w-md leading-7 text-muted">
-        Open “Add new offer” and create your first bookable service.
+        Open “Add new offer” and create your first bookable service around one
+        clear buyer problem.
       </p>
     </div>
   );
@@ -860,11 +977,11 @@ function formatServiceError(error: string) {
   }
 
   if (error === "title-too-short") {
-    return "Please enter a clearer service title.";
+    return "Please enter a clearer offer title.";
   }
 
   if (error === "description-too-short") {
-    return "Please describe your service in at least 30 characters.";
+    return "Please describe your offer in at least 30 characters.";
   }
 
   if (error === "invalid-duration") {

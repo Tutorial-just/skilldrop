@@ -3,14 +3,19 @@ import { redirect } from "next/navigation";
 import {
   ArrowRight,
   BadgeCheck,
+  Bell,
   Bookmark,
   CalendarDays,
   CheckCircle2,
   Clock3,
+  Code2,
   Compass,
   Euro,
-  Bell,
+  FileText,
+  Globe2,
+  GraduationCap,
   HeartHandshake,
+  Languages,
   Lightbulb,
   MessageCircle,
   Search,
@@ -34,30 +39,42 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UnreadNotificationsCard } from "@/components/notifications/unread-notifications-card";
 
-const helpCategories = [
+const problemCards = [
   {
-    title: "Life advice",
-    text: "Talk with someone who can help you think clearly.",
-    href: "/experts?q=life advice",
-    icon: HeartHandshake,
+    title: "Improve my CV",
+    text: "Find someone who can review your CV, resume or LinkedIn.",
+    href: "/experts?q=CV resume LinkedIn job career",
+    icon: WalletCards,
+  },
+  {
+    title: "Understand a document",
+    text: "Get help with forms, letters, admin papers or applications.",
+    href: "/experts?q=documents forms admin letter application",
+    icon: FileText,
+  },
+  {
+    title: "Practice a language",
+    text: "Translate, correct a message or practice speaking.",
+    href: "/experts?q=translation language speaking practice message",
+    icon: Languages,
   },
   {
     title: "Moving abroad",
-    text: "Ask about documents, first steps and local life.",
-    href: "/experts?q=moving abroad",
-    icon: Compass,
+    text: "Ask about relocation, first steps, housing and local life.",
+    href: "/experts?q=moving abroad relocation housing local guidance",
+    icon: Globe2,
   },
   {
-    title: "Languages",
-    text: "Find people who can translate, explain or practice.",
-    href: "/experts?q=translation language",
-    icon: Sparkles,
+    title: "Tech help",
+    text: "Find help with coding, websites, IT issues or digital tools.",
+    href: "/experts?q=tech coding website IT support",
+    icon: Code2,
   },
   {
-    title: "Career",
-    text: "Get advice about work, choices and next steps.",
-    href: "/experts?q=career",
-    icon: WalletCards,
+    title: "Study application",
+    text: "Get help with motivation letters, school choices and study plans.",
+    href: "/experts?q=study application university motivation letter",
+    icon: GraduationCap,
   },
 ];
 
@@ -268,29 +285,57 @@ export default async function BuyerDashboardPage() {
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-160px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
         <div className="relative p-6 md:p-8 lg:p-10">
           <div className="grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
               <Badge variant="primary">
                 <Sparkles size={14} />
-                Client workspace
+                Help workspace
               </Badge>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Welcome back, {buyer.name ?? "friend"}.
+                What do you need help with today, {buyer.name ?? "friend"}?
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Manage your calls, saved experts, payments, reviews and next
-                helpful session from one place.
+                Search for a problem, find the right helper, book a short 1:1
+                call and keep your bookings, saved helpers and reviews in one
+                place.
               </p>
+
+              <form action="/experts" className="mt-7 max-w-3xl">
+                <div className="rounded-[28px] border border-[var(--border)] bg-white/78 p-3 shadow-[var(--shadow-sm)] backdrop-blur">
+                  <div className="flex flex-col gap-3 md:flex-row">
+                    <div className="relative flex-1">
+                      <Search
+                        size={18}
+                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                      />
+
+                      <input
+                        name="q"
+                        type="search"
+                        placeholder="Try “CV review”, “visa documents”, “coding help”, “language practice”..."
+                        className="input min-h-[54px] border-transparent bg-white pl-12 shadow-none"
+                      />
+                    </div>
+
+                    <button type="submit" className="btn btn-primary min-h-[54px]">
+                      Find help
+                      <ArrowRight size={18} />
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
               <ButtonLink href="/experts">
                 <Search size={18} />
-                Find help
+                Browse helpers
               </ButtonLink>
 
               <ButtonLink href="/buyer/bookings" variant="secondary">
@@ -362,7 +407,7 @@ export default async function BuyerDashboardPage() {
             <Card className="p-5 md:p-6">
               <Badge variant="primary">
                 <ShieldCheck size={14} />
-                Client readiness
+                Workspace readiness
               </Badge>
 
               <div className="mt-5 flex items-end justify-between gap-4">
@@ -372,7 +417,7 @@ export default async function BuyerDashboardPage() {
                   </p>
 
                   <p className="mt-2 text-sm font-semibold text-muted">
-                    Workspace ready
+                    Ready to use
                   </p>
                 </div>
 
@@ -401,7 +446,7 @@ export default async function BuyerDashboardPage() {
 
                 <MiniCheck
                   done={buyer.savedExperts.length > 0}
-                  text="Expert saved for later"
+                  text="Helper saved for later"
                 />
 
                 <MiniCheck
@@ -411,7 +456,7 @@ export default async function BuyerDashboardPage() {
 
                 <MiniCheck
                   done={recommendedExperts.length > 0}
-                  text="Experts available now"
+                  text="Helpers available now"
                 />
               </div>
 
@@ -431,6 +476,56 @@ export default async function BuyerDashboardPage() {
               ) : null}
             </Card>
           </div>
+
+          <Card className="p-5 md:p-6">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <Badge variant="accent">
+                  <Compass size={14} />
+                  Browse by problem
+                </Badge>
+
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  Start with what you need.
+                </h2>
+
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted">
+                  Choose a common problem or search with your own words. SkillDrop
+                  will match you with helpers by title, description, skills,
+                  tags, languages and services.
+                </p>
+              </div>
+
+              <ButtonLink href="/experts" variant="secondary">
+                See marketplace
+                <ArrowRight size={18} />
+              </ButtonLink>
+            </div>
+
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {problemCards.map((category) => {
+                const Icon = category.icon;
+
+                return (
+                  <Link key={category.title} href={category.href} className="group">
+                    <div className="h-full rounded-[22px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                        <Icon size={18} />
+                      </div>
+
+                      <h3 className="mt-4 font-black tracking-[-0.02em]">
+                        {category.title}
+                      </h3>
+
+                      <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                        {category.text}
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </Card>
 
           <div className="grid gap-6 xl:grid-cols-[0.88fr_1.12fr]">
             <div className="grid gap-6">
@@ -470,7 +565,7 @@ export default async function BuyerDashboardPage() {
                   </h2>
 
                   <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                    Your feedback helps good experts grow and helps other users
+                    Your feedback helps good helpers grow and helps other users
                     choose safely.
                   </p>
 
@@ -512,7 +607,7 @@ export default async function BuyerDashboardPage() {
                   ) : (
                     <EmptyState
                       title="No calls scheduled"
-                      text="Book a call with an expert and it will appear here."
+                      text="Book a call with a helper and it will appear here."
                     />
                   )}
                 </div>
@@ -521,7 +616,7 @@ export default async function BuyerDashboardPage() {
               <Card className="p-5 md:p-6">
                 <Badge variant="accent">
                   <Bookmark size={14} />
-                  Saved experts
+                  Saved helpers
                 </Badge>
 
                 <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -531,7 +626,7 @@ export default async function BuyerDashboardPage() {
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-muted">
-                      Experts you saved for future calls.
+                      Helpers you saved for future calls.
                     </p>
                   </div>
 
@@ -547,8 +642,8 @@ export default async function BuyerDashboardPage() {
                     ))
                   ) : (
                     <EmptyState
-                      title="No saved experts yet"
-                      text="Save useful experts so you can book them later."
+                      title="No saved helpers yet"
+                      text="Save useful helpers so you can book them later."
                     />
                   )}
                 </div>
@@ -588,15 +683,15 @@ export default async function BuyerDashboardPage() {
                   <div>
                     <Badge variant="primary">
                       <Compass size={14} />
-                      Recommended experts
+                      Recommended helpers
                     </Badge>
 
                     <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                      Available helpers
+                      Available now
                     </h2>
 
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                      Experts with active services, open time slots and payout
+                      Helpers with active offers, open time slots and payout
                       setup ready.
                     </p>
                   </div>
@@ -609,45 +704,10 @@ export default async function BuyerDashboardPage() {
                     ))
                   ) : (
                     <EmptyState
-                      title="No experts available yet"
-                      text="New experts will appear here after they add services, availability and payouts."
+                      title="No helpers available yet"
+                      text="New helpers will appear here after they add offers, availability and payouts."
                     />
                   )}
-                </div>
-              </Card>
-
-              <Card className="p-5 md:p-6">
-                <Badge variant="accent">
-                  <Search size={14} />
-                  Browse by need
-                </Badge>
-
-                <div className="mt-6 grid gap-3 md:grid-cols-2">
-                  {helpCategories.map((category) => {
-                    const Icon = category.icon;
-
-                    return (
-                      <Link
-                        key={category.title}
-                        href={category.href}
-                        className="group"
-                      >
-                        <div className="h-full rounded-[22px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
-                            <Icon size={18} />
-                          </div>
-
-                          <h3 className="mt-4 font-black tracking-[-0.02em]">
-                            {category.title}
-                          </h3>
-
-                          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                            {category.text}
-                          </p>
-                        </div>
-                      </Link>
-                    );
-                  })}
                 </div>
               </Card>
 
@@ -698,24 +758,23 @@ export default async function BuyerDashboardPage() {
             <QuickAction
               icon={Star}
               title="Leave reviews"
-              text="Help strong experts build trust after completed calls."
+              text="Help strong helpers build trust after completed calls."
               href="/buyer/reviews"
             />
 
             <QuickAction
-               icon={UserRound}
-               title="Profile"
-               text="Update your client preferences, languages and interests."
-               href="/buyer/profile"
+              icon={UserRound}
+              title="Profile"
+              text="Update your preferences, languages and interests."
+              href="/buyer/profile"
             />
 
             <QuickAction
-                 icon={Settings}
-                 title="Settings"
-                 text="Manage appearance, privacy, account tools and workspace options."
-                 href="/buyer/settings"
+              icon={Settings}
+              title="Settings"
+              text="Manage privacy, account tools and workspace options."
+              href="/buyer/settings"
             />
-             
           </div>
         </div>
       </section>
@@ -758,7 +817,7 @@ type DashboardBooking = {
 function MainActionPanel({ booking }: { booking: DashboardBooking }) {
   const canJoin = canJoinBooking(booking);
   const pricing = getBookingPricing(booking);
-  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const helperName = booking.expert.user.name ?? booking.expert.user.email;
   const bookingNote = booking.note?.trim() ?? "";
   const canReview = booking.status === "COMPLETED" && !booking.review;
 
@@ -781,7 +840,7 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
       : canJoin
         ? "Join now and make sure your microphone and camera are ready."
         : canReview
-          ? "Your feedback helps other buyers choose and helps good experts grow."
+          ? "Your feedback helps other buyers choose and helps good helpers grow."
           : booking.status === "CONFIRMED"
             ? "Prepare one clear question before the call starts."
             : booking.status === "PAID"
@@ -892,7 +951,7 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
         <p className="mt-2 text-sm font-semibold leading-6 text-muted">
           With{" "}
           <span className="font-black text-[var(--foreground)]">
-            {providerName}
+            {helperName}
           </span>
         </p>
 
@@ -931,8 +990,8 @@ function StartPanel() {
         </h2>
 
         <p className="mt-3 max-w-xl leading-7 text-muted">
-          Browse experts, save useful profiles and book a short call when you
-          find the right person.
+          Search with your own words, compare helpers and book a short call when
+          you find the right person.
         </p>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -942,7 +1001,7 @@ function StartPanel() {
           </ButtonLink>
 
           <ButtonLink href="/buyer/saved" variant="secondary">
-            Saved experts
+            Saved helpers
             <Bookmark size={18} />
           </ButtonLink>
         </div>
@@ -957,20 +1016,20 @@ function StartPanel() {
         <div className="mt-5 grid gap-3">
           <OnboardingStep
             number="1"
-            title="Find an expert"
-            text="Search by topic, language or problem."
+            title="Describe your problem"
+            text="Search by topic, language, country, skill or keyword."
           />
 
           <OnboardingStep
             number="2"
-            title="Save or book"
-            text="Save useful profiles or choose a time."
+            title="Choose a helper"
+            text="Compare profiles, services, price, reviews and availability."
           />
 
           <OnboardingStep
             number="3"
-            title="Join the call"
-            text="Ask one clear question and get help."
+            title="Book a short call"
+            text="Ask one clear question and leave with next steps."
           />
         </div>
       </div>
@@ -1071,7 +1130,7 @@ function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
           ) : null}
 
           <Link href={`/experts/${booking.expertId}`} className="btn btn-secondary">
-            Expert
+            Helper
           </Link>
         </div>
       </div>
@@ -1153,7 +1212,7 @@ function SavedExpertPreview({
       <div className="rounded-[24px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-lg font-black text-white">
-            {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
+            {expert.user.name?.charAt(0).toUpperCase() ?? "H"}
           </div>
 
           <div className="min-w-0">
@@ -1229,7 +1288,7 @@ function ExpertCard({
       <div className="h-full rounded-[26px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-start gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-black text-white">
-            {expert.user.name?.charAt(0).toUpperCase() ?? "P"}
+            {expert.user.name?.charAt(0).toUpperCase() ?? "H"}
           </div>
 
           <div className="min-w-0">
@@ -1542,7 +1601,7 @@ function getSmartTipTitle({
   }
 
   if (hasSaved) {
-    return "Book a saved expert.";
+    return "Book a saved helper.";
   }
 
   if (hasCompleted) {
@@ -1570,7 +1629,7 @@ function getSmartTipText({
   }
 
   if (hasWaitingReview) {
-    return "You have completed calls waiting for feedback. Reviews help strong experts grow and help other clients choose safely.";
+    return "You have completed calls waiting for feedback. Reviews help strong helpers grow and help other buyers choose safely.";
   }
 
   if (hasUpcoming) {
@@ -1578,14 +1637,14 @@ function getSmartTipText({
   }
 
   if (hasSaved) {
-    return "You already saved an expert. Open saved experts and book a time when you are ready.";
+    return "You already saved a helper. Open saved helpers and book a time when you are ready.";
   }
 
   if (hasCompleted) {
-    return "You already completed a call. Find another expert when you need support with a new topic.";
+    return "You already completed a call. Find another helper when you need support with a new topic.";
   }
 
-  return "Choose a simple problem, pick an expert and book a short call. You do not need a perfect plan to start.";
+  return "Choose a simple problem, pick a helper and book a short call. You do not need a perfect plan to start.";
 }
 
 function canJoinBooking(booking: {

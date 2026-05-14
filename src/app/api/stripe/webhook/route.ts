@@ -80,8 +80,12 @@ function getPaymentIntentIdFromCharge(charge: Stripe.Charge) {
   return charge.payment_intent.id;
 }
 
+function createSafeRoomName(bookingId: string) {
+  return `skilldrop-${bookingId}`.replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
+}
+
 function createCallRoomData(bookingId: string) {
-  const roomName = `skilldrop-${bookingId}`;
+  const roomName = createSafeRoomName(bookingId);
   const baseUrl = process.env.JITSI_BASE_URL || "https://meet.jit.si";
 
   return {
@@ -99,6 +103,7 @@ function revalidateWebhookPaths(expertId: string, bookingId: string) {
   revalidatePath("/buyer");
   revalidatePath("/buyer/bookings");
   revalidatePath(`/buyer/bookings/${bookingId}/checkout`);
+  revalidatePath(`/calls/${bookingId}`);
 
   revalidatePath("/expert");
   revalidatePath("/expert/bookings");
@@ -123,6 +128,20 @@ async function markStripeEventProcessed(eventId: string) {
   });
 }
 
+async function safeSendNotification(
+  input: Parameters<typeof sendNotification>[0],
+) {
+  if (!input.to) {
+    return;
+  }
+
+  try {
+    await sendNotification(input);
+  } catch (error) {
+    console.error("Notification error:", error);
+  }
+}
+
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("en", {
     weekday: "short",
@@ -134,7 +153,44 @@ function formatDateTime(date: Date) {
 }
 
 function getDisplayName(user: { name: string | null; email: string }) {
-  return user.name?.trim() || user.email.split("@")[0] || "Client";
+  return user.name?.trim() || user.email.split("@")[0] || "Buyer";
+}
+
+function getBookingPricing(booking: {
+  priceCents: number;
+  currency: string;
+  platformFeeCents: number | null;
+  providerNetCents: number | null;
+  clientServiceFeeCents: number | null;
+  clientTotalCents: number | null;
+}) {
+  const fallback = calculatePricingBreakdown(booking.priceCents);
+
+  const providerCommissionCents =
+    booking.platformFeeCents ?? fallback.providerCommissionCents;
+
+  const providerNetCents =
+    booking.providerNetCents ?? fallback.providerNetCents;
+
+  const clientServiceFeeCents =
+    booking.clientServiceFeeCents ?? fallback.clientServiceFeeCents;
+
+  const clientTotalCents =
+    booking.clientTotalCents ?? fallback.clientTotalCents;
+
+  const platformGrossFeeCents =
+    providerCommissionCents + clientServiceFeeCents;
+
+  return {
+    servicePriceCents: booking.priceCents,
+    providerCommissionCents,
+    providerNetCents,
+    clientServiceFeeCents,
+    clientTotalCents,
+    platformFeeCents: providerCommissionCents,
+    platformGrossFeeCents,
+    currency: booking.currency || fallback.currency,
+  };
 }
 
 async function handleCheckoutSessionPaid({
@@ -190,7 +246,7 @@ async function handleCheckoutSessionPaid({
         return null;
       }
 
-      const pricing = calculatePricingBreakdown(booking.priceCents);
+      const pricing = getBookingPricing(booking);
 
       if (
         typeof stripeAmountTotal === "number" &&
@@ -235,8 +291,24 @@ async function handleCheckoutSessionPaid({
             clientTotalCents: pricing.clientTotalCents,
             platformFeeCents: pricing.providerCommissionCents,
             providerNetCents: pricing.providerNetCents,
+            expiresAt: null,
           },
         });
+
+        if (!booking.callRoom) {
+          const room = createCallRoomData(booking.id);
+
+          await tx.callRoom.create({
+            data: {
+              bookingId: booking.id,
+              provider: room.provider,
+              roomName: room.roomName,
+              roomUrl: room.roomUrl,
+              startsAt: booking.startTime,
+              endsAt: booking.endTime,
+            },
+          });
+        }
 
         await tx.stripeEvent.update({
           where: {
@@ -348,7 +420,7 @@ async function handleCheckoutSessionPaid({
     return null;
   }
 
-  await sendNotification({
+  await safeSendNotification({
     to: confirmedBooking.buyerEmail,
     type: "PAYMENT_CONFIRMED",
     subject: "Your call is confirmed",
@@ -368,7 +440,7 @@ async function handleCheckoutSessionPaid({
     },
   });
 
-  await sendNotification({
+  await safeSendNotification({
     to: confirmedBooking.expertEmail,
     type: "PAYMENT_CONFIRMED",
     subject: "New confirmed booking",
@@ -377,7 +449,7 @@ async function handleCheckoutSessionPaid({
     }" for ${formatDateTime(
       confirmedBooking.startTime,
     )}. You can join the call 10 minutes before start.${
-      confirmedBooking.note ? ` Note: ${confirmedBooking.note}` : ""
+      confirmedBooking.note ? ` Buyer note: ${confirmedBooking.note}` : ""
     }`,
     metadata: {
       bookingId: confirmedBooking.id,
@@ -453,6 +525,7 @@ async function handlePaymentIntentFailed({
           data: {
             status: "CANCELLED",
             cancelledAt: new Date(),
+            cancelReason: "PAYMENT_FAILED",
             expiresAt: null,
             stripePaymentIntentId: paymentIntent.id,
           },
@@ -504,11 +577,23 @@ async function handlePaymentIntentFailed({
     return null;
   }
 
-  await sendNotification({
+  await safeSendNotification({
     to: failedBooking.buyerEmail,
     type: "BOOKING_CANCELLED",
     subject: "Payment failed",
     message: `Payment failed for "${failedBooking.serviceTitle}". The booking was not confirmed.`,
+    metadata: {
+      bookingId: failedBooking.id,
+      expertId: failedBooking.expertId,
+      stripePaymentIntentId: paymentIntent.id,
+    },
+  });
+
+  await safeSendNotification({
+    to: failedBooking.expertEmail,
+    type: "BOOKING_CANCELLED",
+    subject: "Booking payment failed",
+    message: `The booking "${failedBooking.serviceTitle}" was cancelled because the buyer payment failed.`,
     metadata: {
       bookingId: failedBooking.id,
       expertId: failedBooking.expertId,
@@ -572,8 +657,9 @@ async function handleCheckoutSessionExpired({
             id: booking.id,
           },
           data: {
-            status: "CANCELLED",
+            status: "EXPIRED",
             cancelledAt: new Date(),
+            cancelReason: "PAYMENT_EXPIRED",
             expiresAt: null,
             stripeCheckoutSessionId: session.id,
           },
@@ -627,9 +713,9 @@ async function handleCheckoutSessionExpired({
     return null;
   }
 
-  await sendNotification({
+  await safeSendNotification({
     to: expiredBooking.buyerEmail,
-    type: "BOOKING_EXPIRED",
+    type: "BOOKING_CANCELLED",
     subject: "Booking expired",
     message: `Your booking "${expiredBooking.serviceTitle}" expired because checkout was not completed in time.`,
     metadata: {
@@ -637,6 +723,21 @@ async function handleCheckoutSessionExpired({
       expertId: expiredBooking.expertId,
       stripeCheckoutSessionId: session.id,
       reason: "stripe-checkout-expired",
+      newStatus: "EXPIRED",
+    },
+  });
+
+  await safeSendNotification({
+    to: expiredBooking.expertEmail,
+    type: "BOOKING_CANCELLED",
+    subject: "Booking expired",
+    message: `The booking "${expiredBooking.serviceTitle}" expired because the buyer did not complete checkout in time.`,
+    metadata: {
+      bookingId: expiredBooking.id,
+      expertId: expiredBooking.expertId,
+      stripeCheckoutSessionId: session.id,
+      reason: "stripe-checkout-expired",
+      newStatus: "EXPIRED",
     },
   });
 
@@ -747,7 +848,7 @@ async function handleChargeRefunded({
     return null;
   }
 
-  await sendNotification({
+  await safeSendNotification({
     to: refundedBooking.buyerEmail,
     type: "BOOKING_REFUNDED",
     subject: "Your SkillDrop booking was refunded",
@@ -760,7 +861,7 @@ async function handleChargeRefunded({
     },
   });
 
-  await sendNotification({
+  await safeSendNotification({
     to: refundedBooking.expertEmail,
     type: "BOOKING_REFUNDED",
     subject: "A booking was refunded",
