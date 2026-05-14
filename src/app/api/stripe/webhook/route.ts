@@ -531,16 +531,7 @@ async function handlePaymentIntentFailed({
           },
         });
 
-        if (booking.availabilityId) {
-          await tx.availability.updateMany({
-            where: {
-              id: booking.availabilityId,
-            },
-            data: {
-              isBooked: false,
-            },
-          });
-        }
+        
 
         await tx.callRoom.updateMany({
           where: {
@@ -665,16 +656,7 @@ async function handleCheckoutSessionExpired({
           },
         });
 
-        if (booking.availabilityId) {
-          await tx.availability.updateMany({
-            where: {
-              id: booking.availabilityId,
-            },
-            data: {
-              isBooked: false,
-            },
-          });
-        }
+      
 
         if (booking.callRoom) {
           await tx.callRoom.updateMany({
@@ -802,16 +784,7 @@ async function handleChargeRefunded({
           },
         });
 
-        if (booking.availabilityId) {
-          await tx.availability.updateMany({
-            where: {
-              id: booking.availabilityId,
-            },
-            data: {
-              isBooked: false,
-            },
-          });
-        }
+      
 
         await tx.callRoom.updateMany({
           where: {
