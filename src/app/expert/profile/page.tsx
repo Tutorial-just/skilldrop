@@ -198,10 +198,10 @@ export default async function ExpertProfilePage({
       },
       availability: {
         where: {
-          startTime: {
+          endTime: {
             gte: new Date(),
           },
-          isBooked: false,
+          isActive: true,
         },
         orderBy: {
           startTime: "asc",

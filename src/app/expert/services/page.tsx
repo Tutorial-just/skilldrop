@@ -117,10 +117,10 @@ export default async function ExpertServicesPage({
       },
       availability: {
         where: {
-          startTime: {
+          endTime: {
             gte: new Date(),
           },
-          isBooked: false,
+          isActive: true,
         },
         take: 12,
         orderBy: {

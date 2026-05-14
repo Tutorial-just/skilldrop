@@ -69,10 +69,10 @@ export default async function ExpertSettingsPage({
       },
       availability: {
         where: {
-          startTime: {
+          endTime: {
             gte: new Date(),
           },
-          isBooked: false,
+          isActive: true,
         },
       },
     },
