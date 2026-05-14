@@ -53,8 +53,8 @@ export default async function AdminLaunchChecklistPage() {
     }),
     prisma.availability.count({
       where: {
-        isBooked: false,
-        startTime: {
+        isActive: true,
+        endTime: {
           gte: new Date(),
         },
       },
