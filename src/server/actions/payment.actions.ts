@@ -93,7 +93,7 @@ async function cancelExpiredPendingBooking({
           id: availabilityId,
         },
         data: {
-          isBooked: false,
+          isActive: true,
         },
       });
     }

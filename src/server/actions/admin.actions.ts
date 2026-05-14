@@ -496,7 +496,7 @@ export async function updateBookingStatusByAdminAction(formData: FormData) {
           id: booking.availabilityId,
         },
         data: {
-          isBooked: false,
+          isActive: true,
         },
       });
     }
@@ -760,7 +760,7 @@ export async function refundBookingByAdminAction(formData: FormData) {
           id: booking.availabilityId,
         },
         data: {
-          isBooked: false,
+          isActive: true,
         },
       });
     }
@@ -1040,7 +1040,7 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
           id: booking.availabilityId,
         },
         data: {
-          isBooked: false,
+          isActive: true,
         },
       });
     }

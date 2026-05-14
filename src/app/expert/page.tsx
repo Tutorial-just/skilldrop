@@ -45,6 +45,13 @@ const activeBookingStatuses: BookingStatus[] = [
   BookingStatus.CONFIRMED,
 ];
 
+const inactiveBookingStatuses: BookingStatus[] = [
+  BookingStatus.CANCELLED,
+  BookingStatus.REFUNDED,
+  BookingStatus.COMPLETED,
+  BookingStatus.DISPUTED,
+];
+
 const workspaceLinks = [
   {
     title: "Profile",
@@ -185,6 +192,10 @@ export default async function ExpertDashboardPage({
     redirect("/become-expert");
   }
 
+  const bio = expert.bio ?? "";
+  const providerName = expert.user.name || "Provider";
+  const providerEmail = expert.user.email || email;
+
   const activeServices = expert.services.filter((service) => service.isActive);
 
   const openSlots = expert.availability.filter(
@@ -220,11 +231,7 @@ export default async function ExpertDashboardPage({
     .filter(
       (booking) =>
         booking.startTime >= now &&
-        booking.status !== BookingStatus.CANCELLED &&
-        booking.status !== BookingStatus.REFUNDED &&
-        booking.status !== BookingStatus.COMPLETED &&
-        booking.status !== BookingStatus.DISPUTED &&
-        booking.status !== BookingStatus.EXPIRED,
+        !inactiveBookingStatuses.includes(booking.status),
     )
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
@@ -276,8 +283,8 @@ export default async function ExpertDashboardPage({
   );
 
   const profileScore = calculateProfileScore({
-    hasHeadline: Boolean(expert.headline),
-    hasBio: expert.bio.length >= 120,
+    hasHeadline: Boolean(expert.headline?.trim()),
+    hasBio: bio.trim().length >= 120,
     hasSkills: expert.skills.length >= 3,
     hasLanguages: expert.languages.length > 0,
     hasServices: activeServices.length > 0,
@@ -297,8 +304,8 @@ export default async function ExpertDashboardPage({
       title: "Complete public profile",
       text: "Add a strong biography, headline, languages and skills.",
       done:
-        Boolean(expert.headline) &&
-        expert.bio.length >= 120 &&
+        Boolean(expert.headline?.trim()) &&
+        bio.trim().length >= 120 &&
         expert.skills.length >= 3 &&
         expert.languages.length > 0,
       href: "/expert/profile",
@@ -340,10 +347,9 @@ export default async function ExpertDashboardPage({
     (completedChecklist / checklist.length) * 100,
   );
 
-  const providerName = expert.user.name ?? "Provider";
   const avatarLetter = (
-    expert.user.name?.charAt(0) ||
-    expert.user.email.charAt(0) ||
+    providerName.charAt(0) ||
+    providerEmail.charAt(0) ||
     "P"
   ).toUpperCase();
 
@@ -833,8 +839,8 @@ export default async function ExpertDashboardPage({
                 </div>
 
                 <div className="mt-5 grid gap-2">
-                  <MiniCheck done={Boolean(expert.headline)} text="Headline added" />
-                  <MiniCheck done={expert.bio.length >= 120} text="Strong biography" />
+                  <MiniCheck done={Boolean(expert.headline?.trim())} text="Headline added" />
+                  <MiniCheck done={bio.trim().length >= 120} text="Strong biography" />
                   <MiniCheck done={expert.skills.length >= 3} text="Searchable skills" />
                   <MiniCheck done={expert.languages.length > 0} text="Languages added" />
                   <MiniCheck done={hasStripePayouts} text="Stripe payouts connected" />
@@ -1027,7 +1033,7 @@ export default async function ExpertDashboardPage({
             </div>
           </div>
 
-          <UnreadNotificationsCard userId={expert.user.id} email={expert.user.email} />
+          <UnreadNotificationsCard userId={expert.user.id} email={providerEmail} />
 
           <Card soft className="p-5 md:p-6">
             <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
@@ -1045,7 +1051,7 @@ export default async function ExpertDashboardPage({
                     hasServices: activeServices.length > 0,
                     hasAvailability: openSlots.length > 0,
                     hasReviews: expert.reviews.length > 0,
-                    hasStrongBio: expert.bio.length >= 120,
+                    hasStrongBio: bio.trim().length >= 120,
                     hasStripePayouts,
                     hasPendingPayment: pendingBookings.length > 0,
                     hasDisputes: disputedBookings.length > 0,
@@ -1058,7 +1064,7 @@ export default async function ExpertDashboardPage({
                   hasServices: activeServices.length > 0,
                   hasAvailability: openSlots.length > 0,
                   hasReviews: expert.reviews.length > 0,
-                  hasStrongBio: expert.bio.length >= 120,
+                  hasStrongBio: bio.trim().length >= 120,
                   hasStripePayouts,
                   hasPendingPayment: pendingBookings.length > 0,
                   hasDisputes: disputedBookings.length > 0,
@@ -1279,7 +1285,7 @@ function SmallInfoRow({ label, value }: { label: string; value: string }) {
 function canJoinBooking(booking: {
   startTime: Date;
   endTime: Date;
-  status: string;
+  status: BookingStatus;
   callRoom: {
     roomUrl: string;
   } | null;
@@ -1515,7 +1521,7 @@ function formatTime(date: Date) {
   }).format(date);
 }
 
-function formatStatus(status: string) {
+function formatStatus(status: BookingStatus) {
   if (status === BookingStatus.PENDING) {
     return "Pending payment";
   }
@@ -1542,10 +1548,6 @@ function formatStatus(status: string) {
 
   if (status === BookingStatus.DISPUTED) {
     return "Disputed";
-  }
-
-  if (status === BookingStatus.EXPIRED) {
-    return "Expired";
   }
 
   return status.toLowerCase();
