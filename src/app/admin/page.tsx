@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BookingStatus } from "@prisma/client";
 import {
   AlertTriangle,
   CalendarDays,
@@ -12,16 +13,23 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
+
 import { calculatePricingBreakdown } from "@/config/pricing";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-
+const activeBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+];
 
 export default async function AdminPage() {
   await requireRole(["admin"]);
+
+  const now = new Date();
 
   const [
     usersCount,
@@ -175,10 +183,10 @@ export default async function AdminPage() {
       },
       select: {
         priceCents: true,
-         platformFeeCents: true,
-         clientServiceFeeCents: true,
-         clientTotalCents: true,
-         providerNetCents: true,
+        platformFeeCents: true,
+        clientServiceFeeCents: true,
+        clientTotalCents: true,
+        providerNetCents: true,
       },
     }),
 
@@ -232,18 +240,21 @@ export default async function AdminPage() {
       include: {
         user: true,
         availability: {
-          some: {
-           isActive: true,
-           endTime: {
-             gte: new Date(),
-           },
-           bookings: {
-            none: {
-             status: {
-               in: ["PENDING", "PAID", "CONFIRMED"],
+          where: {
+            isActive: true,
+            endTime: {
+              gte: now,
+            },
+            bookings: {
+              none: {
+                status: {
+                  in: activeBookingStatuses,
+                },
               },
             },
-           },
+          },
+          orderBy: {
+            startTime: "asc",
           },
         },
         services: {
@@ -288,8 +299,8 @@ export default async function AdminPage() {
   );
 
   const providerNetCompletedCents = completedBookings.reduce(
-   (sum, booking) => sum + getProviderNetCents(booking),
-   0,
+    (sum, booking) => sum + getProviderNetCents(booking),
+    0,
   );
 
   const expertsWithRisk = rawExperts.map((expert) => {
@@ -386,7 +397,10 @@ export default async function AdminPage() {
 
               <div className="mt-5 grid gap-3">
                 <SummaryRow label="Buyers" value={String(buyersCount)} />
-                <SummaryRow label="Expert users" value={String(expertsUsersCount)} />
+                <SummaryRow
+                  label="Expert users"
+                  value={String(expertsUsersCount)}
+                />
                 <SummaryRow label="Admins" value={String(adminsCount)} />
                 <SummaryRow
                   label="Rejected experts"
@@ -518,10 +532,7 @@ export default async function AdminPage() {
                   label="Pending bookings"
                   value={String(pendingBookingsCount)}
                 />
-                <StatusRow
-                  label="Paid bookings"
-                  value={String(paidBookingsCount)}
-                />
+                <StatusRow label="Paid bookings" value={String(paidBookingsCount)} />
                 <StatusRow
                   label="Confirmed bookings"
                   value={String(confirmedBookingsCount)}
@@ -665,10 +676,7 @@ export default async function AdminPage() {
               </div>
 
               <div className="mt-5">
-                <Link
-                  href="/admin/reviews?bad=true"
-                  className="btn btn-secondary"
-                >
+                <Link href="/admin/reviews?bad=true" className="btn btn-secondary">
                   View quality issues
                 </Link>
               </div>
