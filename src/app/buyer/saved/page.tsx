@@ -63,10 +63,10 @@ export default async function BuyerSavedExpertsPage() {
           },
           availability: {
             where: {
-              startTime: {
+              endTime: {
                 gte: new Date(),
               },
-              isBooked: false,
+              isActive: true,
             },
             orderBy: {
               startTime: "asc",
