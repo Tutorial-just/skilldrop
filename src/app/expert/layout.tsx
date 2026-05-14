@@ -19,53 +19,27 @@ import { prisma } from "@/lib/prisma";
 import { getUnreadNotificationCount } from "@/server/services/notification-count.service";
 
 const expertLinks = [
-  {
-    label: "Profile",
-    href: "/expert/profile",
-    icon: UserRound,
-  },
-  {
-    label: "Offers",
-    href: "/expert/services",
-    icon: WalletCards,
-  },
-  {
-    label: "Availability",
-    href: "/expert/availability",
-    icon: CalendarDays,
-  },
-  {
-    label: "Bookings",
-    href: "/expert/bookings",
-    icon: Video,
-  },
-  {
-    label: "Earnings",
-    href: "/expert/earnings",
-    icon: CircleDollarSign,
-  },
-  {
-    label: "Statistics",
-    href: "/expert/stats",
-    icon: BarChart3,
-  },
-  {
-    label: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-    badge: "notifications",
-  },
-  {
-    label: "Settings",
-    href: "/expert/settings",
-    icon: Settings,
-  },
+  { label: "Profile", href: "/expert/profile", icon: UserRound },
+  { label: "Offers", href: "/expert/services", icon: WalletCards },
+  { label: "Availability", href: "/expert/availability", icon: CalendarDays },
+  { label: "Bookings", href: "/expert/bookings", icon: Video },
+  { label: "Earnings", href: "/expert/earnings", icon: CircleDollarSign },
+  { label: "Statistics", href: "/expert/stats", icon: BarChart3 },
+  { label: "Notifications", href: "/notifications", icon: Bell, badge: "notifications" },
+  { label: "Settings", href: "/expert/settings", icon: Settings },
 ];
 
 const activeBookingStatuses: BookingStatus[] = [
   BookingStatus.PENDING,
   BookingStatus.PAID,
   BookingStatus.CONFIRMED,
+];
+
+const inactiveBookingStatuses: BookingStatus[] = [
+  BookingStatus.CANCELLED,
+  BookingStatus.REFUNDED,
+  BookingStatus.COMPLETED,
+  BookingStatus.DISPUTED,
 ];
 
 export default async function ExpertLayout({
@@ -157,11 +131,7 @@ export default async function ExpertLayout({
   const upcomingBookings = expert.bookings.filter(
     (booking) =>
       booking.startTime >= now &&
-      booking.status !== BookingStatus.CANCELLED &&
-      booking.status !== BookingStatus.REFUNDED &&
-      booking.status !== BookingStatus.COMPLETED &&
-      booking.status !== BookingStatus.DISPUTED &&
-      booking.status !== BookingStatus.EXPIRED,
+      !inactiveBookingStatuses.includes(booking.status),
   );
 
   const completedBookings = expert.bookings.filter(
@@ -174,8 +144,8 @@ export default async function ExpertLayout({
   );
 
   const profileScore = calculateExpertProfileScore({
-    hasHeadline: Boolean(expert.headline),
-    hasBio: expert.bio.length >= 120,
+    hasHeadline: Boolean(expert.headline?.trim()),
+    hasBio: (expert.bio ?? "").trim().length >= 120,
     hasSkills: expert.skills.length >= 3,
     hasLanguages: expert.languages.length > 0,
     hasServices: activeServices.length > 0,
@@ -183,7 +153,9 @@ export default async function ExpertLayout({
     isVerified: expert.isVerified,
   });
 
-  const initials = getInitials(expert.user.name ?? expert.user.email);
+  const displayName = expert.user.name || "Provider";
+  const displayEmail = expert.user.email || email;
+  const initials = getInitials(displayName || displayEmail);
 
   return (
     <div className="min-h-[calc(100vh-76px)] p-4 md:p-6">
@@ -196,11 +168,11 @@ export default async function ExpertLayout({
               </div>
 
               <h2 className="mt-4 truncate text-lg font-black tracking-[-0.04em]">
-                {expert.user.name ?? "Provider"}
+                {displayName}
               </h2>
 
               <p className="mt-1 truncate text-xs font-bold text-white/70">
-                {expert.user.email}
+                {displayEmail}
               </p>
 
               <div className="mt-4 grid gap-2">
@@ -208,7 +180,6 @@ export default async function ExpertLayout({
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
                     Workspace
                   </p>
-
                   <p className="mt-1 text-sm font-black">Provider</p>
                 </div>
 
@@ -217,7 +188,6 @@ export default async function ExpertLayout({
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
                       Profile
                     </p>
-
                     <p className="text-xs font-black text-white">
                       {profileScore}%
                     </p>
@@ -240,12 +210,10 @@ export default async function ExpertLayout({
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
                         Needs action
                       </p>
-
                       <p className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#111827]">
                         {needsCompletionBookings.length}
                       </p>
                     </div>
-
                     <p className="mt-1 text-sm font-black">
                       Complete finished calls
                     </p>
@@ -261,12 +229,10 @@ export default async function ExpertLayout({
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
                         Unread
                       </p>
-
                       <p className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#111827]">
                         {unreadNotifications}
                       </p>
                     </div>
-
                     <p className="mt-1 text-sm font-black">
                       Notifications waiting
                     </p>
@@ -310,34 +276,16 @@ export default async function ExpertLayout({
 
             <div className="mt-4 grid gap-2">
               <SidebarStat label="Offers" value={String(activeServices.length)} />
-
-              <SidebarStat
-                label="Open windows"
-                value={String(openWindows.length)}
-              />
-
-              <SidebarStat
-                label="Upcoming"
-                value={String(upcomingBookings.length)}
-              />
-
-              <SidebarStat
-                label="Needs action"
-                value={String(needsCompletionBookings.length)}
-              />
-
-              <SidebarStat
-                label="Completed"
-                value={String(completedBookings.length)}
-              />
-
+              <SidebarStat label="Open windows" value={String(openWindows.length)} />
+              <SidebarStat label="Upcoming" value={String(upcomingBookings.length)} />
+              <SidebarStat label="Needs action" value={String(needsCompletionBookings.length)} />
+              <SidebarStat label="Completed" value={String(completedBookings.length)} />
               <SidebarStat label="Unread" value={String(unreadNotifications)} />
             </div>
 
             <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/62 p-4">
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-[var(--primary-dark)]" />
-
                 <p className="text-sm font-black">Quick tip</p>
               </div>
 
