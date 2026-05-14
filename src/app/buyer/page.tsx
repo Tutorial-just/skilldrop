@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UnreadNotificationsCard } from "@/components/notifications/unread-notifications-card";
+import { truncate } from "node:fs/promises";
 
 const problemCards = [
   {
@@ -113,7 +114,7 @@ export default async function BuyerDashboardPage() {
                   startTime: {
                     gte: now,
                   },
-                  isBooked: false,
+                  isBooked: true,
                 },
                 orderBy: {
                   startTime: "asc",
@@ -231,7 +232,7 @@ export default async function BuyerDashboardPage() {
           startTime: {
             gte: now,
           },
-          isBooked: false,
+          isBooked: true,
         },
       },
     },
@@ -251,7 +252,7 @@ export default async function BuyerDashboardPage() {
           startTime: {
             gte: now,
           },
-          isBooked: false,
+          isBooked: true,
         },
         orderBy: {
           startTime: "asc",
