@@ -114,7 +114,7 @@ export default async function BuyerDashboardPage() {
                   startTime: {
                     gte: now,
                   },
-                  isBooked: true,
+                  isActive: true,
                 },
                 orderBy: {
                   startTime: "asc",
@@ -232,7 +232,7 @@ export default async function BuyerDashboardPage() {
           startTime: {
             gte: now,
           },
-          isBooked: true,
+          isActive: true,
         },
       },
     },
@@ -252,7 +252,7 @@ export default async function BuyerDashboardPage() {
           startTime: {
             gte: now,
           },
-          isBooked: true,
+          isActive: true,
         },
         orderBy: {
           startTime: "asc",
