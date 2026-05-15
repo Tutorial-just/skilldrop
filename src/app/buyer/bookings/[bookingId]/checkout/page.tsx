@@ -11,7 +11,7 @@ import {
   Sparkles,
   WalletCards,
 } from "lucide-react";
-
+import { BookingStatus } from "@prisma/client";
 import { createCheckoutSessionAction } from "@/server/actions/payment.actions";
 import { releaseExpiredPendingBookings } from "@/server/actions/booking.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
@@ -60,8 +60,12 @@ export default async function BookingCheckoutPage({
 
   const booking = await prisma.booking.findFirst({
     where: {
-      id: bookingId,
-      buyerId: buyer.id,
+       id: bookingId,
+       ...(buyer.role === "ADMIN"
+        ? {}
+        : {
+          buyerId: buyer.id,
+        }),
     },
     include: {
       expert: {
@@ -78,9 +82,12 @@ export default async function BookingCheckoutPage({
     redirect("/buyer/bookings?error=booking-not-found");
   }
 
-  if (booking.status !== "PENDING") {
-    redirect(`/buyer/bookings?booked=${booking.id}`);
-  }
+  if (booking.status !== BookingStatus.PENDING) {
+     if (booking.status === BookingStatus.CONFIRMED && booking.callRoom) {
+       redirect(`/calls/${booking.id}`);
+     }
+     redirect(`/buyer/bookings?booked=${booking.id}`);
+   }
 
   const now = new Date();
 
@@ -90,7 +97,11 @@ export default async function BookingCheckoutPage({
 
   const helperName = booking.expert.user.name ?? booking.expert.user.email;
   const serviceTitle = booking.service?.title ?? "Booked call";
-  const helperCanReceivePayouts = Boolean(booking.expert.stripeAccountId);
+  const helperCanReceivePayouts =
+    Boolean(booking.expert.stripeAccountId) &&
+    booking.expert.stripeChargesEnabled &&
+    booking.expert.stripePayoutsEnabled &&
+    booking.expert.stripeDetailsSubmitted;
   const durationMinutes = getDurationMinutes(booking.startTime, booking.endTime);
   const bookingNote = booking.note?.trim() || "";
 

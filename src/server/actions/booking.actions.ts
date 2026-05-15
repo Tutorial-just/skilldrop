@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BookingStatus, Prisma } from "@prisma/client";
-
+import {
+  cancelBooking,
+  closeCallRoom,
+  completeBooking,
+  expireBooking,
+} from "@/server/services/booking.service";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import {
@@ -534,39 +539,16 @@ export async function cancelBookingAction(formData: FormData) {
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
-    const updatedBooking = await tx.booking.updateMany({
-      where: {
-        id: booking.id,
-        status: BookingStatus.PENDING,
-      },
-      data: {
-        status: BookingStatus.CANCELLED,
-        cancelledAt: now,
-        cancelReason: isAdmin
+    await cancelBooking(
+        tx,
+        booking.id,
+        isAdmin
           ? "CANCELLED_BY_ADMIN"
           : isExpert
             ? "CANCELLED_BY_EXPERT"
             : "CANCELLED_BY_BUYER",
-        expiresAt: null,
-      },
+      );
     });
-
-    if (updatedBooking.count === 0) {
-      return;
-    }
-
-    if (booking.callRoom) {
-      await tx.callRoom.updateMany({
-        where: {
-          bookingId: booking.id,
-        },
-        data: {
-          status: "ENDED",
-          endsAt: now,
-        },
-      });
-    }
-  });
 
   const cancelledBy = isAdmin
     ? "SkillDrop admin"
@@ -807,15 +789,7 @@ export async function updateBookingStatusAction(formData: FormData) {
         status === BookingStatus.DISPUTED ||
         status === BookingStatus.EXPIRED)
     ) {
-      await tx.callRoom.updateMany({
-        where: {
-          bookingId: booking.id,
-        },
-        data: {
-          status: "ENDED",
-          endsAt: now,
-        },
-      });
+      await closeCallRoom(tx, booking.id, now);
     }
   });
 
@@ -956,36 +930,12 @@ export async function releaseExpiredPendingBookings() {
 
   await prisma.$transaction(async (tx) => {
     for (const booking of expiredBookings) {
-      const updatedBooking = await tx.booking.updateMany({
-        where: {
-          id: booking.id,
-          status: BookingStatus.PENDING,
-        },
-        data: {
-          status: BookingStatus.EXPIRED,
-          cancelledAt: now,
-          cancelReason: "PAYMENT_EXPIRED",
-          expiresAt: null,
-        },
-      });
-
-      if (updatedBooking.count === 0) {
-        continue;
-      }
+     const updatedBooking = await expireBooking(tx, booking.id);
+     if (updatedBooking.status !== BookingStatus.EXPIRED) {
+         continue;
+        }
 
       expiredBookingIds.push(booking.id);
-
-      if (booking.callRoom) {
-        await tx.callRoom.updateMany({
-          where: {
-            bookingId: booking.id,
-          },
-          data: {
-            status: "ENDED",
-            endsAt: now,
-          },
-        });
-      }
     }
   });
 

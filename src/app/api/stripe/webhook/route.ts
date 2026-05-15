@@ -2,7 +2,13 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { BookingStatus, CallRoomStatus } from "@prisma/client";
-
+import {
+  confirmBooking,
+  expireBooking,
+  cancelBooking,
+  closeCallRoom,
+  createCallRoom,
+} from "@/server/services/booking.service";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { sendNotification } from "@/server/services/notification.service";
@@ -320,6 +326,7 @@ async function handleCheckoutSessionPaid({
           where: { id: eventId },
           data: { processed: true, processedAt: new Date() },
         });
+        await confirmBooking(tx, booking.id);
 
         return null;
       }
@@ -464,16 +471,7 @@ async function handlePaymentIntentFailed({
         return null;
       }
 
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: {
-          status: BookingStatus.CANCELLED,
-          cancelledAt: new Date(),
-          cancelReason: "PAYMENT_FAILED",
-          expiresAt: null,
-          stripePaymentIntentId: paymentIntent.id,
-        },
-      });
+      await cancelBooking(tx, booking.id, "PAYMENT_FAILED");
 
       await tx.callRoom.updateMany({
         where: { bookingId: booking.id },
@@ -574,16 +572,7 @@ async function handleCheckoutSessionExpired({
         return null;
       }
 
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: {
-          status: BookingStatus.EXPIRED,
-          cancelledAt: new Date(),
-          cancelReason: "PAYMENT_EXPIRED",
-          expiresAt: null,
-          stripeCheckoutSessionId: session.id,
-        },
-      });
+      await expireBooking(tx, booking.id);  
 
       if (booking.callRoom) {
         await tx.callRoom.updateMany({

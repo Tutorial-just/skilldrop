@@ -2,37 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BookingStatus, CallRoomStatus } from "@prisma/client";
+import { BookingStatus } from "@prisma/client";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/server/services/notification.service";
-
-const JOIN_OPEN_MINUTES_BEFORE = 10;
-const JOIN_CLOSE_MINUTES_AFTER = 15;
+import {
+  canJoinCall,
+  completeBooking,
+  createCallRoom,
+  openCallRoom,
+} from "@/server/services/booking.service";
 
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
-}
-
-function createSafeRoomName(bookingId: string) {
-  return `skilldrop-${bookingId}`.replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
-}
-
-function createCallRoomData(bookingId: string) {
-  const roomName = createSafeRoomName(bookingId);
-  const baseUrl = process.env.JITSI_BASE_URL || "https://meet.jit.si";
-
-  return {
-    provider: process.env.VIDEO_PROVIDER || "JITSI",
-    roomName,
-    roomUrl: `${baseUrl}/${roomName}`,
-  };
-}
-
-function addMinutes(date: Date, minutes: number) {
-  return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
 function getBookingsHref(role: string) {
@@ -131,42 +115,27 @@ export async function createOrOpenCallRoomAction(formData: FormData) {
     redirect(`${getBookingsHref(currentUser.role)}?error=call-not-confirmed`);
   }
 
-  const now = new Date();
-  const joinOpensAt = addMinutes(booking.startTime, -JOIN_OPEN_MINUTES_BEFORE);
-  const joinClosesAt = addMinutes(booking.endTime, JOIN_CLOSE_MINUTES_AFTER);
+  const joinAccess = canJoinCall(booking.startTime, booking.endTime);
 
-  if (!isAdmin && now < joinOpensAt) {
-    redirect(`${getBookingsHref(currentUser.role)}?error=call-too-early`);
-  }
+  if (!isAdmin && !joinAccess.allowed) {
+    const now = new Date();
 
-  if (!isAdmin && now > joinClosesAt) {
+    if (now < joinAccess.joinOpensAt) {
+      redirect(`${getBookingsHref(currentUser.role)}?error=call-too-early`);
+    }
+
     redirect(`${getBookingsHref(currentUser.role)}?error=call-ended`);
   }
 
-  if (!booking.callRoom) {
-    const room = createCallRoomData(booking.id);
+  await prisma.$transaction(async (tx) => {
+    await createCallRoom(tx, {
+      id: booking.id,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+    });
 
-    await prisma.callRoom.create({
-      data: {
-        bookingId: booking.id,
-        provider: room.provider,
-        roomName: room.roomName,
-        roomUrl: room.roomUrl,
-        status: CallRoomStatus.LIVE,
-        startsAt: booking.startTime,
-        endsAt: booking.endTime,
-      },
-    });
-  } else if (booking.callRoom.status === CallRoomStatus.CREATED) {
-    await prisma.callRoom.update({
-      where: {
-        bookingId: booking.id,
-      },
-      data: {
-        status: CallRoomStatus.LIVE,
-      },
-    });
-  }
+    await openCallRoom(tx, booking.id);
+  });
 
   revalidateCallPaths(booking.expertId, booking.id);
 
@@ -234,62 +203,8 @@ export async function markCallCompletedAction(formData: FormData) {
   }
 
   const completed = await prisma.$transaction(async (tx) => {
-    const updatedBooking = await tx.booking.updateMany({
-      where: {
-        id: booking.id,
-        status: BookingStatus.CONFIRMED,
-      },
-      data: {
-        status: BookingStatus.COMPLETED,
-        completedAt: now,
-        expiresAt: null,
-      },
-    });
-
-    if (updatedBooking.count === 0) {
-      return false;
-    }
-
-    const updatedExpert = await tx.expertProfile.update({
-      where: {
-        id: booking.expertId,
-      },
-      data: {
-        totalSessions: {
-          increment: 1,
-        },
-      },
-    });
-
-    if (
-      updatedExpert.totalSessions >= 3 &&
-      updatedExpert.rating >= 3.8 &&
-      !updatedExpert.isVerified
-    ) {
-      await tx.expertProfile.update({
-        where: {
-          id: updatedExpert.id,
-        },
-        data: {
-          isVerified: true,
-          verifiedAt: now,
-          verificationNote:
-            "Automatically verified after 3 completed sessions and 3.8+ rating.",
-        },
-      });
-    }
-
-    await tx.callRoom.updateMany({
-      where: {
-        bookingId: booking.id,
-      },
-      data: {
-        status: CallRoomStatus.ENDED,
-        endsAt: now,
-      },
-    });
-
-    return true;
+    const updatedBooking = await completeBooking(tx, booking.id);
+    return updatedBooking.status === BookingStatus.COMPLETED;
   });
 
   if (!completed) {
