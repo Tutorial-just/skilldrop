@@ -2,19 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { BookingStatus, CallRoomStatus } from "@prisma/client";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/server/services/notification.service";
 
+const JOIN_OPEN_MINUTES_BEFORE = 10;
+const JOIN_CLOSE_MINUTES_AFTER = 15;
+
 function getStringValue(formData: FormData, key: string) {
   const value = formData.get(key);
-
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value.trim();
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function createSafeRoomName(bookingId: string) {
@@ -32,23 +31,18 @@ function createCallRoomData(bookingId: string) {
   };
 }
 
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
 function getBookingsHref(role: string) {
-  if (role === "ADMIN") {
-    return "/admin/bookings";
-  }
-
-  if (role === "EXPERT") {
-    return "/expert/bookings";
-  }
-
+  if (role === "ADMIN") return "/admin/bookings";
+  if (role === "EXPERT") return "/expert/bookings";
   return "/buyer/bookings";
 }
 
 function getCompletedRedirectHref(role: string, bookingId: string) {
-  if (role === "ADMIN") {
-    return "/admin/bookings?updated=1";
-  }
-
+  if (role === "ADMIN") return "/admin/bookings?updated=1";
   return `/expert/bookings?completed=${bookingId}`;
 }
 
@@ -77,6 +71,8 @@ function revalidateCallPaths(expertId: string, bookingId: string) {
 async function safeSendNotification(
   input: Parameters<typeof sendNotification>[0],
 ) {
+  if (!input.to) return;
+
   try {
     await sendNotification(input);
   } catch (error) {
@@ -87,12 +83,7 @@ async function safeSendNotification(
 export async function createOrOpenCallRoomAction(formData: FormData) {
   const { user } = await requireRole(["buyer", "expert", "admin"]);
 
-  const email = user.email?.toLowerCase();
   const bookingId = getStringValue(formData, "bookingId");
-
-  if (!email) {
-    redirect("/sign-in");
-  }
 
   if (!bookingId) {
     redirect("/buyer/bookings?error=booking-not-found");
@@ -100,7 +91,7 @@ export async function createOrOpenCallRoomAction(formData: FormData) {
 
   const currentUser = await prisma.user.findUnique({
     where: {
-      email,
+      id: user.id,
     },
   });
 
@@ -136,8 +127,20 @@ export async function createOrOpenCallRoomAction(formData: FormData) {
     redirect("/");
   }
 
-  if (booking.status !== "CONFIRMED") {
+  if (booking.status !== BookingStatus.CONFIRMED) {
     redirect(`${getBookingsHref(currentUser.role)}?error=call-not-confirmed`);
+  }
+
+  const now = new Date();
+  const joinOpensAt = addMinutes(booking.startTime, -JOIN_OPEN_MINUTES_BEFORE);
+  const joinClosesAt = addMinutes(booking.endTime, JOIN_CLOSE_MINUTES_AFTER);
+
+  if (!isAdmin && now < joinOpensAt) {
+    redirect(`${getBookingsHref(currentUser.role)}?error=call-too-early`);
+  }
+
+  if (!isAdmin && now > joinClosesAt) {
+    redirect(`${getBookingsHref(currentUser.role)}?error=call-ended`);
   }
 
   if (!booking.callRoom) {
@@ -149,13 +152,23 @@ export async function createOrOpenCallRoomAction(formData: FormData) {
         provider: room.provider,
         roomName: room.roomName,
         roomUrl: room.roomUrl,
+        status: CallRoomStatus.LIVE,
         startsAt: booking.startTime,
         endsAt: booking.endTime,
       },
     });
-
-    revalidateCallPaths(booking.expertId, booking.id);
+  } else if (booking.callRoom.status === CallRoomStatus.CREATED) {
+    await prisma.callRoom.update({
+      where: {
+        bookingId: booking.id,
+      },
+      data: {
+        status: CallRoomStatus.LIVE,
+      },
+    });
   }
+
+  revalidateCallPaths(booking.expertId, booking.id);
 
   redirect(`/calls/${booking.id}`);
 }
@@ -163,12 +176,7 @@ export async function createOrOpenCallRoomAction(formData: FormData) {
 export async function markCallCompletedAction(formData: FormData) {
   const { user } = await requireRole(["expert", "admin"]);
 
-  const email = user.email?.toLowerCase();
   const bookingId = getStringValue(formData, "bookingId");
-
-  if (!email) {
-    redirect("/sign-in");
-  }
 
   if (!bookingId) {
     redirect("/expert/bookings?error=booking-not-found");
@@ -176,7 +184,7 @@ export async function markCallCompletedAction(formData: FormData) {
 
   const currentUser = await prisma.user.findUnique({
     where: {
-      email,
+      id: user.id,
     },
   });
 
@@ -211,11 +219,11 @@ export async function markCallCompletedAction(formData: FormData) {
     redirect("/");
   }
 
-  if (booking.status === "COMPLETED") {
+  if (booking.status === BookingStatus.COMPLETED) {
     redirect(getCompletedRedirectHref(currentUser.role, booking.id));
   }
 
-  if (booking.status !== "CONFIRMED") {
+  if (booking.status !== BookingStatus.CONFIRMED) {
     redirect(`${getBookingsHref(currentUser.role)}?error=not-confirmed`);
   }
 
@@ -229,11 +237,12 @@ export async function markCallCompletedAction(formData: FormData) {
     const updatedBooking = await tx.booking.updateMany({
       where: {
         id: booking.id,
-        status: "CONFIRMED",
+        status: BookingStatus.CONFIRMED,
       },
       data: {
-        status: "COMPLETED",
+        status: BookingStatus.COMPLETED,
         completedAt: now,
+        expiresAt: null,
       },
     });
 
@@ -275,7 +284,7 @@ export async function markCallCompletedAction(formData: FormData) {
         bookingId: booking.id,
       },
       data: {
-        status: "ENDED",
+        status: CallRoomStatus.ENDED,
         endsAt: now,
       },
     });

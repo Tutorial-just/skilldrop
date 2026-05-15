@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { BookingStatus, CallRoomStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
@@ -57,27 +58,17 @@ type ExpiredBookingData = {
 };
 
 function getPaymentIntentId(session: Stripe.Checkout.Session) {
-  if (!session.payment_intent) {
-    return null;
-  }
-
-  if (typeof session.payment_intent === "string") {
-    return session.payment_intent;
-  }
-
-  return session.payment_intent.id;
+  if (!session.payment_intent) return null;
+  return typeof session.payment_intent === "string"
+    ? session.payment_intent
+    : session.payment_intent.id;
 }
 
 function getPaymentIntentIdFromCharge(charge: Stripe.Charge) {
-  if (!charge.payment_intent) {
-    return null;
-  }
-
-  if (typeof charge.payment_intent === "string") {
-    return charge.payment_intent;
-  }
-
-  return charge.payment_intent.id;
+  if (!charge.payment_intent) return null;
+  return typeof charge.payment_intent === "string"
+    ? charge.payment_intent
+    : charge.payment_intent.id;
 }
 
 function createSafeRoomName(bookingId: string) {
@@ -119,11 +110,10 @@ function revalidateWebhookPaths(expertId: string, bookingId: string) {
 
 async function markStripeEventProcessed(eventId: string) {
   await prisma.stripeEvent.update({
-    where: {
-      id: eventId,
-    },
+    where: { id: eventId },
     data: {
       processed: true,
+      processedAt: new Date(),
     },
   });
 }
@@ -131,9 +121,7 @@ async function markStripeEventProcessed(eventId: string) {
 async function safeSendNotification(
   input: Parameters<typeof sendNotification>[0],
 ) {
-  if (!input.to) {
-    return;
-  }
+  if (!input.to) return;
 
   try {
     await sendNotification(input);
@@ -169,14 +157,12 @@ function getBookingPricing(booking: {
   const providerCommissionCents =
     booking.platformFeeCents ?? fallback.providerCommissionCents;
 
-  const providerNetCents =
-    booking.providerNetCents ?? fallback.providerNetCents;
+  const providerNetCents = booking.providerNetCents ?? fallback.providerNetCents;
 
   const clientServiceFeeCents =
     booking.clientServiceFeeCents ?? fallback.clientServiceFeeCents;
 
-  const clientTotalCents =
-    booking.clientTotalCents ?? fallback.clientTotalCents;
+  const clientTotalCents = booking.clientTotalCents ?? fallback.clientTotalCents;
 
   const platformGrossFeeCents =
     providerCommissionCents + clientServiceFeeCents;
@@ -202,12 +188,7 @@ async function handleCheckoutSessionPaid({
 }) {
   const bookingId = session.metadata?.bookingId;
 
-  if (!bookingId) {
-    await markStripeEventProcessed(eventId);
-    return null;
-  }
-
-  if (session.payment_status !== "paid") {
+  if (!bookingId || session.payment_status !== "paid") {
     await markStripeEventProcessed(eventId);
     return null;
   }
@@ -218,16 +199,10 @@ async function handleCheckoutSessionPaid({
   const confirmedBooking = await prisma.$transaction(
     async (tx): Promise<ConfirmedBookingData | null> => {
       const booking = await tx.booking.findUnique({
-        where: {
-          id: bookingId,
-        },
+        where: { id: bookingId },
         include: {
           buyer: true,
-          expert: {
-            include: {
-              user: true,
-            },
-          },
+          expert: { include: { user: true } },
           service: true,
           callRoom: true,
         },
@@ -235,14 +210,9 @@ async function handleCheckoutSessionPaid({
 
       if (!booking) {
         await tx.stripeEvent.update({
-          where: {
-            id: eventId,
-          },
-          data: {
-            processed: true,
-          },
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
-
         return null;
       }
 
@@ -253,11 +223,9 @@ async function handleCheckoutSessionPaid({
         stripeAmountTotal !== pricing.clientTotalCents
       ) {
         await tx.booking.update({
-          where: {
-            id: booking.id,
-          },
+          where: { id: booking.id },
           data: {
-            status: "DISPUTED",
+            status: BookingStatus.DISPUTED,
             disputedAt: new Date(),
             disputeReason: "PAYMENT_AMOUNT_MISMATCH",
             disputeNote: `Stripe amount_total ${stripeAmountTotal} does not match expected clientTotalCents ${pricing.clientTotalCents}.`,
@@ -268,22 +236,16 @@ async function handleCheckoutSessionPaid({
         });
 
         await tx.stripeEvent.update({
-          where: {
-            id: eventId,
-          },
-          data: {
-            processed: true,
-          },
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
         return null;
       }
 
-      if (booking.status === "CONFIRMED") {
+      if (booking.status === BookingStatus.CONFIRMED) {
         await tx.booking.update({
-          where: {
-            id: booking.id,
-          },
+          where: { id: booking.id },
           data: {
             stripeCheckoutSessionId: session.id,
             stripePaymentIntentId: paymentIntentId,
@@ -311,25 +273,20 @@ async function handleCheckoutSessionPaid({
         }
 
         await tx.stripeEvent.update({
-          where: {
-            id: eventId,
-          },
-          data: {
-            processed: true,
-          },
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
         return null;
       }
 
-      if (booking.status !== "PENDING" && booking.status !== "PAID") {
+      if (
+        booking.status !== BookingStatus.PENDING &&
+        booking.status !== BookingStatus.PAID
+      ) {
         await tx.stripeEvent.update({
-          where: {
-            id: eventId,
-          },
-          data: {
-            processed: true,
-          },
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
         return null;
@@ -341,12 +298,13 @@ async function handleCheckoutSessionPaid({
         where: {
           id: booking.id,
           status: {
-            in: ["PENDING", "PAID"],
+            in: [BookingStatus.PENDING, BookingStatus.PAID],
           },
         },
         data: {
-          status: "CONFIRMED",
+          status: BookingStatus.CONFIRMED,
           paidAt: booking.paidAt ?? now,
+          confirmedAt: booking.confirmedAt ?? now,
           stripeCheckoutSessionId: session.id,
           stripePaymentIntentId: paymentIntentId,
           platformFeeCents: pricing.providerCommissionCents,
@@ -359,12 +317,8 @@ async function handleCheckoutSessionPaid({
 
       if (updatedBooking.count === 0) {
         await tx.stripeEvent.update({
-          where: {
-            id: eventId,
-          },
-          data: {
-            processed: true,
-          },
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
         return null;
@@ -386,12 +340,8 @@ async function handleCheckoutSessionPaid({
       }
 
       await tx.stripeEvent.update({
-        where: {
-          id: eventId,
-        },
-        data: {
-          processed: true,
-        },
+        where: { id: eventId },
+        data: { processed: true, processedAt: new Date() },
       });
 
       return {
@@ -416,9 +366,7 @@ async function handleCheckoutSessionPaid({
     },
   );
 
-  if (!confirmedBooking) {
-    return null;
-  }
+  if (!confirmedBooking) return null;
 
   await safeSendNotification({
     to: confirmedBooking.buyerEmail,
@@ -490,67 +438,54 @@ async function handlePaymentIntentFailed({
   const failedBooking = await prisma.$transaction(
     async (tx): Promise<FailedBookingData | null> => {
       const booking = await tx.booking.findUnique({
-        where: {
-          id: bookingId,
-        },
+        where: { id: bookingId },
         include: {
           buyer: true,
-          expert: {
-            include: {
-              user: true,
-            },
-          },
+          expert: { include: { user: true } },
           service: true,
         },
       });
 
       if (!booking) {
         await tx.stripeEvent.update({
-          where: {
-            id: eventId,
-          },
-          data: {
-            processed: true,
-          },
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
         return null;
       }
 
-      if (booking.status === "PENDING") {
-        await tx.booking.update({
-          where: {
-            id: booking.id,
-          },
-          data: {
-            status: "CANCELLED",
-            cancelledAt: new Date(),
-            cancelReason: "PAYMENT_FAILED",
-            expiresAt: null,
-            stripePaymentIntentId: paymentIntent.id,
-          },
+      if (booking.status !== BookingStatus.PENDING) {
+        await tx.stripeEvent.update({
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
-        
-
-        await tx.callRoom.updateMany({
-          where: {
-            bookingId: booking.id,
-          },
-          data: {
-            status: "ENDED",
-            endsAt: new Date(),
-          },
-        });
+        return null;
       }
 
-      await tx.stripeEvent.update({
-        where: {
-          id: eventId,
-        },
+      await tx.booking.update({
+        where: { id: booking.id },
         data: {
-          processed: true,
+          status: BookingStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancelReason: "PAYMENT_FAILED",
+          expiresAt: null,
+          stripePaymentIntentId: paymentIntent.id,
         },
+      });
+
+      await tx.callRoom.updateMany({
+        where: { bookingId: booking.id },
+        data: {
+          status: CallRoomStatus.ENDED,
+          endsAt: new Date(),
+        },
+      });
+
+      await tx.stripeEvent.update({
+        where: { id: eventId },
+        data: { processed: true, processedAt: new Date() },
       });
 
       return {
@@ -564,9 +499,7 @@ async function handlePaymentIntentFailed({
     },
   );
 
-  if (!failedBooking) {
-    return null;
-  }
+  if (!failedBooking) return null;
 
   await safeSendNotification({
     to: failedBooking.buyerEmail,
@@ -614,16 +547,10 @@ async function handleCheckoutSessionExpired({
   const expiredBooking = await prisma.$transaction(
     async (tx): Promise<ExpiredBookingData | null> => {
       const booking = await tx.booking.findUnique({
-        where: {
-          id: bookingId,
-        },
+        where: { id: bookingId },
         include: {
           buyer: true,
-          expert: {
-            include: {
-              user: true,
-            },
-          },
+          expert: { include: { user: true } },
           service: true,
           callRoom: true,
         },
@@ -631,53 +558,46 @@ async function handleCheckoutSessionExpired({
 
       if (!booking) {
         await tx.stripeEvent.update({
-          where: {
-            id: eventId,
-          },
-          data: {
-            processed: true,
-          },
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
         return null;
       }
 
-      if (booking.status === "PENDING") {
-        await tx.booking.update({
-          where: {
-            id: booking.id,
-          },
-          data: {
-            status: "EXPIRED",
-            cancelledAt: new Date(),
-            cancelReason: "PAYMENT_EXPIRED",
-            expiresAt: null,
-            stripeCheckoutSessionId: session.id,
-          },
+      if (booking.status !== BookingStatus.PENDING) {
+        await tx.stripeEvent.update({
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
-      
+        return null;
+      }
 
-        if (booking.callRoom) {
-          await tx.callRoom.updateMany({
-            where: {
-              bookingId: booking.id,
-            },
-            data: {
-              status: "ENDED",
-              endsAt: new Date(),
-            },
-          });
-        }
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: BookingStatus.EXPIRED,
+          cancelledAt: new Date(),
+          cancelReason: "PAYMENT_EXPIRED",
+          expiresAt: null,
+          stripeCheckoutSessionId: session.id,
+        },
+      });
+
+      if (booking.callRoom) {
+        await tx.callRoom.updateMany({
+          where: { bookingId: booking.id },
+          data: {
+            status: CallRoomStatus.ENDED,
+            endsAt: new Date(),
+          },
+        });
       }
 
       await tx.stripeEvent.update({
-        where: {
-          id: eventId,
-        },
-        data: {
-          processed: true,
-        },
+        where: { id: eventId },
+        data: { processed: true, processedAt: new Date() },
       });
 
       return {
@@ -691,13 +611,11 @@ async function handleCheckoutSessionExpired({
     },
   );
 
-  if (!expiredBooking) {
-    return null;
-  }
+  if (!expiredBooking) return null;
 
   await safeSendNotification({
     to: expiredBooking.buyerEmail,
-    type: "BOOKING_CANCELLED",
+    type: "BOOKING_EXPIRED",
     subject: "Booking expired",
     message: `Your booking "${expiredBooking.serviceTitle}" expired because checkout was not completed in time.`,
     metadata: {
@@ -705,13 +623,13 @@ async function handleCheckoutSessionExpired({
       expertId: expiredBooking.expertId,
       stripeCheckoutSessionId: session.id,
       reason: "stripe-checkout-expired",
-      newStatus: "EXPIRED",
+      newStatus: BookingStatus.EXPIRED,
     },
   });
 
   await safeSendNotification({
     to: expiredBooking.expertEmail,
-    type: "BOOKING_CANCELLED",
+    type: "BOOKING_EXPIRED",
     subject: "Booking expired",
     message: `The booking "${expiredBooking.serviceTitle}" expired because the buyer did not complete checkout in time.`,
     metadata: {
@@ -719,7 +637,7 @@ async function handleCheckoutSessionExpired({
       expertId: expiredBooking.expertId,
       stripeCheckoutSessionId: session.id,
       reason: "stripe-checkout-expired",
-      newStatus: "EXPIRED",
+      newStatus: BookingStatus.EXPIRED,
     },
   });
 
@@ -745,65 +663,45 @@ async function handleChargeRefunded({
   const refundedBooking = await prisma.$transaction(
     async (tx): Promise<RefundedBookingData | null> => {
       const booking = await tx.booking.findFirst({
-        where: {
-          stripePaymentIntentId: paymentIntentId,
-        },
+        where: { stripePaymentIntentId: paymentIntentId },
         include: {
           buyer: true,
-          expert: {
-            include: {
-              user: true,
-            },
-          },
+          expert: { include: { user: true } },
           service: true,
         },
       });
 
       if (!booking) {
         await tx.stripeEvent.update({
-          where: {
-            id: eventId,
-          },
-          data: {
-            processed: true,
-          },
+          where: { id: eventId },
+          data: { processed: true, processedAt: new Date() },
         });
 
         return null;
       }
 
-      if (booking.status !== "REFUNDED") {
+      if (booking.status !== BookingStatus.REFUNDED) {
         await tx.booking.update({
-          where: {
-            id: booking.id,
-          },
+          where: { id: booking.id },
           data: {
-            status: "REFUNDED",
+            status: BookingStatus.REFUNDED,
             refundedAt: new Date(),
             expiresAt: null,
           },
         });
 
-      
-
         await tx.callRoom.updateMany({
-          where: {
-            bookingId: booking.id,
-          },
+          where: { bookingId: booking.id },
           data: {
-            status: "ENDED",
+            status: CallRoomStatus.ENDED,
             endsAt: new Date(),
           },
         });
       }
 
       await tx.stripeEvent.update({
-        where: {
-          id: eventId,
-        },
-        data: {
-          processed: true,
-        },
+        where: { id: eventId },
+        data: { processed: true, processedAt: new Date() },
       });
 
       return {
@@ -817,9 +715,7 @@ async function handleChargeRefunded({
     },
   );
 
-  if (!refundedBooking) {
-    return null;
-  }
+  if (!refundedBooking) return null;
 
   await safeSendNotification({
     to: refundedBooking.buyerEmail,
@@ -886,9 +782,7 @@ export async function POST(request: Request) {
   }
 
   const existingEvent = await prisma.stripeEvent.findUnique({
-    where: {
-      id: event.id,
-    },
+    where: { id: event.id },
   });
 
   if (existingEvent?.processed) {
@@ -896,12 +790,8 @@ export async function POST(request: Request) {
   }
 
   await prisma.stripeEvent.upsert({
-    where: {
-      id: event.id,
-    },
-    update: {
-      type: event.type,
-    },
+    where: { id: event.id },
+    update: { type: event.type },
     create: {
       id: event.id,
       type: event.type,
@@ -968,11 +858,6 @@ export async function POST(request: Request) {
 
     console.error("Stripe webhook error:", message);
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

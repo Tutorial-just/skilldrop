@@ -12,7 +12,7 @@ import {
   UserRound,
   Video,
 } from "lucide-react";
-
+import { BookingStatus, CallRoomStatus } from "@prisma/client";
 import { markCallCompletedAction } from "@/server/actions/call.actions";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
@@ -80,7 +80,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
   const bookingNote = booking.note?.trim() || "";
   const now = new Date();
 
-  if (booking.status !== "CONFIRMED") {
+  if (booking.status !== BookingStatus.CONFIRMED) {
     return (
       <CallBlockedPage
         title="This call is not open yet."
@@ -134,7 +134,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
           },
         },
         data: {
-          status: "ENDED",
+          status: CallRoomStatus.ENDED,
           endsAt: booking.endTime,
         },
       });
@@ -153,24 +153,24 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     );
   }
 
-  if (booking.callRoom.status !== "LIVE") {
+  if (booking.callRoom.status !== CallRoomStatus.LIVE) {
     await prisma.callRoom.updateMany({
       where: {
         bookingId: booking.id,
         status: {
-          not: "LIVE",
+          not: CallRoomStatus.LIVE,
         },
       },
       data: {
-        status: "LIVE",
+        status: CallRoomStatus.LIVE,
       },
     });
   }
 
   const canMarkCompleted =
     (isExpert || isAdmin) &&
-    booking.status === "CONFIRMED" &&
-    now >= booking.startTime;
+    booking.status === BookingStatus.CONFIRMED &&
+    now >= booking.endTime;
 
   const currentUserRoleLabel = isBuyer ? "Buyer" : isExpert ? "Helper" : "Admin";
   const buyerName = booking.buyer.name ?? booking.buyer.email;

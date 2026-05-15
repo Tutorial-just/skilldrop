@@ -236,6 +236,8 @@ model Booking {
   @@index([expertId, startTime, endTime])
   @@index([expertId, status, startTime])
   @@index([availabilityId, status, startTime])
+  @@index([status, expiresAt])
+  @@index([status, startTime])
 }
 
 enum BookingStatus {

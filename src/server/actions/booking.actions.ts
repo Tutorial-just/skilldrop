@@ -25,6 +25,7 @@ const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
   BookingStatus.PENDING,
   BookingStatus.PAID,
   BookingStatus.CONFIRMED,
+  BookingStatus.DISPUTED,
 ];
 
 function getStringValue(formData: FormData, key: string) {
@@ -667,6 +668,9 @@ export async function updateBookingStatusAction(formData: FormData) {
   if (!allowedStatuses.includes(status)) {
     redirect(`${getBookingsRedirectHref(currentUser.role)}?error=invalid-status`);
   }
+  if (!canTransitionBookingStatus(booking.status, status, isAdmin)) {
+    redirect(`${getBookingsRedirectHref(currentUser.role)}?error=invalid-transition`);
+  }
 
   if (status === BookingStatus.REFUNDED) {
     redirect(
@@ -1053,4 +1057,54 @@ export async function completeBookingAction(formData: FormData) {
 export async function confirmBookingAction(formData: FormData) {
   formData.set("status", BookingStatus.CONFIRMED);
   await updateBookingStatusAction(formData);
+}
+
+function canTransitionBookingStatus(
+  currentStatus: BookingStatus,
+  nextStatus: BookingStatus,
+  isAdmin: boolean,
+) {
+  if (currentStatus === nextStatus) {
+    return false;
+  }
+
+  if (isClosedStatus(currentStatus)) {
+    return false;
+  }
+
+  if (nextStatus === BookingStatus.PAID) {
+    return isAdmin && currentStatus === BookingStatus.PENDING;
+  }
+
+  if (nextStatus === BookingStatus.CONFIRMED) {
+    const statusesThatCanBeConfirmed: BookingStatus[] = [
+      BookingStatus.PENDING,
+      BookingStatus.PAID,
+    ];
+
+    return isAdmin && statusesThatCanBeConfirmed.includes(currentStatus);
+  }
+
+  if (nextStatus === BookingStatus.COMPLETED) {
+    return currentStatus === BookingStatus.CONFIRMED;
+  }
+
+  if (nextStatus === BookingStatus.CANCELLED) {
+    return currentStatus === BookingStatus.PENDING;
+  }
+
+  if (nextStatus === BookingStatus.EXPIRED) {
+    return currentStatus === BookingStatus.PENDING;
+  }
+
+  if (nextStatus === BookingStatus.DISPUTED) {
+    const statusesThatCanBeDisputed: BookingStatus[] = [
+      BookingStatus.PAID,
+      BookingStatus.CONFIRMED,
+    ];
+
+    return isAdmin && statusesThatCanBeDisputed.includes(currentStatus);
+  }
+
+  return false;
 }
