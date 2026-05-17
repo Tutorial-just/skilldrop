@@ -21,6 +21,12 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BookingCountdown } from "@/components/bookings/booking-countdown";
+import {
+  formatDateTime,
+  formatShortDateTime,
+  getDurationMinutes,
+  getUserTimezone,
+} from "@/lib/date-time";
 
 type CheckoutPageProps = {
   params: Promise<{
@@ -52,11 +58,16 @@ export default async function BookingCheckoutPage({
     where: {
       email,
     },
+    include: {
+      buyerSettings: true,
+    },
   });
 
   if (!buyer) {
     redirect("/sign-in");
   }
+
+  const userTimezone = getUserTimezone(buyer.buyerSettings?.preferredTimezone);
 
   const booking = await prisma.booking.findFirst({
     where: {
@@ -168,7 +179,10 @@ export default async function BookingCheckoutPage({
             <div className="mt-8 grid gap-4">
               <InfoRow label="Helper" value={helperName} />
               <InfoRow label="Offer" value={serviceTitle} />
-              <InfoRow label="Date" value={formatDateTime(booking.startTime)} />
+              <InfoRow 
+                label="Date" 
+                value={formatDateTime(booking.startTime, userTimezone)}
+               />
               <InfoRow label="Duration" value={`${durationMinutes} minutes`} />
               <InfoRow label="Status" value="Waiting for payment" />
             </div>
@@ -316,7 +330,7 @@ export default async function BookingCheckoutPage({
             <PaymentRow label="Offer" value={serviceTitle} />
             <PaymentRow
               label="Time"
-              value={formatShortDateTime(booking.startTime)}
+              value={formatShortDateTime(booking.startTime, userTimezone)}
             />
             <PaymentRow label="Duration" value={`${durationMinutes} min`} />
 
@@ -566,35 +580,13 @@ function getBookingPricing(booking: {
   };
 }
 
-function getDurationMinutes(startTime: Date, endTime: Date) {
-  return Math.max(
-    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
-    0,
-  );
-}
+
 
 function formatMoney(cents: number) {
   return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
 }
 
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
-function formatShortDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function formatCheckoutError(error: string) {
   if (

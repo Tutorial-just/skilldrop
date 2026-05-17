@@ -16,7 +16,11 @@ import {
   Trash2,
   Video,
 } from "lucide-react";
-
+import {
+  formatDateTime,
+  getDurationMinutes,
+  
+} from "@/lib/date-time";
 import {
   createAvailabilityAction,
   createBulkAvailabilityAction,
@@ -1115,12 +1119,6 @@ function getWindowFreeMinutes(window: {
   return Math.max(totalMinutes - bookedMinutes, 0);
 }
 
-function getDurationMinutes(startTime: Date, endTime: Date) {
-  return Math.max(
-    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
-    0,
-  );
-}
 
 function toDateTimeLocalValue(date: Date) {
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
@@ -1256,19 +1254,11 @@ function formatAvailabilityError(error: string) {
   return "Something went wrong. Please try again.";
 }
 
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function formatTime(date: Date) {
   return new Intl.DateTimeFormat("en", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
 }
+
+

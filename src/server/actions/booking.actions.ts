@@ -19,6 +19,11 @@ import {
 } from "@/lib/rate-limit";
 import { sendNotification } from "@/server/services/notification.service";
 import { calculatePricingBreakdown } from "@/config/pricing";
+import {
+  formatDateTime,
+  getDurationMinutes,
+  getUserTimezone,
+} from "@/lib/date-time";
 
 type BookingStatusValue = BookingStatus;
 
@@ -65,12 +70,7 @@ function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
-function getDurationMinutes(startTime: Date, endTime: Date) {
-  return Math.max(
-    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
-    0,
-  );
-}
+
 
 function isAlignedToBookingStep(date: Date) {
   return (
@@ -94,15 +94,6 @@ function rangesOverlap({
   return startA < endB && endA > startB;
 }
 
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function getDisplayName(user: { name: string | null; email: string }) {
   return user.name?.trim() || user.email.split("@")[0] || "Buyer";
@@ -169,6 +160,9 @@ async function getCurrentUserRecord(
     where: {
       id: user.id,
     },
+    include: {
+      buyerSettings: true,
+    },
   });
 
   if (!currentUser) {
@@ -204,6 +198,10 @@ export async function createBookingAction(formData: FormData) {
   await releaseExpiredPendingBookings();
 
   const buyer = await getCurrentUserRecord(["buyer", "admin"]);
+
+  const userTimezone = getUserTimezone(
+    buyer.buyerSettings?.preferredTimezone,
+  );
 
   const requestHeaders = await headers();
   const ip = getClientIp(requestHeaders);
@@ -468,6 +466,7 @@ export async function createBookingAction(formData: FormData) {
     subject: "A buyer reserved your time",
     message: `${buyerName} reserved "${service.title}" for ${formatDateTime(
       booking.startTime,
+      userTimezone,
     )}. The booking will be confirmed after payment.${
       booking.note ? ` Buyer note: ${booking.note}` : ""
     }`,

@@ -16,7 +16,11 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-react";
-
+import {
+  formatDateTime,
+  getDurationMinutes,
+  isBookingJoinAvailable,
+} from "@/lib/date-time";
 import {
   releaseExpiredPendingBookings,
   updateBookingStatusAction,
@@ -983,25 +987,6 @@ function EmptyState({ title, text }: { title: string; text: string }) {
   );
 }
 
-function canJoinBooking(booking: {
-  startTime: Date;
-  endTime: Date;
-  status: string;
-  callRoom: {
-    roomUrl: string;
-  } | null;
-}) {
-  const now = new Date();
-  const joinWindowStart = new Date(booking.startTime.getTime() - 10 * 60 * 1000);
-  const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
-
-  return (
-    booking.status === "CONFIRMED" &&
-    Boolean(booking.callRoom?.roomUrl) &&
-    now >= joinWindowStart &&
-    now <= joinWindowEnd
-  );
-}
 
 function getBookingPricing(booking: {
   priceCents: number;
@@ -1023,25 +1008,25 @@ function getBookingPricing(booking: {
   };
 }
 
-function getDurationMinutes(startTime: Date, endTime: Date) {
-  return Math.max(
-    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
-    0,
-  );
-}
 
 function formatMoney(cents: number) {
   return formatMoneyFromCents(cents);
 }
 
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+function canJoinBooking(booking: {
+  startTime: Date;
+  endTime: Date;
+  status: string;
+  callRoom: {
+    roomUrl: string;
+  } | null;
+}) {
+  return isBookingJoinAvailable({
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    status: booking.status,
+    hasRoom: Boolean(booking.callRoom?.roomUrl),
+  });
 }
 
 function formatStatus(status: string) {

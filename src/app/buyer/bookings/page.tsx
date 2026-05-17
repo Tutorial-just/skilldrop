@@ -14,6 +14,12 @@ import {
   Video,
   XCircle,
 } from "lucide-react";
+import {
+  formatDateTime,
+  getDurationMinutes,
+  getUserTimezone,
+  isBookingJoinAvailable,
+} from "@/lib/date-time";
 
 import {
   cancelBookingAction,
@@ -49,6 +55,9 @@ export default async function BuyerBookingsPage({
     where: {
       id: user.id,
     },
+    include: {
+      buyerSettings: true,
+    },
   });
 
   if (!buyer) {
@@ -56,6 +65,10 @@ export default async function BuyerBookingsPage({
   }
 
   await releaseExpiredPendingBookings();
+
+  const userTimezone = getUserTimezone(
+    buyer.buyerSettings?.preferredTimezone,
+  );
 
   const now = new Date();
 
@@ -237,7 +250,10 @@ export default async function BuyerBookingsPage({
               </Badge>
 
               {nextBooking ? (
-                <NextBookingPanel booking={nextBooking} />
+                <NextBookingPanel 
+                  booking={nextBooking}
+                  timezone={userTimezone}
+                />
               ) : (
                 <EmptyBookingsState />
               )}
@@ -265,6 +281,7 @@ export default async function BuyerBookingsPage({
                       key={booking.id}
                       booking={booking}
                       highlighted={booking.id === highlightedBookingId}
+                      timezone={userTimezone}
                     />
                   ))}
                 </div>
@@ -293,6 +310,7 @@ export default async function BuyerBookingsPage({
                       key={booking.id}
                       booking={booking}
                       highlighted={booking.id === highlightedBookingId}
+                      timezone={userTimezone}
                     />
                   ))}
                 </div>
@@ -321,6 +339,7 @@ export default async function BuyerBookingsPage({
                       key={booking.id}
                       booking={booking}
                       highlighted={booking.id === highlightedBookingId}
+                      timezone={userTimezone}
                     />
                   ))}
                 </div>
@@ -386,6 +405,7 @@ export default async function BuyerBookingsPage({
                     key={booking.id}
                     booking={booking}
                     highlighted={booking.id === highlightedBookingId}
+                    timezone={userTimezone}
                   />
                 ))
               ) : (
@@ -431,10 +451,15 @@ export default async function BuyerBookingsPage({
   );
 }
 
-function NextBookingPanel({ booking }: { booking: BookingCardBooking }) {
+function NextBookingPanel({ booking, timezone}: { booking: BookingCardBooking; timezone: string; }) {
   const pricing = getBookingPricing(booking);
   const helperName = booking.expert.user.name ?? booking.expert.user.email;
-  const canJoin = canJoinBooking(booking);
+  const canJoin = isBookingJoinAvailable({
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    status: booking.status,
+    hasRoom: Boolean(booking.callRoom?.roomUrl),
+  });
 
   return (
     <div className="mt-5">
@@ -450,7 +475,7 @@ function NextBookingPanel({ booking }: { booking: BookingCardBooking }) {
       </p>
 
       <div className="mt-5 grid gap-3">
-        <InfoRow label="Date" value={formatDateTime(booking.startTime)} />
+        <InfoRow label="Date" value={formatDateTime(booking.startTime, timezone)} />
 
         <InfoRow
           label="Duration"
@@ -567,9 +592,11 @@ type BookingCardBooking = {
 function BookingCard({
   booking,
   highlighted,
+  timezone,
 }: {
   booking: BookingCardBooking;
   highlighted: boolean;
+  timezone: string;
 }) {
   const now = new Date();
 
@@ -586,7 +613,12 @@ function BookingCard({
   const isClosed = isCancelled || isRefunded || isExpired || isDisputed;
 
   const isUpcoming = booking.startTime >= now && !isClosed && !isCompleted;
-  const canJoin = canJoinBooking(booking);
+  const canJoin = isBookingJoinAvailable({
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    status: booking.status,
+    hasRoom: Boolean(booking.callRoom?.roomUrl),
+  });
   const canCancel = booking.status === "PENDING" && booking.startTime > now;
   const needsSupportForCancellation =
     booking.status === "CONFIRMED" && booking.startTime > now;
@@ -654,7 +686,7 @@ function BookingCard({
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <SmallPill icon={Clock3} text={formatDateTime(booking.startTime)} />
+            <SmallPill icon={Clock3} text={formatDateTime(booking.startTime, timezone)} />
 
             <SmallPill
               icon={Video}
@@ -1009,25 +1041,6 @@ function Tip({
   );
 }
 
-function canJoinBooking(booking: {
-  startTime: Date;
-  endTime: Date;
-  status: string;
-  callRoom: {
-    roomUrl: string;
-  } | null;
-}) {
-  const now = new Date();
-  const joinWindowStart = new Date(booking.startTime.getTime() - 10 * 60 * 1000);
-  const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
-
-  return (
-    booking.status === "CONFIRMED" &&
-    Boolean(booking.callRoom?.roomUrl) &&
-    now >= joinWindowStart &&
-    now <= joinWindowEnd
-  );
-}
 
 function getBookingPricing(booking: {
   priceCents: number;
@@ -1049,26 +1062,11 @@ function getBookingPricing(booking: {
   };
 }
 
-function getDurationMinutes(startTime: Date, endTime: Date) {
-  return Math.max(
-    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
-    0,
-  );
-}
 
 function formatMoney(cents: number) {
   return formatMoneyFromCents(cents);
 }
 
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function formatStatus(status: string) {
   if (status === "PENDING") {
