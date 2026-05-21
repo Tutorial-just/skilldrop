@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { BookingStatus } from "@prisma/client";
-
+import { createAdminAuditLog } from "@/lib/admin-audit-log";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/server/services/notification.service";
@@ -80,7 +80,7 @@ async function getReportWithBooking(reportId: string, bookingId: string) {
 }
 
 export async function closeBookingReportAction(formData: FormData) {
-  await requireRole(["admin"]);
+  const { user: admin } = await requireRole(["admin"]);
 
   const reportId = getStringValue(formData, "reportId");
   const bookingId = getStringValue(formData, "bookingId");
@@ -111,7 +111,7 @@ export async function closeBookingReportAction(formData: FormData) {
 
   await safeSendNotification({
     to: report.booking.buyer.email,
-    type: "BOOKING_REPORT_CLOSED",
+    type: "BOOKING_DISPUTED",
     subject: "Your booking report was reviewed",
     message: `SkillDrop reviewed your report for "${
       report.booking.service?.title ?? "Booked call"
@@ -126,7 +126,7 @@ export async function closeBookingReportAction(formData: FormData) {
 
   await safeSendNotification({
     to: report.booking.expert.user.email,
-    type: "BOOKING_REPORT_CLOSED",
+    type: "BOOKING_DISPUTED",
     subject: "A booking report was reviewed",
     message: `SkillDrop reviewed a report for "${
       report.booking.service?.title ?? "Booked call"
@@ -139,11 +139,27 @@ export async function closeBookingReportAction(formData: FormData) {
     },
   });
 
+  await createAdminAuditLog({
+    adminId: admin.id,
+    adminEmail: admin.email,
+    action: "BOOKING_REPORT_CLOSED",
+    entityType: "BookingReport",
+    entityId: reportId,
+    message: `Closed booking report for booking ${bookingId}.`,
+    metadata: {
+      bookingId,
+      reportId,
+      expertId: report.booking.expertId,
+      buyerId: report.booking.buyerId,
+      resolution,
+    },
+  });
+
   revalidateDisputePaths(bookingId);
 }
 
 export async function resolveBookingAsCompletedAction(formData: FormData) {
-  await requireRole(["admin"]);
+  const { user: admin } = await requireRole(["admin"]);
 
   const reportId = getStringValue(formData, "reportId");
   const bookingId = getStringValue(formData, "bookingId");
@@ -214,11 +230,28 @@ export async function resolveBookingAsCompletedAction(formData: FormData) {
     },
   });
 
+  await createAdminAuditLog({
+    adminId: admin.id,
+    adminEmail: admin.email,
+    action: "BOOKING_RESOLVED_COMPLETED",
+    entityType: "Booking",
+    entityId: bookingId,
+    message: `Resolved disputed booking ${bookingId} as completed.`,
+    metadata: {
+      bookingId,
+      reportId,
+      expertId: report.booking.expertId,
+      buyerId: report.booking.buyerId,
+      previousStatus: report.booking.status,
+      newStatus: BookingStatus.COMPLETED,
+    },
+  });
+
   revalidateDisputePaths(bookingId);
 }
 
 export async function keepBookingDisputedAction(formData: FormData) {
-  await requireRole(["admin"]);
+  const { user: admin } = await requireRole(["admin"]);
 
   const reportId = getStringValue(formData, "reportId");
   const bookingId = getStringValue(formData, "bookingId");
@@ -288,11 +321,28 @@ export async function keepBookingDisputedAction(formData: FormData) {
     },
   });
 
+  await createAdminAuditLog({
+    adminId: admin.id,
+    adminEmail: admin.email,
+    action: "BOOKING_KEPT_DISPUTED",
+    entityType: "Booking",
+    entityId: bookingId,
+    message: `Kept booking ${bookingId} under dispute review.`,
+    metadata: {
+      bookingId,
+      reportId,
+      expertId: report.booking.expertId,
+      buyerId: report.booking.buyerId,
+      reason: report.reason,
+      status: BookingStatus.DISPUTED,
+    },
+  });
+
   revalidateDisputePaths(bookingId);
 }
 
 export async function markBookingRefundedManuallyAction(formData: FormData) {
-  await requireRole(["admin"]);
+  const { user: admin } = await requireRole(["admin"]);
 
   const reportId = getStringValue(formData, "reportId");
   const bookingId = getStringValue(formData, "bookingId");
@@ -365,6 +415,24 @@ export async function markBookingRefundedManuallyAction(formData: FormData) {
       bookingId,
       expertId: report.booking.expertId,
       resolution: "manual_refund",
+      note: resolution,
+    },
+  });
+
+  await createAdminAuditLog({
+    adminId: admin.id,
+    adminEmail: admin.email,
+    action: "BOOKING_MARKED_REFUNDED_MANUALLY",
+    entityType: "Booking",
+    entityId: bookingId,
+    message: `Marked booking ${bookingId} as manually refunded.`,
+    metadata: {
+      bookingId,
+      reportId,
+      expertId: report.booking.expertId,
+      buyerId: report.booking.buyerId,
+      previousStatus: report.booking.status,
+      newStatus: BookingStatus.REFUNDED,
       note: resolution,
     },
   });
