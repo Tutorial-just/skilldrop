@@ -23,6 +23,7 @@ type AdminReviewsPageProps = {
     rating?: string;
     bad?: string;
     recommend?: string;
+    problem?: string;
   }>;
 };
 
@@ -37,6 +38,7 @@ export default async function AdminReviewsPage({
   const ratingFilter = resolvedSearchParams.rating ?? "all";
   const badOnly = resolvedSearchParams.bad === "true";
   const recommendFilter = resolvedSearchParams.recommend ?? "all";
+  const problemFilter = resolvedSearchParams.problem ?? "all";
 
   const filters: Prisma.ReviewWhereInput[] = [];
 
@@ -62,6 +64,9 @@ export default async function AdminReviewsPage({
           wouldRecommend: false,
         },
         {
+          problemSolved: "NO",
+        },
+        {
           helpfulness: {
             lte: 2,
           },
@@ -83,6 +88,12 @@ export default async function AdminReviewsPage({
   if (recommendFilter !== "all") {
     filters.push({
       wouldRecommend: recommendFilter === "yes",
+    });
+  }
+
+  if (problemFilter !== "all") {
+    filters.push({
+      problemSolved: problemFilter,
     });
   }
 
@@ -180,6 +191,9 @@ export default async function AdminReviewsPage({
     lowReviews,
     recommendedReviews,
     notRecommendedReviews,
+    solvedReviews,
+    partiallySolvedReviews,
+    notSolvedReviews,
     averageRatingResult,
   ] = await Promise.all([
     prisma.review.findMany({
@@ -217,6 +231,9 @@ export default async function AdminReviewsPage({
             wouldRecommend: false,
           },
           {
+            problemSolved: "NO",
+          },
+          {
             helpfulness: {
               lte: 2,
             },
@@ -247,6 +264,24 @@ export default async function AdminReviewsPage({
       },
     }),
 
+    prisma.review.count({
+      where: {
+        problemSolved: "YES",
+      },
+    }),
+
+    prisma.review.count({
+      where: {
+        problemSolved: "PARTIALLY",
+      },
+    }),
+
+    prisma.review.count({
+      where: {
+        problemSolved: "NO",
+      },
+    }),
+
     prisma.review.aggregate({
       _avg: {
         rating: true,
@@ -268,8 +303,32 @@ export default async function AdminReviewsPage({
     (review) => review.wouldRecommend === false,
   ).length;
 
+  const shownSolved = reviews.filter(
+    (review) => review.problemSolved === "YES",
+  ).length;
+
+  const shownPartiallySolved = reviews.filter(
+    (review) => review.problemSolved === "PARTIALLY",
+  ).length;
+
+  const shownNotSolved = reviews.filter(
+    (review) => review.problemSolved === "NO",
+  ).length;
+
+  const problemSolvedTotal =
+    solvedReviews + partiallySolvedReviews + notSolvedReviews;
+
+  const problemSolvedRate =
+    problemSolvedTotal > 0
+      ? Math.round((solvedReviews / problemSolvedTotal) * 100)
+      : null;
+
   const hasActiveFilters =
-    query || ratingFilter !== "all" || badOnly || recommendFilter !== "all";
+    query ||
+    ratingFilter !== "all" ||
+    badOnly ||
+    recommendFilter !== "all" ||
+    problemFilter !== "all";
 
   return (
     <main>
@@ -297,8 +356,8 @@ export default async function AdminReviewsPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Track review quality, low ratings, recommendation signals and
-                trust issues across SkillDrop.
+                Track review quality, low ratings, recommendation signals,
+                problem outcomes and trust issues across SkillDrop.
               </p>
             </div>
 
@@ -322,11 +381,20 @@ export default async function AdminReviewsPage({
                   label="Shown not recommended"
                   value={String(shownNotRecommended)}
                 />
+                <SummaryRow label="Shown solved" value={String(shownSolved)} />
+                <SummaryRow
+                  label="Shown partially solved"
+                  value={String(shownPartiallySolved)}
+                />
+                <SummaryRow
+                  label="Shown not solved"
+                  value={String(shownNotSolved)}
+                />
               </div>
             </Card>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <AdminMiniStat label="Reviews" value={String(totalReviews)} />
             <AdminMiniStat
               label="Average"
@@ -341,10 +409,14 @@ export default async function AdminReviewsPage({
               label="Not recommended"
               value={String(notRecommendedReviews)}
             />
+            <AdminMiniStat
+              label="Solved rate"
+              value={problemSolvedRate !== null ? `${problemSolvedRate}%` : "—"}
+            />
           </div>
 
           <form action="/admin/reviews" className="mt-6">
-            <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] xl:grid-cols-[1fr_160px_180px_auto_auto] xl:items-center">
+            <div className="grid gap-3 rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] xl:grid-cols-[1fr_160px_180px_180px_auto_auto] xl:items-center">
               <div className="relative">
                 <Search
                   size={17}
@@ -383,6 +455,17 @@ export default async function AdminReviewsPage({
                 <option value="no">Not recommended</option>
               </select>
 
+              <select
+                name="problem"
+                defaultValue={problemFilter}
+                className="input min-h-12"
+              >
+                <option value="all">All outcomes</option>
+                <option value="YES">Problem solved</option>
+                <option value="PARTIALLY">Partially solved</option>
+                <option value="NO">Not solved</option>
+              </select>
+
               <label className="flex min-h-12 items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)]">
                 <input
                   type="checkbox"
@@ -413,6 +496,7 @@ export default async function AdminReviewsPage({
               rating="all"
               bad={false}
               recommend={recommendFilter}
+              problem={problemFilter}
               currentRating={ratingFilter}
               currentBad={badOnly}
               label="All"
@@ -422,6 +506,7 @@ export default async function AdminReviewsPage({
               rating="5"
               bad={false}
               recommend={recommendFilter}
+              problem={problemFilter}
               currentRating={ratingFilter}
               currentBad={badOnly}
               label="5 stars"
@@ -431,6 +516,7 @@ export default async function AdminReviewsPage({
               rating="4"
               bad={false}
               recommend={recommendFilter}
+              problem={problemFilter}
               currentRating={ratingFilter}
               currentBad={badOnly}
               label="4 stars"
@@ -440,6 +526,7 @@ export default async function AdminReviewsPage({
               rating="3"
               bad={false}
               recommend={recommendFilter}
+              problem={problemFilter}
               currentRating={ratingFilter}
               currentBad={badOnly}
               label="3 stars"
@@ -449,6 +536,7 @@ export default async function AdminReviewsPage({
               rating="2"
               bad={false}
               recommend={recommendFilter}
+              problem={problemFilter}
               currentRating={ratingFilter}
               currentBad={badOnly}
               label="2 stars"
@@ -458,6 +546,7 @@ export default async function AdminReviewsPage({
               rating="1"
               bad={false}
               recommend={recommendFilter}
+              problem={problemFilter}
               currentRating={ratingFilter}
               currentBad={badOnly}
               label="1 star"
@@ -467,6 +556,7 @@ export default async function AdminReviewsPage({
               rating="all"
               bad
               recommend={recommendFilter}
+              problem={problemFilter}
               currentRating={ratingFilter}
               currentBad={badOnly}
               label="Quality issues"
@@ -478,6 +568,7 @@ export default async function AdminReviewsPage({
               q={query}
               rating={ratingFilter}
               bad={badOnly}
+              problem={problemFilter}
               value="all"
               current={recommendFilter}
               label="All recommendations"
@@ -486,6 +577,7 @@ export default async function AdminReviewsPage({
               q={query}
               rating={ratingFilter}
               bad={badOnly}
+              problem={problemFilter}
               value="yes"
               current={recommendFilter}
               label="Recommended"
@@ -494,9 +586,49 @@ export default async function AdminReviewsPage({
               q={query}
               rating={ratingFilter}
               bad={badOnly}
+              problem={problemFilter}
               value="no"
               current={recommendFilter}
               label="Not recommended"
+            />
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <ProblemFilterLink
+              q={query}
+              rating={ratingFilter}
+              bad={badOnly}
+              recommend={recommendFilter}
+              value="all"
+              current={problemFilter}
+              label="All outcomes"
+            />
+            <ProblemFilterLink
+              q={query}
+              rating={ratingFilter}
+              bad={badOnly}
+              recommend={recommendFilter}
+              value="YES"
+              current={problemFilter}
+              label="Problem solved"
+            />
+            <ProblemFilterLink
+              q={query}
+              rating={ratingFilter}
+              bad={badOnly}
+              recommend={recommendFilter}
+              value="PARTIALLY"
+              current={problemFilter}
+              label="Partially solved"
+            />
+            <ProblemFilterLink
+              q={query}
+              rating={ratingFilter}
+              bad={badOnly}
+              recommend={recommendFilter}
+              value="NO"
+              current={problemFilter}
+              label="Not solved"
             />
           </div>
         </div>
@@ -508,6 +640,7 @@ export default async function AdminReviewsPage({
           <Badge>Rating: {ratingFilter}</Badge>
           <Badge>Quality issues: {badOnly ? "yes" : "no"}</Badge>
           <Badge>Recommend: {recommendFilter}</Badge>
+          <Badge>Outcome: {problemFilter}</Badge>
           <Badge>{reviews.length} shown</Badge>
         </div>
 
@@ -527,7 +660,8 @@ export default async function AdminReviewsPage({
               </h2>
 
               <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
-                Try another search query, rating or recommendation filter.
+                Try another search query, rating, recommendation or outcome
+                filter.
               </p>
 
               <div className="mt-5">
@@ -553,6 +687,7 @@ function ReviewAdminCard({
     clarity: number | null;
     professionalism: number | null;
     wouldRecommend: boolean | null;
+    problemSolved: string | null;
     comment: string | null;
     createdAt: Date;
     buyer: {
@@ -601,6 +736,10 @@ function ReviewAdminCard({
               </Badge>
             ) : null}
 
+            <Badge variant={getProblemSolvedBadgeVariant(review.problemSolved)}>
+              {formatProblemSolved(review.problemSolved)}
+            </Badge>
+
             {hasQualityIssue ? (
               <Badge variant="danger">
                 <AlertTriangle size={14} />
@@ -641,7 +780,6 @@ function ReviewAdminCard({
               label="Buyer"
               value={review.buyer.name ?? review.buyer.email}
               title={review.buyer.email}
-              
             />
             <SmallFact
               icon={ShieldCheck}
@@ -695,6 +833,7 @@ function FilterLink({
   rating,
   bad,
   recommend,
+  problem,
   currentRating,
   currentBad,
   label,
@@ -703,6 +842,7 @@ function FilterLink({
   rating: string;
   bad: boolean;
   recommend: string;
+  problem: string;
   currentRating: string;
   currentBad: boolean;
   label: string;
@@ -727,6 +867,10 @@ function FilterLink({
     params.set("recommend", recommend);
   }
 
+  if (problem !== "all") {
+    params.set("problem", problem);
+  }
+
   const href = params.toString()
     ? `/admin/reviews?${params.toString()}`
     : "/admin/reviews";
@@ -749,6 +893,7 @@ function RecommendFilterLink({
   q,
   rating,
   bad,
+  problem,
   value,
   current,
   label,
@@ -756,6 +901,7 @@ function RecommendFilterLink({
   q: string;
   rating: string;
   bad: boolean;
+  problem: string;
   value: string;
   current: string;
   label: string;
@@ -776,8 +922,71 @@ function RecommendFilterLink({
     params.set("bad", "true");
   }
 
+  if (problem !== "all") {
+    params.set("problem", problem);
+  }
+
   if (value !== "all") {
     params.set("recommend", value);
+  }
+
+  const href = params.toString()
+    ? `/admin/reviews?${params.toString()}`
+    : "/admin/reviews";
+
+  return (
+    <Link
+      href={href}
+      className={
+        isActive
+          ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
+          : "hover-scale rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] hover:bg-white hover:text-[var(--primary-dark)]"
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function ProblemFilterLink({
+  q,
+  rating,
+  bad,
+  recommend,
+  value,
+  current,
+  label,
+}: {
+  q: string;
+  rating: string;
+  bad: boolean;
+  recommend: string;
+  value: string;
+  current: string;
+  label: string;
+}) {
+  const isActive = current === value;
+
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (rating !== "all") {
+    params.set("rating", rating);
+  }
+
+  if (bad) {
+    params.set("bad", "true");
+  }
+
+  if (recommend !== "all") {
+    params.set("recommend", recommend);
+  }
+
+  if (value !== "all") {
+    params.set("problem", value);
   }
 
   const href = params.toString()
@@ -873,6 +1082,7 @@ function SmallFact({
     </div>
   );
 }
+
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
@@ -888,14 +1098,46 @@ function hasReviewQualityIssue(review: {
   clarity: number | null;
   professionalism: number | null;
   wouldRecommend: boolean | null;
+  problemSolved?: string | null;
 }) {
   return (
     review.rating <= 2 ||
     review.wouldRecommend === false ||
+    review.problemSolved === "NO" ||
     (review.helpfulness !== null && review.helpfulness <= 2) ||
     (review.clarity !== null && review.clarity <= 2) ||
     (review.professionalism !== null && review.professionalism <= 2)
   );
+}
+
+function formatProblemSolved(value: string | null) {
+  if (value === "YES") {
+    return "Problem solved";
+  }
+
+  if (value === "PARTIALLY") {
+    return "Partially solved";
+  }
+
+  if (value === "NO") {
+    return "Not solved";
+  }
+
+  return "Outcome unknown";
+}
+
+function getProblemSolvedBadgeVariant(
+  value: string | null,
+): "success" | "accent" | "danger" {
+  if (value === "YES") {
+    return "success";
+  }
+
+  if (value === "NO") {
+    return "danger";
+  }
+
+  return "accent";
 }
 
 function formatShortDate(date: Date) {
