@@ -14,6 +14,8 @@ import {
   Sparkles,
   Star,
   Target,
+  ThumbsDown,
+  ThumbsUp,
   TrendingUp,
   Video,
   WalletCards,
@@ -205,6 +207,26 @@ export default async function ExpertStatsPage() {
 
   const recentReviews = expert.reviews.slice(0, 4);
 
+  const solvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "YES",
+  ).length;
+
+  const partiallySolvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "PARTIALLY",
+  ).length;
+
+  const notSolvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "NO",
+  ).length;
+
+  const problemOutcomeTotal =
+    solvedReviews + partiallySolvedReviews + notSolvedReviews;
+
+  const problemSolvedRate =
+    problemOutcomeTotal > 0
+      ? Math.round((solvedReviews / problemOutcomeTotal) * 100)
+      : null;
+
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
@@ -364,6 +386,59 @@ export default async function ExpertStatsPage() {
               </div>
             </Card>
           </div>
+
+          <Card className="p-5 md:p-6">
+            <Badge variant="success">
+              <Target size={14} />
+              Problem outcomes
+            </Badge>
+
+            <div className="mt-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+              <div>
+                <h2 className="text-3xl font-black tracking-[-0.05em]">
+                  {problemSolvedRate !== null
+                    ? `${problemSolvedRate}% solved`
+                    : "No outcome data yet"}
+                </h2>
+
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                  This shows whether buyers felt their problem was solved after
+                  your calls. It is one of the strongest trust signals on
+                  SkillDrop.
+                </p>
+              </div>
+
+              <Badge variant={problemSolvedRate !== null && problemSolvedRate >= 70 ? "success" : "accent"}>
+                {problemOutcomeTotal} outcome{problemOutcomeTotal === 1 ? "" : "s"}
+              </Badge>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <OutcomeBox
+                icon={ThumbsUp}
+                label="Solved"
+                value={solvedReviews}
+                hint="Buyer said the problem was solved"
+                variant="success"
+              />
+
+              <OutcomeBox
+                icon={Target}
+                label="Partially solved"
+                value={partiallySolvedReviews}
+                hint="Buyer received partial help"
+                variant="accent"
+              />
+
+              <OutcomeBox
+                icon={ThumbsDown}
+                label="Not solved"
+                value={notSolvedReviews}
+                hint="Buyer said the problem was not solved"
+                variant="danger"
+              />
+            </div>
+          </Card>
 
           <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
             <Card className="p-5 md:p-6">
@@ -556,11 +631,16 @@ export default async function ExpertStatsPage() {
                     key={review.id}
                     className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="flex items-center gap-2 font-black">
-                        <Star size={16} fill="currentColor" />
-                        {review.rating}/5
-                      </p>
+                    <div className="flex flex-wrap items-center justify-between gap-3"> 
+                     <div className="flex flex-wrap items-center gap-2">
+                       <p className="flex items-center gap-2 font-black">
+                         <Star size={16} fill="currentColor" />
+                         {review.rating}/5
+                       </p>
+                       <Badge variant={getProblemSolvedBadgeVariant(review.problemSolved)}>
+                         {formatProblemSolved(review.problemSolved)}
+                       </Badge>
+                     </div>
 
                       <p className="text-xs font-bold text-muted">
                         {formatDate(review.createdAt)}
@@ -583,6 +663,52 @@ export default async function ExpertStatsPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function OutcomeBox({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  variant,
+}: {
+  icon: typeof Target;
+  label: string;
+  value: number;
+  hint: string;
+  variant: "success" | "accent" | "danger";
+}) {
+  return (
+    <div
+      className={
+        variant === "success"
+          ? "rounded-[22px] border border-[var(--success)]/20 bg-[var(--success-soft)] p-4"
+          : variant === "danger"
+            ? "rounded-[22px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4"
+            : "rounded-[22px] border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4"
+      }
+    >
+      <div
+        className={
+          variant === "success"
+            ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--success)]"
+            : variant === "danger"
+              ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--danger)]"
+              : "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--accent)]"
+        }
+      >
+        <Icon size={18} />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p>
+
+      <p className="mt-1 text-xs font-semibold leading-5 text-muted">{hint}</p>
+    </div>
   );
 }
 
@@ -951,4 +1077,34 @@ function formatDate(date: Date) {
     day: "numeric",
     year: "numeric",
   }).format(date);
+}
+
+function formatProblemSolved(value: string | null) {
+  if (value === "YES") {
+    return "Solved";
+  }
+
+  if (value === "PARTIALLY") {
+    return "Partially";
+  }
+
+  if (value === "NO") {
+    return "Not solved";
+  }
+
+  return "Unknown";
+}
+
+function getProblemSolvedBadgeVariant(
+  value: string | null,
+): "success" | "accent" | "danger" {
+  if (value === "YES") {
+    return "success";
+  }
+
+  if (value === "NO") {
+    return "danger";
+  }
+
+  return "accent";
 }

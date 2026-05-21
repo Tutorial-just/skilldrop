@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import {
   closeBookingReportAction,
   keepBookingDisputedAction,
+  markBookingRefundedManuallyAction,
   resolveBookingAsCompletedAction,
 } from "@/server/actions/admin-dispute.actions";
 
@@ -349,6 +350,10 @@ function ReportCard({ report, compact = false }: ReportCardProps) {
 
         {!compact ? (
           <div className="flex shrink-0 flex-col gap-2 lg:min-w-[210px]">
+            <div className="rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-3 text-xs font-bold leading-5 text-[var(--warning)]">
+               For refunds: issue the refund in Stripe Dashboard first, then mark it as
+               refunded manually here.
+            </div>
             <Link
               href={`/admin/bookings?booking=${booking.id}`}
               className="btn btn-secondary"
@@ -378,6 +383,22 @@ function ReportCard({ report, compact = false }: ReportCardProps) {
               <button type="submit" className="btn btn-secondary w-full">
                 Keep disputed
               </button>
+            </form>
+
+            <form action={markBookingRefundedManuallyAction}>
+                <input type="hidden" name="reportId" value={report.id} />
+                <input type="hidden" name="bookingId" value={booking.id} />
+
+                <textarea
+                  name="resolution"
+                  rows={2}
+                  placeholder="Refund note, e.g. Refunded manually in Stripe Dashboard..."
+                  className="w-full resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold outline-none"
+                />
+
+                <button type="submit" className="btn btn-danger mt-2 w-full">
+                    Mark refunded manually
+                </button>
             </form>
 
             <form action={closeBookingReportAction}>

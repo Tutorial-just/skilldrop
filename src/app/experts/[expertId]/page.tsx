@@ -17,6 +17,9 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Target,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   Video,
   WalletCards,
@@ -135,6 +138,7 @@ export default async function ExpertPublicPage({
           clarity: true,
           professionalism: true,
           wouldRecommend: true,
+          problemSolved: true,
           comment: true,
           createdAt: true,
         },
@@ -262,6 +266,26 @@ export default async function ExpertPublicPage({
             recommendationReviews.length) *
             100,
         )
+      : null;
+
+  const solvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "YES",
+  ).length;
+
+  const partiallySolvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "PARTIALLY",
+  ).length;
+
+  const notSolvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "NO",
+  ).length;
+
+  const problemOutcomeTotal =
+    solvedReviews + partiallySolvedReviews + notSolvedReviews;
+
+  const problemSolvedRate =
+    problemOutcomeTotal > 0
+      ? Math.round((solvedReviews / problemOutcomeTotal) * 100)
       : null;
 
   const displayName = expert.user.name || "Helper";
@@ -412,7 +436,12 @@ export default async function ExpertPublicPage({
                     <Badge>
                       ⭐ {expert.rating ? expert.rating.toFixed(1) : "New"}
                     </Badge>
-
+                    {problemSolvedRate !== null ? (
+                     <Badge variant={problemSolvedRate >= 70 ? "success" : "accent"}>
+                        <Target size={14} />
+                        {problemSolvedRate}% solved
+                     </Badge>
+                    ) : null}
                     <Badge>{expert.totalSessions} sessions</Badge>
 
                     {expert.languages.slice(0, 3).map((language) => (
@@ -808,28 +837,44 @@ export default async function ExpertPublicPage({
                           htmlFor="booking-note"
                           className="text-sm font-black tracking-[-0.01em]"
                         >
-                          What do you need help with?
+                          Describe your problem and desired result
                         </label>
 
                         <p className="text-sm font-semibold leading-6 text-muted">
-                          Add a short note so the helper can prepare before the
-                          call. Example: “Please review my CV”, “I need help
-                          understanding this document”, “Help me prepare for an
-                          interview”, or “I have a problem with my website”.
+                           Help the provider prepare before the call. Explain what problem
+                           you want to solve, what result you expect by the end of the call,
+                           and what you already tried if it is relevant.
                         </p>
+
+                        <div className="mt-3 rounded-2xl border border-[var(--primary)]/15 bg-[var(--primary-soft)] p-4">
+                          <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--primary-dark)]">
+                            Good note example
+                          </p>
+
+                          <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-[var(--primary-dark)]">
+                             {`Problem: I need help improving my CV for an alternance application.
+                               Desired result: I want clear advice and corrections before I send it.
+                               Already tried: I wrote a first version but I am not sure if it is professional enough.`}
+                          </p>
+                        </div>
 
                         <textarea
                           id="booking-note"
                           name="note"
                           maxLength={MAX_BOOKING_NOTE_LENGTH}
-                          rows={4}
-                          placeholder="Describe your problem or goal..."
-                          className="mt-2 min-h-28 resize-y rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold leading-6 outline-none transition placeholder:text-muted focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
-                        />
+                          rows={7}
+                          placeholder={`Problem:
 
-                        <p className="text-xs font-bold text-muted">
-                          Optional. Max {MAX_BOOKING_NOTE_LENGTH} characters.
-                        </p>
+                         Desired result:
+
+                         Already tried:`}
+                            className="mt-2 min-h-44 resize-y rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold leading-6 outline-none transition placeholder:text-muted focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
+                        />
+                          
+
+                       <p className="text-xs font-bold text-muted">
+                          Optional, but recommended. Max {MAX_BOOKING_NOTE_LENGTH} characters.
+                       </p>
                       </div>
                     </div>
 
@@ -946,7 +991,7 @@ export default async function ExpertPublicPage({
                 About
               </Badge>
 
-              <div className="mt-6 grid gap-5 md:grid-cols-3">
+              <div className="mt-6 grid gap-5 md:grid-cols-4">
                 <InfoBox
                   icon={Languages}
                   label="Languages"
@@ -972,7 +1017,60 @@ export default async function ExpertPublicPage({
                       : "New helper"
                   }
                 />
+
+                <InfoBox
+                  icon={Target}
+                  label="Solved"
+                  value={problemSolvedRate !== null ? `${problemSolvedRate}%` : "No data yet"}
+                />
               </div>
+            </Card>
+
+            <Card className="p-5 md:p-6">
+               <Badge variant="success">
+                 <Target size={14} />
+                 Problem outcomes
+               </Badge>      
+
+               <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                 <div>
+                   <h2 className="text-3xl font-black tracking-[-0.05em]">
+                     {problemSolvedRate !== null
+                       ? `${problemSolvedRate}% problems solved`
+                       : "No outcome data yet"}
+                    </h2>
+
+                    <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                      Buyers answer whether their problem was solved after the call. This is
+                      one of the strongest trust signals on SkillDrop.
+                    </p>
+                  </div>    
+                  <Badge variant={problemOutcomeTotal > 0 ? "primary" : "accent"}>
+                    {problemOutcomeTotal} outcome{problemOutcomeTotal === 1 ? "" : "s"}
+                  </Badge>
+                </div>                           
+                <div className="mt-6 grid gap-3 md:grid-cols-3">
+                 <OutcomeBox
+                   icon={ThumbsUp}
+                   label="Solved"
+                   value={solvedReviews}
+                   variant="success"
+                 />
+
+                 <OutcomeBox
+                   icon={Target}
+                   label="Partially"
+                   value={partiallySolvedReviews}
+                   variant="accent"
+                 />
+
+                 <OutcomeBox
+                   icon={ThumbsDown}
+                   label="Not solved"
+                   value={notSolvedReviews}
+                   variant="danger"
+                 />
+                </div>
             </Card>
 
             <Card className="p-5 md:p-6">
@@ -1007,6 +1105,10 @@ export default async function ExpertPublicPage({
                         {review.wouldRecommend ? (
                           <Badge variant="primary">Recommended</Badge>
                         ) : null}
+
+                        <Badge variant={getProblemSolvedBadgeVariant(review.problemSolved)}>
+                          {formatProblemSolved(review.problemSolved)}
+                        </Badge>
 
                         <p className="text-xs font-bold text-muted">
                           {formatShortDate(review.createdAt)}
@@ -1097,6 +1199,11 @@ export default async function ExpertPublicPage({
                     recommendationRate !== null ? `${recommendationRate}%` : "—"
                   }
                 />
+
+                <SideFact
+                  label="Problem solved"
+                  value={problemSolvedRate !== null ? `${problemSolvedRate}%` : "—"}
+                />
               </div>
             </Card>
 
@@ -1177,6 +1284,48 @@ export default async function ExpertPublicPage({
         </div>
       </section>
     </main>
+  );
+}
+
+function OutcomeBox({
+  icon: Icon,
+  label,
+  value,
+  variant,
+}: {
+  icon: typeof Target;
+  label: string;
+  value: number;
+  variant: "success" | "accent" | "danger";
+}) {
+  return (
+    <div
+      className={
+        variant === "success"
+          ? "rounded-[22px] border border-[var(--success)]/20 bg-[var(--success-soft)] p-4"
+          : variant === "danger"
+            ? "rounded-[22px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4"
+            : "rounded-[22px] border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4"
+      }
+    >
+      <div
+        className={
+          variant === "success"
+            ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--success)]"
+            : variant === "danger"
+              ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--danger)]"
+              : "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--accent)]"
+        }
+      >
+        <Icon size={18} />
+      </div>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+
+      <p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p>
+    </div>
   );
 }
 
@@ -1478,6 +1627,7 @@ function calculateMatchScore({
     clarity: number | null;
     professionalism: number | null;
     wouldRecommend: boolean | null;
+    problemSolved?: string | null;
     createdAt: Date;
   }[];
 }) {
@@ -1659,4 +1809,34 @@ function formatError(error: string) {
   }
 
   return "Something went wrong. Please try again.";
+}
+
+function formatProblemSolved(value: string | null) {
+  if (value === "YES") {
+    return "Solved";
+  }
+
+  if (value === "PARTIALLY") {
+    return "Partially solved";
+  }
+
+  if (value === "NO") {
+    return "Not solved";
+  }
+
+  return "Outcome unknown";
+}
+
+function getProblemSolvedBadgeVariant(
+  value: string | null,
+): "success" | "accent" | "danger" {
+  if (value === "YES") {
+    return "success";
+  }
+
+  if (value === "NO") {
+    return "danger";
+  }
+
+  return "accent";
 }

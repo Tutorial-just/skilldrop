@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Target,
   UserRound,
   WalletCards,
 } from "lucide-react";
@@ -291,6 +292,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           clarity: true,
           professionalism: true,
           wouldRecommend: true,
+          problemSolved: true,
           createdAt: true,
         },
         take: 20,
@@ -720,6 +722,15 @@ function ExpertSearchCard({
       endTime: Date;
       isActive: boolean;
     }[];
+    reviews: {
+      rating: number;
+      helpfulness: number | null;
+      clarity: number | null;
+      professionalism: number | null;
+      wouldRecommend: boolean | null;
+      problemSolved: string | null;
+      createdAt: Date;
+    }[];
   };
 }) {
   const startingPrice = expert.services[0]?.priceCents ?? null;
@@ -740,6 +751,26 @@ function ExpertSearchCard({
   ).slice(0, 8);
 
   const mainService = expert.services[0] ?? null;
+
+  const solvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "YES",
+  ).length;
+
+  const partiallySolvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "PARTIALLY",
+  ).length;
+
+  const notSolvedReviews = expert.reviews.filter(
+    (review) => review.problemSolved === "NO",
+  ).length;
+
+  const problemOutcomeTotal =
+    solvedReviews + partiallySolvedReviews + notSolvedReviews;
+
+  const problemSolvedRate =
+    problemOutcomeTotal > 0
+      ? Math.round((solvedReviews / problemOutcomeTotal) * 100)
+      : null;
 
   const isPaymentReady =
     Boolean(expert.stripeAccountId) &&
@@ -822,6 +853,13 @@ function ExpertSearchCard({
                   <Star size={14} />
                   {expert.rating ? expert.rating.toFixed(1) : "New"}
                 </Badge>
+
+                {problemSolvedRate !== null ? (
+                  <Badge variant={problemSolvedRate >= 70 ? "success" : "accent"}>
+                    <Target size={14} />
+                    {problemSolvedRate}% solved
+                 </Badge>
+                ) : null}
               </div>
 
               <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
@@ -891,6 +929,11 @@ function ExpertSearchCard({
               />
 
               <SideRow label="Quality" value={`${expert.qualityScore}/100`} />
+
+              <SideRow
+                label="Solved"
+                value={problemSolvedRate !== null ? `${problemSolvedRate}%` : "—"}
+              />
 
               <SideRow label="Sessions" value={String(expert.totalSessions)} />
             </div>
@@ -1197,6 +1240,7 @@ function calculateQualityScore({
     clarity: number | null;
     professionalism: number | null;
     wouldRecommend: boolean | null;
+    problemSolved?: string | null;
     createdAt: Date;
   }[];
 }) {

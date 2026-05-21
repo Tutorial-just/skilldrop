@@ -15,7 +15,7 @@ import {
   Sparkles,
   Video,
   XCircle,
-  LucideIcon
+  type LucideIcon
 } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/get-current-user";
@@ -89,6 +89,9 @@ export default async function AdminLaunchChecklistPage() {
   const supabaseUrlReady = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const supabaseAnonReady = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const supportEmailReady = Boolean(process.env.NEXT_PUBLIC_SUPPORT_EMAIL);
+  const resendApiKeyReady = Boolean(process.env.RESEND_API_KEY);
+  const resendFromEmailReady = Boolean(process.env.RESEND_FROM_EMAIL);
+  const jitsiBaseUrlReady = Boolean(process.env.JITSI_BASE_URL);
 
   const envChecks = [
     {
@@ -138,6 +141,24 @@ export default async function AdminLaunchChecklistPage() {
       text: "NEXT_PUBLIC_SUPPORT_EMAIL should be set for legal/help pages.",
       ready: supportEmailReady,
       icon: Mail,
+    },
+    {
+      title: "Resend API key",
+      text: "RESEND_API_KEY is required to send booking, review, dispute and verification emails.",
+      ready: resendApiKeyReady,
+      icon: Mail,
+    },
+    {
+      title: "Resend from email",
+      text: "RESEND_FROM_EMAIL should be configured so production emails have a valid sender.",
+      ready: resendFromEmailReady,
+      icon: Mail,
+    },
+    {
+      title: "Jitsi base URL",
+      text: "JITSI_BASE_URL is required to generate reliable call room links.",
+      ready: jitsiBaseUrlReady,
+      icon: Video,
     },
   ];
 
@@ -226,7 +247,15 @@ export default async function AdminLaunchChecklistPage() {
   const readyCount = allChecks.filter((check) => check.ready).length;
   const totalCount = allChecks.length;
   const launchScore = Math.round((readyCount / totalCount) * 100);
-  const canSoftLaunch = launchScore >= 75 && stripeWebhookReady && databaseReady;
+  const canSoftLaunch =
+    launchScore >= 75 &&
+    databaseReady &&
+    stripeSecretReady &&
+    stripeWebhookReady &&
+    supabaseUrlReady &&
+    supabaseAnonReady &&
+    resendApiKeyReady &&
+    jitsiBaseUrlReady;
 
   return (
     <main>
@@ -329,6 +358,15 @@ export default async function AdminLaunchChecklistPage() {
                 <DecisionRow
                   label="Authentication"
                   ready={supabaseUrlReady && supabaseAnonReady}
+                />
+                <DecisionRow
+                  label="Emails"
+                  ready={resendApiKeyReady && resendFromEmailReady}
+                />
+
+                <DecisionRow
+                  label="Video calls"
+                  ready={jitsiBaseUrlReady}
                 />
                 <DecisionRow label="Marketplace data" ready={expertsCount > 0} />
                 <DecisionRow label="Open slots" ready={openSlotsCount > 0} />
