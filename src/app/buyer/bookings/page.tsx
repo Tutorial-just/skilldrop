@@ -20,7 +20,7 @@ import {
   getUserTimezone,
   isBookingJoinAvailable,
 } from "@/lib/date-time";
-
+import { ReportBookingForm } from "@/components/bookings/report-booking-form";
 import {
   cancelBookingAction,
   releaseExpiredPendingBookings,
@@ -34,6 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getBookingStatusUi } from "@/lib/booking-status-ui";
 
 type BuyerBookingsPageProps = {
   searchParams?: Promise<{
@@ -602,6 +603,11 @@ function BookingCard({
 
   const pricing = getBookingPricing(booking);
 
+  const statusUi = getBookingStatusUi({
+    status: booking.status,
+    role: "buyer",
+  });
+
   const isPending = booking.status === "PENDING";
   const isPaid = booking.status === "PAID";
   const isConfirmed = booking.status === "CONFIRMED";
@@ -623,7 +629,9 @@ function BookingCard({
   const needsSupportForCancellation =
     booking.status === "CONFIRMED" && booking.startTime > now;
   const canReview = isCompleted && !booking.review;
-
+  const canReport = ["PAID", "CONFIRMED", "COMPLETED"].includes(
+    booking.status,
+  );
   const helperName = booking.expert.user.name ?? booking.expert.user.email;
 
   return (
@@ -718,6 +726,11 @@ function BookingCard({
           {booking.note ? (
             <BookingNote note={booking.note} className="mt-4" />
           ) : null}
+
+          <StatusExplanation
+            variant={statusUi.variant}
+            text={`${statusUi.description} Next step: ${statusUi.nextAction}.`}
+          />
 
           {isPending ? (
             <StatusExplanation
@@ -832,6 +845,11 @@ function BookingCard({
           ) : null}
         </div>
       </div>
+      {canReport ? (
+        <div className="mt-4">
+          <ReportBookingForm bookingId={booking.id} />
+         </div>
+      ) : null}
     </div>
   );
 }
@@ -1005,17 +1023,19 @@ function StatusExplanation({
   variant,
 }: {
   text: string;
-  variant: "warning" | "primary" | "success" | "danger" | "muted";
+  variant: "warning" | "primary" | "success" | "danger" | "muted" | "accent";
 }) {
-  const className =
-    variant === "warning"
-      ? "mt-4 rounded-2xl border border-[var(--warning)]/20 bg-white/55 p-3 text-sm font-bold text-[var(--warning)]"
-      : variant === "primary"
-        ? "mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]"
-        : variant === "success"
-          ? "mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-bold text-[var(--success)]"
-          : variant === "danger"
-            ? "mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]"
+ const className =
+  variant === "warning"
+    ? "mt-4 rounded-2xl border border-[var(--warning)]/20 bg-white/55 p-3 text-sm font-bold text-[var(--warning)]"
+    : variant === "primary"
+      ? "mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]"
+      : variant === "success"
+        ? "mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-bold text-[var(--success)]"
+        : variant === "danger"
+          ? "mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]"
+          : variant === "accent"
+            ? "mt-4 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-3 text-sm font-bold text-[var(--accent)]"
             : "mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-3 text-sm font-bold text-muted";
 
   return <p className={className}>{text}</p>;

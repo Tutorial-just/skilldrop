@@ -22,6 +22,7 @@ model User {
   buyerSettings  BuyerSettings?
   notifications  Notification[]
   adminAuditLogs AdminAuditLog[]
+  bookingReports BookingReport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -212,7 +213,7 @@ model Booking {
   stripePaymentIntentId   String? @unique
   stripeChargeId          String?
   stripeRefundId          String?
-
+  reports BookingReport[]
   review   Review?
   callRoom CallRoom?
 
@@ -268,6 +269,7 @@ model Review {
   clarity         Int?
   professionalism Int?
   wouldRecommend  Boolean?
+  problemSolved   String?
   comment         String?
 
   createdAt DateTime @default(now())
@@ -427,4 +429,22 @@ model StripeEvent {
   @@index([type])
   @@index([processed])
   @@index([createdAt])
+}
+
+model BookingReport {
+  id        String   @id @default(cuid())
+  bookingId String
+  reporterId String
+  reason    String
+  message   String?
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking  Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  reporter User    @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([reporterId])
+  @@index([status])
 }

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { refreshExpertVerification } from "@/lib/expert-verification";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import {
@@ -12,6 +13,10 @@ import {
   rateLimitPresets,
 } from "@/lib/rate-limit";
 import { sendNotification } from "@/server/services/notification.service";
+import {
+  sendExpertVerifiedEmail,
+  sendReviewReceivedEmail,
+} from "@/lib/booking-emails";
 
 const MAX_REVIEW_COMMENT_LENGTH = 1500;
 
@@ -46,6 +51,22 @@ function parseBooleanValue(value: string) {
 
   if (value === "false") {
     return false;
+  }
+
+  return null;
+}
+
+function parseProblemSolved(value: string) {
+  if (value === "YES") {
+    return "YES";
+  }
+
+  if (value === "PARTIALLY") {
+    return "PARTIALLY";
+  }
+
+  if (value === "NO") {
+    return "NO";
   }
 
   return null;
@@ -139,6 +160,10 @@ export async function createReviewAction(formData: FormData) {
     getStringValue(formData, "wouldRecommend"),
   );
 
+  const problemSolved = parseProblemSolved(
+    getStringValue(formData, "problemSolved"),
+  );
+
   const rawComment = getStringValue(formData, "comment");
   const comment = normalizeComment(rawComment);
 
@@ -151,6 +176,10 @@ export async function createReviewAction(formData: FormData) {
   }
 
   if (helpfulness === null || clarity === null || professionalism === null) {
+    redirect(`/buyer/reviews?bookingId=${bookingId}&error=invalid-review`);
+  }
+
+  if (!problemSolved) {
     redirect(`/buyer/reviews?bookingId=${bookingId}&error=invalid-review`);
   }
 
@@ -212,6 +241,7 @@ export async function createReviewAction(formData: FormData) {
         clarity: clarity ?? null,
         professionalism: professionalism ?? null,
         wouldRecommend,
+        problemSolved,
         comment,
       },
     });
@@ -237,8 +267,6 @@ export async function createReviewAction(formData: FormData) {
       },
       select: {
         id: true,
-        totalSessions: true,
-        isVerified: true,
       },
     });
 
@@ -248,9 +276,6 @@ export async function createReviewAction(formData: FormData) {
       };
     }
 
-    const shouldAutoVerify =
-      !expert.isVerified && expert.totalSessions >= 3 && newRating >= 3.8;
-
     await tx.expertProfile.update({
       where: {
         id: booking.expertId,
@@ -258,14 +283,6 @@ export async function createReviewAction(formData: FormData) {
       data: {
         rating: newRating,
         totalReviews,
-        ...(shouldAutoVerify
-          ? {
-              isVerified: true,
-              verifiedAt: new Date(),
-              verificationNote:
-                "Automatically verified after 3 completed sessions and 3.8+ rating.",
-            }
-          : {}),
       },
     });
 
@@ -275,7 +292,6 @@ export async function createReviewAction(formData: FormData) {
       review: createdReview,
       totalReviews,
       newRating,
-      wasAutoVerified: shouldAutoVerify,
     };
   });
 
@@ -305,6 +321,10 @@ export async function createReviewAction(formData: FormData) {
     redirect("/buyer/reviews?error=invalid-review");
   }
 
+  const verificationResult = await refreshExpertVerification(
+    result.booking.expertId,
+  );
+
   await safeSendNotification({
     to: result.booking.expert.user.email,
     type: "REVIEW_RECEIVED",
@@ -322,19 +342,33 @@ export async function createReviewAction(formData: FormData) {
       clarity: clarity ?? null,
       professionalism: professionalism ?? null,
       wouldRecommend,
+      problemSolved,
       hasComment: Boolean(comment),
       totalReviews: result.totalReviews,
       newRating: result.newRating,
     },
   });
 
-  if (result.wasAutoVerified) {
+  if (result.booking.expert.user.email) {
+    await sendReviewReceivedEmail({
+      expertEmail: result.booking.expert.user.email,
+      expertName: result.booking.expert.user.name,
+      buyerName: result.booking.buyer.name,
+      serviceTitle: result.booking.service?.title,
+      bookingId: result.booking.id,
+      rating: finalRating,
+      problemSolved,
+      comment,
+    });
+  }
+
+  if (verificationResult.wasUpdated) {
     await safeSendNotification({
       to: result.booking.expert.user.email,
       type: "EXPERT_APPROVED",
       subject: "Your SkillDrop profile is now verified",
       message:
-        "Congratulations. Your profile was automatically verified after reaching 3 completed sessions and a rating of at least 3.8.",
+        "Congratulations. Your profile earned verification after successful calls and positive reviews.",
       metadata: {
         expertId: result.booking.expertId,
         totalReviews: result.totalReviews,
@@ -343,6 +377,15 @@ export async function createReviewAction(formData: FormData) {
         minimumRatingRequired: 3.8,
       },
     });
+
+    if (result.booking.expert.user.email) {
+      await sendExpertVerifiedEmail({
+        expertEmail: result.booking.expert.user.email,
+        expertName: result.booking.expert.user.name,
+        rating: result.newRating,
+        totalReviews: result.totalReviews,
+      });
+    }
   }
 
   revalidateReviewPaths(result.booking.expertId, result.booking.id);

@@ -424,6 +424,31 @@ function ReviewFormCard({
             />
           </div>
 
+          <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+           <p className="text-sm font-black">Was your problem solved?</p>
+
+           <p className="mt-1 text-xs font-semibold leading-5 text-muted">
+             This helps SkillDrop understand whether the session really helped.
+           </p>
+
+           <div className="mt-3 grid gap-2">
+             <label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/70 px-3 py-2 text-sm font-bold">
+               <input type="radio" name="problemSolved" value="YES" required />
+                 Yes, my problem was solved
+             </label>
+
+             <label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/70 px-3 py-2 text-sm font-bold">
+               <input type="radio" name="problemSolved" value="PARTIALLY" required />
+                 Partially solved
+               </label>
+
+             <label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/70 px-3 py-2 text-sm font-bold">
+               <input type="radio" name="problemSolved" value="NO" required />
+                 No, my problem was not solved
+               </label>
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-black">Would you recommend?</label>
 
@@ -532,6 +557,7 @@ function ReviewedCard({
       clarity: number | null;
       professionalism: number | null;
       wouldRecommend: boolean | null;
+      problemSolved: string | null;
       comment: string | null;
       createdAt: Date;
     } | null;
@@ -569,6 +595,10 @@ function ReviewedCard({
         {booking.review.wouldRecommend === false ? (
           <Badge variant="accent">Not recommended</Badge>
         ) : null}
+
+        <Badge variant={getProblemSolvedBadgeVariant(booking.review.problemSolved)}>
+           {formatProblemSolved(booking.review.problemSolved)}
+        </Badge>
 
         <p className="text-xs font-bold text-muted">
           {formatDateTime(booking.review.createdAt)}
@@ -713,4 +743,34 @@ function formatReviewError(error: string) {
   }
 
   return "Something went wrong. Please try again.";
+}
+
+function formatProblemSolved(value: string | null) {
+  if (value === "YES") {
+    return "Problem solved";
+  }
+
+  if (value === "PARTIALLY") {
+    return "Partially solved";
+  }
+
+  if (value === "NO") {
+    return "Not solved";
+  }
+
+  return "Problem status unknown";
+}
+
+function getProblemSolvedBadgeVariant(
+  value: string | null,
+): "success" | "accent" | "danger" {
+  if (value === "YES") {
+    return "success";
+  }
+
+  if (value === "NO") {
+    return "danger";
+  }
+
+  return "accent";
 }

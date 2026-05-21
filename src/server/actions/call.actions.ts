@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BookingStatus } from "@prisma/client";
-
+import { sendReviewRequestEmail } from "@/lib/booking-emails";
+import { refreshExpertVerification } from "@/lib/expert-verification";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/server/services/notification.service";
@@ -240,6 +241,21 @@ export async function markCallCompletedAction(formData: FormData) {
       serviceTitle: booking.service?.title ?? "Booked call",
     },
   });
+
+  await refreshExpertVerification(booking.expertId);
+
+  if (booking.buyer.email && booking.expert.user.email) {
+    await sendReviewRequestEmail({
+      buyerEmail: booking.buyer.email,
+      buyerName: booking.buyer.name,
+      expertEmail: booking.expert.user.email,
+      expertName: booking.expert.user.name,
+      serviceTitle: booking.service?.title,
+      bookingId: booking.id,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+    });
+  }
 
   revalidateCallPaths(booking.expertId, booking.id);
 

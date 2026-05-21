@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BookingStatus, Prisma } from "@prisma/client";
+
 import {
   cancelBooking,
   closeCallRoom,
@@ -18,6 +19,7 @@ import {
   rateLimitPresets,
 } from "@/lib/rate-limit";
 import { sendNotification } from "@/server/services/notification.service";
+import { sendBookingCreatedEmails } from "@/lib/booking-emails";
 import { calculatePricingBreakdown } from "@/config/pricing";
 import {
   formatDateTime,
@@ -70,8 +72,6 @@ function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
-
-
 function isAlignedToBookingStep(date: Date) {
   return (
     date.getSeconds() === 0 &&
@@ -93,7 +93,6 @@ function rangesOverlap({
 }) {
   return startA < endB && endA > startB;
 }
-
 
 function getDisplayName(user: { name: string | null; email: string }) {
   return user.name?.trim() || user.email.split("@")[0] || "Buyer";
@@ -487,6 +486,18 @@ export async function createBookingAction(formData: FormData) {
     },
   });
 
+  await sendBookingCreatedEmails({
+    buyerEmail: buyer.email,
+    buyerName: buyer.name,
+    expertEmail: expert.user.email,
+    expertName: expert.user.name,
+    serviceTitle: service.title,
+    bookingId: booking.id,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    priceText: `€${(pricing.clientTotalCents / 100).toFixed(2)}`,
+  });
+
   revalidateBookingPaths(expertId, booking.id);
 
   redirect(`/buyer/bookings/${booking.id}/checkout`);
@@ -539,15 +550,15 @@ export async function cancelBookingAction(formData: FormData) {
 
   await prisma.$transaction(async (tx) => {
     await cancelBooking(
-        tx,
-        booking.id,
-        isAdmin
-          ? "CANCELLED_BY_ADMIN"
-          : isExpert
-            ? "CANCELLED_BY_EXPERT"
-            : "CANCELLED_BY_BUYER",
-      );
-    });
+      tx,
+      booking.id,
+      isAdmin
+        ? "CANCELLED_BY_ADMIN"
+        : isExpert
+          ? "CANCELLED_BY_EXPERT"
+          : "CANCELLED_BY_BUYER",
+    );
+  });
 
   const cancelledBy = isAdmin
     ? "SkillDrop admin"
@@ -649,6 +660,7 @@ export async function updateBookingStatusAction(formData: FormData) {
   if (!allowedStatuses.includes(status)) {
     redirect(`${getBookingsRedirectHref(currentUser.role)}?error=invalid-status`);
   }
+
   if (!canTransitionBookingStatus(booking.status, status, isAdmin)) {
     redirect(`${getBookingsRedirectHref(currentUser.role)}?error=invalid-transition`);
   }
@@ -929,10 +941,11 @@ export async function releaseExpiredPendingBookings() {
 
   await prisma.$transaction(async (tx) => {
     for (const booking of expiredBookings) {
-     const updatedBooking = await expireBooking(tx, booking.id);
-     if (updatedBooking.status !== BookingStatus.EXPIRED) {
-         continue;
-        }
+      const updatedBooking = await expireBooking(tx, booking.id);
+
+      if (updatedBooking.status !== BookingStatus.EXPIRED) {
+        continue;
+      }
 
       expiredBookingIds.push(booking.id);
     }

@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { sendNotification } from "@/server/services/notification.service";
+import { sendBookingConfirmedEmails } from "@/lib/booking-emails";
 import { calculatePricingBreakdown } from "@/config/pricing";
 
 export const runtime = "nodejs";
@@ -22,6 +23,7 @@ type ConfirmedBookingData = {
   buyerEmail: string | null;
   expertEmail: string | null;
   buyerName: string;
+  expertName: string;
   serviceTitle: string;
   startTime: Date;
   endTime: Date;
@@ -357,6 +359,7 @@ async function handleCheckoutSessionPaid({
         buyerEmail: booking.buyer.email,
         expertEmail: booking.expert.user.email,
         buyerName: getDisplayName(booking.buyer),
+        expertName: booking.expert.user.name ?? booking.expert.user.email ?? "Helper",
         serviceTitle: booking.service?.title ?? "Booked call",
         startTime: booking.startTime,
         endTime: booking.endTime,
@@ -422,6 +425,20 @@ async function handleCheckoutSessionPaid({
       stripePaymentIntentId: confirmedBooking.stripePaymentIntentId,
     },
   });
+
+  if (confirmedBooking.buyerEmail && confirmedBooking.expertEmail) {
+    await sendBookingConfirmedEmails({
+      buyerEmail: confirmedBooking.buyerEmail,
+      buyerName: confirmedBooking.buyerName,
+      expertEmail: confirmedBooking.expertEmail,
+      expertName: confirmedBooking.expertName,
+      serviceTitle: confirmedBooking.serviceTitle,
+      bookingId: confirmedBooking.id,
+      startTime: confirmedBooking.startTime,
+      endTime: confirmedBooking.endTime,
+      priceText: `€${(confirmedBooking.clientTotalCents / 100).toFixed(2)}`,
+    });
+  }
 
   revalidateWebhookPaths(confirmedBooking.expertId, confirmedBooking.id);
 

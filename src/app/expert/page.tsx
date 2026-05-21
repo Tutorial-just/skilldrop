@@ -24,7 +24,9 @@ import {
   Video,
   WalletCards,
 } from "lucide-react";
-
+import { getExpertQuality } from "@/lib/expert-quality";
+import { ExpertProfileCompletenessCard } from "@/components/experts/expert-profile-completeness-card";
+import { ExpertVerificationCard } from "@/components/experts/expert-verification-card";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Badge } from "@/components/ui/badge";
@@ -197,7 +199,23 @@ export default async function ExpertDashboardPage({
   const providerEmail = expert.user.email || email;
 
   const activeServices = expert.services.filter((service) => service.isActive);
-
+  const quality = getExpertQuality({
+    image: null,
+    headline: expert.headline,
+    bio: expert.bio,
+    country: expert.country,
+    timezone: expert.timezone,
+    languages: expert.languages,
+    skills: expert.skills,
+    totalSessions: expert.totalSessions,
+    completedCalls: expert.totalSessions,
+    totalReviews: expert.totalReviews,
+    rating: expert.rating,
+    servicesCount: expert.services.length,
+    activeServicesCount: activeServices.length,
+    availabilityCount: expert.availability.length,
+    isManuallyVerified: expert.isVerified,
+  });
   const openSlots = expert.availability.filter(
     (window) =>
       window.isActive &&
@@ -470,6 +488,13 @@ export default async function ExpertDashboardPage({
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-5">
+          <ExpertProfileCompletenessCard quality={quality}/>
+          <ExpertVerificationCard
+            totalSessions={expert.totalSessions}
+            totalReviews={expert.totalReviews}
+            rating={expert.rating}
+            isVerified={expert.isVerified}
+          />
           {!isBookable ? (
             <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
               <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
@@ -847,45 +872,7 @@ export default async function ExpertDashboardPage({
                 </div>
               </Card>
 
-              <Card className="p-5 md:p-6">
-                <Badge variant={expert.isVerified ? "success" : "accent"}>
-                  <BadgeCheck size={14} />
-                  Verification
-                </Badge>
-
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                  {expert.isVerified ? "Verified" : "Earn your badge"}
-                </h2>
-
-                <p className="mt-3 text-sm leading-6 text-muted">
-                  Verification appears automatically after 3 successful calls and
-                  a rating of at least 3.8.
-                </p>
-
-                <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--success)] to-[#22c55e]"
-                    style={{ width: `${verificationProgress}%` }}
-                  />
-                </div>
-
-                <div className="mt-5 grid grid-cols-3 gap-3">
-                  <TinyStat
-                    value={`${Math.min(expert.totalSessions, 3)}/3`}
-                    label="calls"
-                  />
-
-                  <TinyStat
-                    value={expert.rating ? expert.rating.toFixed(1) : "New"}
-                    label="rating"
-                  />
-
-                  <TinyStat
-                    value={expert.isVerified ? "Yes" : "No"}
-                    label="badge"
-                  />
-                </div>
-              </Card>
+              
             </div>
 
             <div className="grid gap-5">

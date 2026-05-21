@@ -629,6 +629,12 @@ export default async function AdminPage() {
                 />
 
                 <AdminLink
+                  href="/admin/health"
+                  title="Health"
+                  text="Find stuck bookings, missing reviews, disputes and broken call flows."
+                />
+
+                <AdminLink
                   href="/admin/reviews"
                   title="Reviews"
                   text="Find low ratings, bad signals and client feedback."

@@ -35,6 +35,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ReportBookingForm } from "@/components/bookings/report-booking-form";
+import { getBookingStatusUi } from "@/lib/booking-status-ui";
 
 type ExpertBookingsPageProps = {
   searchParams?: Promise<{
@@ -551,6 +553,11 @@ function BookingCard({
   const now = new Date();
   const pricing = getBookingPricing(booking);
 
+  const statusUi = getBookingStatusUi({
+   status: booking.status,
+   role: "expert",
+ });
+
   const isPending = booking.status === "PENDING";
   const isPaid = booking.status === "PAID";
   const isConfirmed = booking.status === "CONFIRMED";
@@ -562,6 +569,9 @@ function BookingCard({
   const canJoin = canJoinBooking(booking);
   const canComplete = isConfirmed && booking.endTime <= now;
   const canCancel = (isPending || isConfirmed) && booking.startTime > now;
+  const canReport = ["PAID", "CONFIRMED", "COMPLETED"].includes(
+    booking.status,
+  );
   const buyerName = booking.buyer.name ?? "Buyer";
 
   return (
@@ -692,6 +702,11 @@ function BookingCard({
             <BuyerNote note={booking.note} className="mt-4" />
           ) : null}
 
+          <StatusExplanation
+            variant={statusUi.variant}
+            text={`${statusUi.description} Next step: ${statusUi.nextAction}.`}
+          />
+
           {isPending ? (
             <StatusExplanation
               variant="warning"
@@ -754,6 +769,11 @@ function BookingCard({
           {canCancel ? <CancelCallForm bookingId={booking.id} /> : null}
         </div>
       </div>
+      {canReport ? (
+        <div className="mt-4">
+          <ReportBookingForm bookingId={booking.id} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -950,7 +970,7 @@ function StatusExplanation({
   variant,
 }: {
   text: string;
-  variant: "warning" | "primary" | "success" | "danger" | "muted";
+  variant: "warning" | "primary" | "success" | "danger" | "muted" | "accent";
 }) {
   const className =
     variant === "warning"
