@@ -176,27 +176,16 @@ export default function HomePage() {
             </Badge>
 
             <h1 className="heading-display mt-7 max-w-5xl text-balance">
-              Need help with something? Find someone who already knows.
+              Solve practical problems in one short 1:1 call.
             </h1>
 
             <p className="mt-7 max-w-2xl text-xl leading-8 text-muted">
-              SkillDrop helps you book short 1:1 calls with people who can help
-              with documents, career, languages, tech, relocation, studies and
-              everyday questions.
+               SkillDrop helps you find real people who can help with documents,
+               career, languages, tech, relocation, studies and everyday decisions —
+               in focused 15–60 minute calls.
             </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <ButtonLink href="/experts">
-                Find help
-                <Search size={18} />
-              </ButtonLink>
-
-              <ButtonLink href="/sign-up?role=expert" variant="secondary">
-                Offer help
-                <ArrowRight size={18} />
-              </ButtonLink>
-            </div>
-
+            
+            
             <form action="/experts" className="mt-8 max-w-2xl">
               <div className="rounded-[30px] border border-[var(--border)] bg-white/80 p-3 shadow-[var(--shadow-md)] backdrop-blur">
                 <div className="flex flex-col gap-3 md:flex-row">
@@ -221,6 +210,18 @@ export default function HomePage() {
                 </div>
               </div>
             </form>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <ButtonLink href="/experts">
+                 Find help now
+                 <Search size={18} />
+              </ButtonLink>
+
+              <ButtonLink href="/sign-up?role=expert" variant="secondary">
+                Become a helper
+                <ArrowRight size={18} />
+                </ButtonLink>
+            </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
               {popularSearches.map((item) => (
@@ -534,8 +535,8 @@ export default function HomePage() {
               </div>
 
               <p className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4 text-sm font-bold leading-6 text-muted">
-                Example based on a 5% buyer service fee. Final pricing can
-                adapt to the selected call duration.
+                This is a pricing example. The final total is always shown clearly
+                before payment.
               </p>
             </Card>
           </div>
@@ -546,7 +547,7 @@ export default function HomePage() {
         <div className="container-page">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <Badge variant="success">Example helpers</Badge>
+              <Badge variant="success">Featured helpers</Badge>
 
               <h2 className="heading-xl mt-5 max-w-3xl text-balance">
                 Choose people by what they can help you with.
@@ -607,18 +608,7 @@ export default function HomePage() {
 function HeroMarketplacePreview() {
   return (
     <div className="relative">
-      <div className="absolute -left-8 top-8 hidden rounded-3xl border border-[var(--border)] bg-white p-4 shadow-[var(--shadow-md)] lg:block">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
-            <Clock3 size={20} />
-          </div>
-
-          <div>
-            <p className="text-sm font-black">Short calls</p>
-            <p className="text-xs text-muted">15 to 60 minutes</p>
-          </div>
-        </div>
-      </div>
+      
 
       <Card className="relative overflow-hidden p-5 shadow-[var(--shadow-lg)]">
         <div className="rounded-[28px] bg-gradient-to-br from-[#31265f] via-[#2b275f] to-[#1f2937] p-5 text-white">

@@ -4,20 +4,23 @@ import { ArrowRight, Bell, LayoutDashboard, Sparkles } from "lucide-react";
 
 import "./globals.css";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { SiteFooter } from "@/components/layout/site-footer";
+import { WorkspaceNav } from "@/components/layout/workspace-nav";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { getUnreadNotificationCount } from "@/server/services/notification-count.service";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://skilldrop-dusky.vercel.app";
+const appUrl =
+  process.env.NEXT_PUBLIC_APP_URL || "https://skilldrop-dusky.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: {
-    default: "SkillDrop — Real people. Useful advice. Short calls.",
+    default: "SkillDrop — Practical help in short 1:1 calls.",
     template: "%s · SkillDrop",
   },
   description:
-    "Book short 1:1 calls with people who can advise, translate, support, explain or help you solve practical life problems.",
+    "Book short 1:1 calls with real people who can help with documents, career, languages, tech, relocation, studies and everyday decisions.",
   applicationName: "SkillDrop",
   keywords: [
     "SkillDrop",
@@ -28,6 +31,7 @@ export const metadata: Metadata = {
     "relocation advice",
     "career help",
     "document help",
+    "tech help",
     "online consultation",
   ],
   authors: [{ name: "SkillDrop" }],
@@ -37,9 +41,9 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   openGraph: {
-    title: "SkillDrop — Real people. Useful advice. Short calls.",
+    title: "SkillDrop — Practical help in short 1:1 calls.",
     description:
-      "Book short 1:1 calls with people who can advise, translate, support, explain or help you solve practical life problems.",
+      "Book short 1:1 calls with real people who can help with documents, career, languages, tech, relocation, studies and everyday decisions.",
     url: "/",
     siteName: "SkillDrop",
     type: "website",
@@ -47,9 +51,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SkillDrop — Real people. Useful advice. Short calls.",
+    title: "SkillDrop — Practical help in short 1:1 calls.",
     description:
-      "Book short 1:1 calls with people who can advise, translate, support, explain or help you solve practical life problems.",
+      "Book short 1:1 calls with real people who can help with documents, career, languages, tech, relocation, studies and everyday decisions.",
   },
   robots: {
     index: true,
@@ -90,6 +94,24 @@ const themeScript = `
   })();
 `;
 
+function normalizeRole(role: unknown): string | null {
+  if (typeof role !== "string") {
+    return null;
+  }
+
+  const normalizedRole = role.toUpperCase();
+
+  if (
+    normalizedRole === "BUYER" ||
+    normalizedRole === "EXPERT" ||
+    normalizedRole === "ADMIN"
+  ) {
+    return normalizedRole;
+  }
+
+  return null;
+}
+
 async function getHeaderSession() {
   const supabase = await createClient();
 
@@ -100,6 +122,7 @@ async function getHeaderSession() {
   if (!user?.email) {
     return {
       user: null,
+      role: null,
       dashboardHref: "/sign-in",
       unreadNotifications: 0,
     };
@@ -118,14 +141,10 @@ async function getHeaderSession() {
     },
   });
 
-  const role = dbUser?.role ?? user.user_metadata?.role;
+  const role = normalizeRole(dbUser?.role ?? user.user_metadata?.role);
 
   const dashboardHref =
-    role === "EXPERT" || role === "expert"
-      ? "/expert"
-      : role === "ADMIN" || role === "admin"
-        ? "/admin"
-        : "/buyer";
+    role === "EXPERT" ? "/expert" : role === "ADMIN" ? "/admin" : "/buyer";
 
   const unreadNotifications = await getUnreadNotificationCount({
     userId: dbUser?.id,
@@ -134,6 +153,7 @@ async function getHeaderSession() {
 
   return {
     user,
+    role,
     dashboardHref,
     unreadNotifications,
   };
@@ -144,7 +164,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { user, dashboardHref, unreadNotifications } = await getHeaderSession();
+  const { user, role, dashboardHref, unreadNotifications } =
+    await getHeaderSession();
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -167,7 +188,7 @@ export default async function RootLayout({
                   </p>
 
                   <p className="hidden text-xs font-bold text-muted sm:block">
-                    Useful advice. Short calls.
+                    Practical help. Short calls.
                   </p>
                 </div>
               </Link>
@@ -197,7 +218,9 @@ export default async function RootLayout({
 
                       {unreadNotifications > 0 ? (
                         <span className="ml-1 rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-black text-white">
-                          {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                          {unreadNotifications > 99
+                            ? "99+"
+                            : unreadNotifications}
                         </span>
                       ) : null}
                     </Link>
@@ -223,120 +246,13 @@ export default async function RootLayout({
             </div>
           </header>
 
+          <WorkspaceNav role={role} />
+
           <div className="flex-1">{children}</div>
 
-          <footer className="border-t border-[var(--border)] bg-white/35 py-10 theme-dark:bg-white/[0.03]">
-            <div className="container-page">
-              <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-start">
-                <div>
-                  <Link href="/" className="inline-flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-white">
-                      <Sparkles size={18} />
-                    </div>
-
-                    <p className="text-lg font-black tracking-[-0.04em]">
-                      SkillDrop
-                    </p>
-                  </Link>
-
-                  <p className="mt-3 max-w-xl text-sm font-bold leading-6 text-muted">
-                    A marketplace for short 1:1 calls with people who can help
-                    with work, life, languages, support, documents, moving
-                    abroad and practical decisions.
-                  </p>
-                </div>
-
-                <div className="grid gap-5 sm:grid-cols-3">
-                  <FooterGroup title="Platform">
-                    <FooterLink href="/experts">Marketplace</FooterLink>
-                    <FooterLink href="/help">Help</FooterLink>
-                    <FooterLink href="/contact">Contact</FooterLink>
-
-                    {user ? (
-                      <>
-                        <FooterLink href={dashboardHref}>Dashboard</FooterLink>
-                        <FooterLink href="/notifications">
-                          Notifications
-                          {unreadNotifications > 0
-                            ? ` · ${
-                                unreadNotifications > 99
-                                  ? "99+"
-                                  : unreadNotifications
-                              }`
-                            : ""}
-                        </FooterLink>
-                      </>
-                    ) : (
-                      <>
-                        <FooterLink href="/sign-in">Sign in</FooterLink>
-                        <FooterLink href="/sign-up">Create account</FooterLink>
-                      </>
-                    )}
-                  </FooterGroup>
-
-                  <FooterGroup title="For users">
-                    <FooterLink href="/sign-up?role=buyer">
-                      I need help
-                    </FooterLink>
-                    <FooterLink href="/sign-up?role=expert">
-                      Offer help
-                    </FooterLink>
-                    <FooterLink href="/legal/safety">Safety</FooterLink>
-                    <FooterLink href="/legal/refunds">Refunds</FooterLink>
-                  </FooterGroup>
-
-                  <FooterGroup title="Legal">
-                    <FooterLink href="/legal/terms">Terms</FooterLink>
-                    <FooterLink href="/legal/privacy">Privacy</FooterLink>
-                    <FooterLink href="/legal/refunds">Refund policy</FooterLink>
-                    <FooterLink href="/legal/safety">Safety & Trust</FooterLink>
-                  </FooterGroup>
-                </div>
-              </div>
-
-              <div className="mt-8 flex flex-col justify-between gap-3 border-t border-[var(--border)] pt-6 text-sm font-semibold text-muted md:flex-row md:items-center">
-                <p>© {new Date().getFullYear()} SkillDrop. All rights reserved.</p>
-
-                <p>MVP legal pages should be reviewed before public launch.</p>
-              </div>
-            </div>
-          </footer>
+          <SiteFooter />
         </div>
       </body>
     </html>
-  );
-}
-
-function FooterGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-        {title}
-      </p>
-
-      <div className="mt-3 grid gap-2 text-sm font-bold text-muted">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function FooterLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link href={href} className="transition hover:text-[var(--foreground)]">
-      {children}
-    </Link>
   );
 }

@@ -11,20 +11,39 @@ import { Badge } from "@/components/ui/badge";
 
 const productLinks = [
   {
-    label: "Find experts",
+    label: "Marketplace",
     href: "/experts",
   },
   {
-    label: "Need help",
-    href: "/sign-up?role=buyer",
+    label: "Create account",
+    href: "/sign-up",
   },
   {
-    label: "Offer help",
+    label: "Become a helper",
     href: "/sign-up?role=expert",
   },
   {
     label: "How it works",
     href: "/#how-it-works",
+  },
+];
+
+const marketplaceLinks = [
+  {
+    label: "Career help",
+    href: "/experts?q=career",
+  },
+  {
+    label: "Documents",
+    href: "/experts?q=documents",
+  },
+  {
+    label: "Translation",
+    href: "/experts?q=translation",
+  },
+  {
+    label: "Moving abroad",
+    href: "/experts?q=moving%20abroad",
   },
 ];
 
@@ -47,28 +66,9 @@ const trustLinks = [
   },
 ];
 
-const marketplaceLinks = [
-  {
-    label: "Career help",
-    href: "/experts?q=career",
-  },
-  {
-    label: "Documents",
-    href: "/experts?q=documents",
-  },
-  {
-    label: "Translation",
-    href: "/experts?q=translation",
-  },
-  {
-    label: "Moving abroad",
-    href: "/experts?q=moving abroad",
-  },
-];
-
 export function SiteFooter() {
   return (
-    <footer className="border-t border-[var(--border)] bg-white/45">
+    <footer className="border-t border-[var(--border)] bg-white/45 theme-dark:bg-white/[0.03]">
       <div className="container-page py-10 md:py-12">
         <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
           <div>
@@ -81,6 +81,7 @@ export function SiteFooter() {
                 <p className="text-lg font-black tracking-[-0.03em]">
                   SkillDrop
                 </p>
+
                 <p className="text-xs font-bold text-muted">
                   Practical help in short 1:1 calls
                 </p>
@@ -88,8 +89,9 @@ export function SiteFooter() {
             </Link>
 
             <p className="mt-5 max-w-sm text-sm font-semibold leading-6 text-muted">
-              Find real people for practical questions: career, documents,
-              translation, relocation, business, language and everyday help.
+              Book short 1:1 calls with real people who can help with
+              documents, career, languages, tech, relocation, studies and
+              everyday decisions.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -124,7 +126,7 @@ export function SiteFooter() {
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-muted">
             <span className="inline-flex items-center gap-1">
               <BadgeCheck size={14} />
-              MVP trust foundation
+              Trust & safety foundation
             </span>
 
             <Link
