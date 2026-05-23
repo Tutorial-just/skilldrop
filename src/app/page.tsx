@@ -176,7 +176,7 @@ export default function HomePage() {
             </Badge>
 
             <h1 className="heading-display mt-7 max-w-5xl text-balance">
-              Solve practical problems in one short 1:1 call.
+              Need help with something? Find someone who already knows.
             </h1>
 
             <p className="mt-7 max-w-2xl text-xl leading-8 text-muted">

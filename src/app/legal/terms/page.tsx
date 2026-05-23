@@ -35,9 +35,9 @@ export default function TermsPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
-          These terms explain how SkillDrop works for buyers and providers. This
-          is a practical MVP draft and should be reviewed by a qualified legal
-          professional before a real public launch.
+          These terms explain how SkillDrop works for buyers and helpers, including
+          accounts, services, bookings, payments, reviews, safety rules and marketplace
+          responsibilities.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">
@@ -66,7 +66,7 @@ export default function TermsPage() {
 
             <p className="mt-4 text-sm font-bold leading-6 text-muted">
               SkillDrop connects people who need short practical help with
-              providers who offer paid 1:1 calls.
+              helpers who offer paid 1:1 calls.
             </p>
           </Card>
 
@@ -89,8 +89,8 @@ export default function TermsPage() {
             </Badge>
 
             <p className="mt-4 text-sm font-bold leading-6 text-muted">
-              This page is not legal advice. Before launch, adapt it to your
-              company, country, payment setup and marketplace rules.
+              This page explains the main rules for using SkillDrop. Users should read it
+              together with the Refund Policy, Privacy Policy and Safety & Trust rules.
             </p>
           </Card>
         </aside>
@@ -98,17 +98,17 @@ export default function TermsPage() {
         <div className="grid gap-5">
           <LegalSection
             title="1. About SkillDrop"
-            text="SkillDrop is a marketplace for short 1:1 practical calls. Buyers can search providers, choose a service, select an available time and complete payment. Providers can create services, set prices, manage availability and receive bookings."
+            text="SkillDrop is a marketplace for short 1:1 practical calls. Buyers can search helpers, choose a service, select an available time and complete payment. Helpers can create services, set prices, manage availability and receive bookings."
           />
 
           <LegalSection
             title="2. Accounts"
-            text="Users are responsible for keeping their account information accurate and secure. Buyers should use the platform respectfully. Providers should keep their profile, services, prices and availability accurate."
+            text="Users are responsible for keeping their account information accurate and secure. Buyers should use the platform respectfully. Helpers should keep their profile, services, prices and availability accurate."
           />
 
           <LegalSection
             title="3. Provider services"
-            text="Providers are responsible for describing their services clearly. A service should explain what the buyer can expect from the call, the duration and the price. Providers should not promise outcomes they cannot reasonably deliver."
+            text="Helpers are responsible for describing their services clearly. A service should explain what the buyer can expect from the call, the duration and the price. Helpers should not promise outcomes they cannot reasonably deliver."
           />
 
           <LegalSection
@@ -118,7 +118,7 @@ export default function TermsPage() {
 
           <LegalSection
             title="5. Payments and fees"
-            text="Buyers see the service price, SkillDrop fee and total before checkout. Providers see estimated earnings in their expert workspace. Final amounts can depend on payment provider fees, refunds, disputes or platform rules."
+            text="Buyers see the service price, SkillDrop fee and total before checkout. Helpers see estimated earnings in their expert workspace. Final amounts can depend on payment provider fees, refunds, disputes or platform rules."
           />
 
           <LegalSection
@@ -148,7 +148,7 @@ export default function TermsPage() {
 
           <LegalSection
             title="11. Account restrictions"
-            text="SkillDrop may suspend or restrict users, providers, services or bookings when there are safety concerns, payment issues, quality problems, abuse reports or violations of these terms."
+            text="SkillDrop may suspend or restrict users, helpers, services or bookings when there are safety concerns, payment issues, quality problems, abuse reports or violations of these terms."
           />
 
           <LegalSection
@@ -166,8 +166,8 @@ export default function TermsPage() {
                 </p>
 
                 <p className="mt-1 text-sm font-bold leading-6 text-muted">
-                  This MVP legal text should be reviewed before production
-                  launch.
+                  These terms apply to SkillDrop marketplace accounts, bookings, payments,
+                  reviews and platform safety rules.
                 </p>
               </div>
             </div>

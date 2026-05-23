@@ -41,7 +41,7 @@ export default function RefundsPage() {
         <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
           This policy explains what happens when a booking is pending, paid,
           confirmed, cancelled, missed, completed or disputed. It is designed to
-          protect both buyers and providers.
+          protect both buyers and helpers.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">
@@ -89,12 +89,12 @@ export default function RefundsPage() {
           <Card soft className="p-5">
             <Badge variant="primary">
               <HelpCircle size={14} />
-              MVP note
+              Refund review
             </Badge>
 
             <p className="mt-4 text-sm font-bold leading-6 text-muted">
-              This is a practical MVP policy draft. Before public launch, adapt
-              it to your company, market, payment setup and local legal rules.
+              Some refund requests may require manual review. SkillDrop may consider booking
+              status, payment status, call timing, reports, no-shows and dispute evidence.
             </p>
           </Card>
         </aside>
@@ -109,7 +109,7 @@ export default function RefundsPage() {
           <PolicyCard
             icon={CheckCircle2}
             title="Paid and confirmed bookings"
-            text="After successful payment, the booking becomes confirmed. The buyer and provider should both attend the scheduled call and be ready at the agreed time."
+            text="After successful payment, the booking becomes confirmed. The buyer and helper should both attend the scheduled call and be ready at the agreed time."
           />
 
           <PolicyCard
@@ -120,20 +120,20 @@ export default function RefundsPage() {
 
           <PolicyCard
             icon={ShieldAlert}
-            title="Provider no-show"
-            text="If the provider does not attend the call, the buyer may open a dispute. SkillDrop may review the case and issue a refund when appropriate."
+            title="Helper no-show"
+            text="If the helper does not attend the call, the buyer may open a dispute. SkillDrop may review the case and issue a refund when appropriate."
           />
 
           <PolicyCard
             icon={ShieldCheck}
             title="Buyer no-show"
-            text="If the buyer does not attend a confirmed call, the provider may still be eligible for payment depending on the rules, call timing and available evidence."
+            text="If the buyer does not attend a confirmed call, the helper may still be eligible for payment depending on the rules, call timing and available evidence."
           />
 
           <PolicyCard
             icon={RefreshCcw}
             title="Disputed calls"
-            text="SkillDrop may review booking status, payment status, call timing, reports, provider history and user messages before deciding whether a refund is appropriate."
+            text="SkillDrop may review booking status, payment status, call timing, reports, helper history and user messages before deciding whether a refund is appropriate."
           />
 
           <PolicyCard
@@ -145,7 +145,7 @@ export default function RefundsPage() {
           <PolicyCard
             icon={HelpCircle}
             title="Manual review"
-            text="For the MVP, disputes should be reviewed manually by an admin before refunds are automated. This helps prevent abuse and protects both sides."
+            text="Disputes may be reviewed manually by SkillDrop support before a refund is issued. This helps prevent abuse and protects both sides."
           />
         </div>
       </section>
@@ -154,7 +154,7 @@ export default function RefundsPage() {
         <Card className="p-6 md:p-8">
           <Badge variant="accent">
             <ShieldCheck size={14} />
-            Recommended MVP rules
+            Refund rules
           </Badge>
 
           <div className="mt-6 grid gap-4">
@@ -175,12 +175,12 @@ export default function RefundsPage() {
 
             <Rule
               title="After the call"
-              text="Completed calls are generally not refundable by default. Exceptions can include provider no-show, serious service issue, fraud, abuse or technical failure."
+              text="Completed calls are generally not refundable by default. Exceptions can include helper no-show, serious service issue, fraud, abuse or technical failure."
             />
 
             <Rule
               title="Disputes"
-              text="Disputes should be reviewed using booking status, payment status, call room data, user reports, timestamps and provider history."
+              text="Disputes should be reviewed using booking status, payment status, call room data, user reports, timestamps and helper history."
             />
 
             <Rule
@@ -202,8 +202,8 @@ export default function RefundsPage() {
               </p>
 
               <p className="mt-1 text-sm font-bold leading-6 text-muted">
-                This MVP refund policy should be reviewed before production
-                launch.
+                This refund policy explains how SkillDrop handles pending bookings,
+                confirmed calls, completed sessions, disputes and refunds.
               </p>
             </div>
           </div>

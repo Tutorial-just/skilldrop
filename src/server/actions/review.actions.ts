@@ -73,7 +73,11 @@ function parseProblemSolved(value: string) {
 }
 
 function normalizeComment(comment: string) {
-  const normalized = comment.replace(/\s+/g, " ").trim();
+  const normalized = comment
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
   if (!normalized) {
     return null;
@@ -171,7 +175,7 @@ export async function createReviewAction(formData: FormData) {
     redirect("/buyer/reviews?error=invalid-review");
   }
 
-  if (rawComment.length > MAX_REVIEW_COMMENT_LENGTH * 2) {
+  if (rawComment.length > MAX_REVIEW_COMMENT_LENGTH) {
     redirect(`/buyer/reviews?bookingId=${bookingId}&error=comment-too-long`);
   }
 
@@ -180,6 +184,10 @@ export async function createReviewAction(formData: FormData) {
   }
 
   if (!problemSolved) {
+    redirect(`/buyer/reviews?bookingId=${bookingId}&error=invalid-review`);
+  }
+
+  if (wouldRecommend === null) {
     redirect(`/buyer/reviews?bookingId=${bookingId}&error=invalid-review`);
   }
 

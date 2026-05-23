@@ -42,7 +42,7 @@ export default function SafetyPage() {
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
           SkillDrop is built around short practical calls, clear pricing,
-          provider readiness, safe payments, dispute review and post-call
+          helper readiness, safe payments, dispute review and post-call
           feedback.
         </p>
 
@@ -84,7 +84,7 @@ export default function SafetyPage() {
             </Badge>
 
             <p className="mt-4 text-sm font-bold leading-6 text-muted">
-              Bookings are confirmed only after payment succeeds. Providers
+              Bookings are confirmed only after payment succeeds. Helpers
               should complete payout setup before accepting paid calls.
             </p>
           </Card>
@@ -92,12 +92,12 @@ export default function SafetyPage() {
           <Card soft className="p-5">
             <Badge variant="primary">
               <LockKeyhole size={14} />
-              MVP note
+              Trust operations
             </Badge>
 
             <p className="mt-4 text-sm font-bold leading-6 text-muted">
-              For launch, keep expert approval and dispute handling manual until
-              the marketplace has enough real activity and quality data.
+              SkillDrop may use manual review for helper approval, reports, disputes,
+              refund decisions and account restrictions to keep the marketplace safer.
             </p>
           </Card>
         </aside>
@@ -106,13 +106,13 @@ export default function SafetyPage() {
           <SafetyCard
             icon={Eye}
             title="Clear profiles"
-            text="Buyers can review provider profiles, skills, languages, services, prices and availability before booking."
+            text="Buyers can review helper profiles, skills, languages, services, prices and availability before booking."
           />
 
           <SafetyCard
             icon={WalletCards}
             title="Payout readiness"
-            text="Providers should complete Stripe payout setup before accepting paid bookings."
+            text="Helpers should complete Stripe payout setup before accepting paid bookings."
           />
 
           <SafetyCard
@@ -142,7 +142,7 @@ export default function SafetyPage() {
           <SafetyCard
             icon={Handshake}
             title="Fair marketplace"
-            text="Buyers and providers should both act honestly, communicate respectfully and attend scheduled calls on time."
+            text="Buyers and helpers should both act honestly, communicate respectfully and attend scheduled calls on time."
           />
 
           <SafetyCard
@@ -167,7 +167,7 @@ export default function SafetyPage() {
             />
 
             <Standard
-              title="For providers"
+              title="For helpers"
               text="Describe services clearly, attend on time, avoid misleading promises and keep availability updated."
             />
 
@@ -194,7 +194,7 @@ export default function SafetyPage() {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <Standard
               title="Scams or misleading services"
-              text="Providers must not create fake offers, fake credentials, unrealistic promises or deceptive services."
+              text="Helpers must not create fake offers, fake credentials, unrealistic promises or deceptive services."
             />
 
             <Standard
@@ -226,8 +226,7 @@ export default function SafetyPage() {
               </p>
 
               <p className="mt-1 text-sm font-bold leading-6 text-muted">
-                This MVP safety page should be reviewed before production
-                launch.
+                These safety rules help protect buyers, helpers and the SkillDrop marketplace.
               </p>
             </div>
           </div>

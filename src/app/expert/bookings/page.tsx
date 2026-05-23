@@ -94,7 +94,8 @@ export default async function ExpertBookingsPage({
         booking.status !== "CANCELLED" &&
         booking.status !== "REFUNDED" &&
         booking.status !== "COMPLETED" &&
-        booking.status !== "DISPUTED",
+        booking.status !== "DISPUTED" &&
+        booking.status !== "EXPIRED"
     )
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
@@ -118,7 +119,8 @@ export default async function ExpertBookingsPage({
     (booking) =>
       booking.status === "CANCELLED" ||
       booking.status === "REFUNDED" ||
-      booking.status === "DISPUTED",
+      booking.status === "DISPUTED" ||
+      booking.status === "EXPIRED",
   );
 
   const pastUncompletedBookings = expert.bookings
@@ -145,7 +147,7 @@ export default async function ExpertBookingsPage({
         <div className="absolute left-[-160px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
         <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
-        <div className="relative p-6 md:p-8 lg:p-10">
+        <div className="container-page relative py-8 md:py-10 lg:py-12">
           <Link
             href="/expert"
             className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
@@ -238,7 +240,7 @@ export default async function ExpertBookingsPage({
         </div>
       </section>
 
-      <section className="p-6 md:p-8 lg:p-10">
+      <section className="container-page py-8 md:py-10 lg:py-12">
         <div className="grid gap-6 xl:grid-cols-[0.86fr_1.14fr] xl:items-start">
           <div className="grid gap-6">
             <Card className="p-5 md:p-6">
@@ -327,9 +329,8 @@ export default async function ExpertBookingsPage({
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-muted">
-                  These bookings have payment received but are waiting for final
-                  webhook confirmation. If this stays too long, check Stripe
-                  webhook logs.
+                  These bookings have payment received and are waiting for final confirmation.
+                  If this stays here too long, SkillDrop support will review it.
                 </p>
 
                 <div className="mt-6 grid gap-4">
@@ -568,8 +569,9 @@ function BookingCard({
 
   const canJoin = canJoinBooking(booking);
   const canComplete = isConfirmed && booking.endTime <= now;
-  const canCancel = (isPending || isConfirmed) && booking.startTime > now;
-  const canReport = ["PAID", "CONFIRMED", "COMPLETED"].includes(
+  const canCancel = isPending && booking.startTime > now;
+  const needsSupportForCancellation = isConfirmed && booking.startTime > now;
+  const canReport = ["CONFIRMED", "COMPLETED"].includes(
     booking.status,
   );
   const buyerName = booking.buyer.name ?? "Buyer";
@@ -728,6 +730,13 @@ function BookingCard({
             />
           ) : null}
 
+          {needsSupportForCancellation ? (
+            <StatusExplanation
+              variant="primary"
+              text="Need to cancel this confirmed booking? Contact support so the refund policy can be applied correctly."
+            />
+          ) : null}
+
           {isCancelled ? (
             <StatusExplanation
               variant="danger"
@@ -741,6 +750,8 @@ function BookingCard({
               text="This booking is disputed and is under SkillDrop review."
             />
           ) : null}
+
+        
 
           {booking.review ? (
             <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
@@ -767,6 +778,17 @@ function BookingCard({
           {canComplete ? <CompleteCallForm bookingId={booking.id} /> : null}
 
           {canCancel ? <CancelCallForm bookingId={booking.id} /> : null}
+
+          {needsSupportForCancellation ? (
+            <Link
+              href={`/contact?subject=${encodeURIComponent(
+               `Cancel booking ${booking.id}`,
+              )}`}
+              className="btn btn-secondary"
+            >
+              Contact support
+            </Link>
+          ) : null}
         </div>
       </div>
       {canReport ? (
@@ -850,7 +872,7 @@ function StatusBadge({ status }: { status: string }) {
   }
 
   if (status === "PAID") {
-    return <Badge variant="primary">Paid</Badge>;
+    return <Badge variant="primary">Confirming</Badge>;
   }
 
   if (status === "DISPUTED") {
@@ -1055,7 +1077,7 @@ function formatStatus(status: string) {
   }
 
   if (status === "PAID") {
-    return "Paid";
+    return "Confirming";
   }
 
   if (status === "CONFIRMED") {

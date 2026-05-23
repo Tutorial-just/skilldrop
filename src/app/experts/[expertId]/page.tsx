@@ -152,8 +152,14 @@ export default async function ExpertPublicPage({
   }
 
   const currentUser = session.user;
-  const isBuyer = session.role === "buyer" || session.role === "admin";
+  const normalizedRole = session.role?.toUpperCase() ?? null;
+  const isAdmin = normalizedRole === "ADMIN";
+  const isBuyer = normalizedRole === "BUYER" || isAdmin;
   const isOwnProfile = currentUser?.id === expert.userId;
+
+  if (expert.status !== "APPROVED" && !isOwnProfile && !isAdmin) {
+    notFound();
+  }
 
   const canAcceptPayments =
     Boolean(expert.stripeAccountId) &&
@@ -360,29 +366,17 @@ export default async function ExpertPublicPage({
                   )}
                 </Badge>
 
-                {isProviderApproved ? (
-                  <Badge variant="success">
-                    <ShieldCheck size={14} />
-                    Approved
-                  </Badge>
-                ) : (
-                  <Badge variant="danger">
-                    <ShieldAlert size={14} />
-                    Not approved
-                  </Badge>
-                )}
+                <Badge variant="success">
+                  <ShieldCheck size={14} />
+                  Approved helper
+                </Badge>
 
-                {canAcceptPayments ? (
-                  <Badge variant="success">
+                {canAcceptPayments && hasOpenTimes ? (
+                  <Badge variant="primary">
                     <WalletCards size={14} />
-                    Payments ready
+                    Ready to book
                   </Badge>
-                ) : (
-                  <Badge variant="danger">
-                    <ShieldAlert size={14} />
-                    Payments not ready
-                  </Badge>
-                )}
+                ) : null}
 
                 {hasOpenTimes ? (
                   <Badge variant="primary">
@@ -410,9 +404,14 @@ export default async function ExpertPublicPage({
                   </Badge>
                 ) : null}
 
-                <Badge variant={matchScore >= 80 ? "success" : "primary"}>
+                <Badge variant={expert.isVerified ? "success" : "primary"}>
                   <Sparkles size={14} />
-                  Match {matchScore}/100
+                  {getPublicTrustLabel({
+                    isVerified: expert.isVerified,
+                    totalSessions: expert.totalSessions,
+                    totalReviews: expert.totalReviews,
+                    matchScore,
+                  })}
                 </Badge>
               </div>
 
@@ -853,8 +852,8 @@ export default async function ExpertPublicPage({
 
                           <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-[var(--primary-dark)]">
                              {`Problem: I need help improving my CV for an alternance application.
-                               Desired result: I want clear advice and corrections before I send it.
-                               Already tried: I wrote a first version but I am not sure if it is professional enough.`}
+                              Desired result: I want clear advice and corrections before I send it.
+                              Already tried: I wrote a first version but I am not sure if it is professional enough.`}
                           </p>
                         </div>
 
@@ -865,9 +864,9 @@ export default async function ExpertPublicPage({
                           rows={7}
                           placeholder={`Problem:
 
-                         Desired result:
+                          Desired result:
 
-                         Already tried:`}
+                          Already tried:`}
                             className="mt-2 min-h-44 resize-y rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold leading-6 outline-none transition placeholder:text-muted focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
                         />
                           
@@ -1150,62 +1149,48 @@ export default async function ExpertPublicPage({
 
           <div className="grid content-start gap-5 xl:sticky xl:top-[96px]">
             <Card className="p-5">
-              <Badge variant={matchScore >= 80 ? "success" : "primary"}>
-                <Sparkles size={14} />
-                Match score
+              <Badge variant="success">
+                <ShieldCheck size={14} />
+                Trust overview
               </Badge>
 
-              <h2 className="mt-4 text-4xl font-black tracking-[-0.06em]">
-                {matchScore}/100
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                {expert.isVerified ? "Verified helper" : "Helper profile"}
               </h2>
 
               <p className="mt-3 text-sm font-semibold leading-6 text-muted">
-                Based on reviews, detailed feedback, recommendations, completed
-                sessions and availability.
+                Review the helper’s services, languages, availability and past feedback
+                before booking a call.
               </p>
 
               <div className="mt-5 grid gap-3">
                 <SideFact
                   label="Rating"
-                  value={
-                    expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"
-                  }
+                  value={expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"}
                 />
 
                 <SideFact
-                  label="Helpfulness"
-                  value={
-                    helpfulnessAvg ? `${helpfulnessAvg.toFixed(1)} / 5` : "—"
-                  }
-                />
-
-                <SideFact
-                  label="Clarity"
-                  value={clarityAvg ? `${clarityAvg.toFixed(1)} / 5` : "—"}
-                />
-
-                <SideFact
-                  label="Professionalism"
-                  value={
-                    professionalismAvg
-                      ? `${professionalismAvg.toFixed(1)} / 5`
-                      : "—"
-                  }
+                  label="Completed sessions"
+                  value={`${expert.totalSessions}`}
                 />
 
                 <SideFact
                   label="Recommend rate"
-                  value={
-                    recommendationRate !== null ? `${recommendationRate}%` : "—"
-                  }
+                  value={recommendationRate !== null ? `${recommendationRate}%` : "—"}
                 />
 
                 <SideFact
                   label="Problem solved"
                   value={problemSolvedRate !== null ? `${problemSolvedRate}%` : "—"}
                 />
+
+                <SideFact
+                  label="Open times"
+                  value={`${bookableTimes.length}`}
+                />
               </div>
             </Card>
+         
 
             <Card className="p-5">
               <Badge variant="primary">
@@ -1237,10 +1222,7 @@ export default async function ExpertPublicPage({
                   }
                 />
 
-                <SideFact
-                  label="Payments"
-                  value={canAcceptPayments ? "Ready" : "Not ready"}
-                />
+                
               </div>
             </Card>
 
@@ -1839,4 +1821,26 @@ function getProblemSolvedBadgeVariant(
   }
 
   return "accent";
+}
+
+function getPublicTrustLabel({
+  isVerified,
+  totalSessions,
+  totalReviews,
+  matchScore,
+}: {
+  isVerified: boolean;
+  totalSessions: number;
+  totalReviews: number;
+  matchScore: number;
+}) {
+  if (isVerified) {
+    return "Verified helper";
+  }
+
+  if (totalSessions >= 10 || totalReviews >= 5 || matchScore >= 80) {
+    return "Experienced helper";
+  }
+
+  return "Available helper";
 }

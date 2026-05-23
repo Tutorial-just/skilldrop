@@ -34,6 +34,7 @@ type CheckoutPageProps = {
   }>;
   searchParams?: Promise<{
     error?: string;
+    payment?: string;
   }>;
 };
 
@@ -94,9 +95,6 @@ export default async function BookingCheckoutPage({
   }
 
   if (booking.status !== BookingStatus.PENDING) {
-     if (booking.status === BookingStatus.CONFIRMED && booking.callRoom) {
-       redirect(`/calls/${booking.id}`);
-     }
      redirect(`/buyer/bookings?booked=${booking.id}`);
    }
 
@@ -134,6 +132,13 @@ export default async function BookingCheckoutPage({
         </div>
       ) : null}
 
+      {resolvedSearchParams.payment === "success" ? (
+        <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
+          Payment received. We are confirming your booking now. If the call page does
+          not open automatically, check your bookings in a few seconds.
+        </div>
+      ) : null}
+
       <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_390px] xl:items-start">
         <div className="grid gap-6">
           <Card className="p-6 md:p-8">
@@ -151,12 +156,12 @@ export default async function BookingCheckoutPage({
               {helperCanReceivePayouts ? (
                 <Badge variant="success">
                   <WalletCards size={14} />
-                  Helper payouts ready
+                  Payment available
                 </Badge>
               ) : (
                 <Badge variant="danger">
                   <ShieldAlert size={14} />
-                  Helper payouts missing
+                  Payment unavailable
                 </Badge>
               )}
             </div>
@@ -382,8 +387,7 @@ export default async function BookingCheckoutPage({
             </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
-              This helper can receive payouts. You can safely continue to Stripe
-              checkout.
+              Payment is available for this booking. You can continue to Stripe checkout.
             </div>
           )}
 

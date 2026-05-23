@@ -143,7 +143,7 @@ export default async function BuyerBookingsPage({
 
   const totalPaidCents = bookings
     .filter((booking) =>
-      ["PAID", "CONFIRMED", "COMPLETED"].includes(booking.status),
+      ["CONFIRMED", "COMPLETED"].includes(booking.status),
     )
     .reduce(
       (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
@@ -157,7 +157,7 @@ export default async function BuyerBookingsPage({
         <div className="absolute left-[-160px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
         <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
-        <div className="relative p-6 md:p-8 lg:p-10">
+        <div className="container-page relative py-8 md:py-10 lg:py-12">
           <Link
             href="/buyer"
             className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
@@ -235,13 +235,13 @@ export default async function BuyerBookingsPage({
               icon={Euro}
               label="Paid"
               value={formatMoney(totalPaidCents)}
-              hint="Total confirmed spend"
+              hint="Confirmed and completed"
             />
           </div>
         </div>
       </section>
 
-      <section className="p-6 md:p-8 lg:p-10">
+      <section className="container-page py-8 md:py-10 lg:py-12">
         <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
           <div className="grid gap-6">
             <Card className="p-5 md:p-6">
@@ -629,7 +629,7 @@ function BookingCard({
   const needsSupportForCancellation =
     booking.status === "CONFIRMED" && booking.startTime > now;
   const canReview = isCompleted && !booking.review;
-  const canReport = ["PAID", "CONFIRMED", "COMPLETED"].includes(
+  const canReport = ["CONFIRMED", "COMPLETED"].includes(
     booking.status,
   );
   const helperName = booking.expert.user.name ?? booking.expert.user.email;
@@ -932,7 +932,7 @@ function StatusBadge({ status }: { status: string }) {
   }
 
   if (status === "PAID") {
-    return <Badge variant="primary">Paid</Badge>;
+    return <Badge variant="primary">Confirming</Badge>;
   }
 
   if (status === "PENDING") {
@@ -1094,7 +1094,7 @@ function formatStatus(status: string) {
   }
 
   if (status === "PAID") {
-    return "Paid";
+    return "Confirming";
   }
 
   if (status === "CONFIRMED") {

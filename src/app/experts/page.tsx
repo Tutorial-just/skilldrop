@@ -30,7 +30,6 @@ type ExpertsPageProps = {
   searchParams?: Promise<{
     q?: string;
     verified?: string;
-    paymentReady?: string;
     maxPrice?: string;
     language?: string;
     sort?: string;
@@ -133,7 +132,6 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
   const query = resolvedSearchParams.q?.trim() ?? "";
   const verifiedOnly = resolvedSearchParams.verified === "true";
-  const paymentReadyOnly = resolvedSearchParams.paymentReady === "true";
 
   const parsedMaxPrice = resolvedSearchParams.maxPrice
     ? Number(resolvedSearchParams.maxPrice)
@@ -200,18 +198,14 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     where: {
       status: "APPROVED",
 
-      ...(verifiedOnly ? { isVerified: true } : {}),
+      stripeAccountId: {
+        not: null,
+      },
+      stripeChargesEnabled: true,
+      stripePayoutsEnabled: true,
+      stripeDetailsSubmitted: true,
 
-      ...(paymentReadyOnly
-        ? {
-            stripeAccountId: {
-              not: null,
-            },
-            stripeChargesEnabled: true,
-            stripePayoutsEnabled: true,
-            stripeDetailsSubmitted: true,
-          }
-        : {}),
+      ...(verifiedOnly ? { isVerified: true } : {}),
 
       services: {
         some: {
@@ -223,6 +217,15 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 },
               }
             : {}),
+        },
+      },
+
+      availability: {
+        some: {
+          isActive: true,
+          endTime: {
+            gte: now,
+          },
         },
       },
 
@@ -401,18 +404,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
   const verifiedCount = experts.filter((expert) => expert.isVerified).length;
 
-  const paymentReadyCount = experts.filter(
-    (expert) =>
-      expert.stripeAccountId &&
-      expert.stripeChargesEnabled &&
-      expert.stripePayoutsEnabled &&
-      expert.stripeDetailsSubmitted,
-  ).length;
-
   const hasActiveFilters =
     Boolean(query) ||
     verifiedOnly ||
-    paymentReadyOnly ||
     Boolean(resolvedSearchParams.maxPrice) ||
     Boolean(language) ||
     sort !== "best";
@@ -450,12 +444,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
                 <Badge variant="primary">
                   <WalletCards size={14} />
-                  Clear price before checkout
+                  Secure checkout
                 </Badge>
 
                 <Badge variant="accent">
                   <CalendarDays size={14} />
-                  Availability shown
+                  Real availability
                 </Badge>
               </div>
             </div>
@@ -468,14 +462,10 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
               <div className="mt-5 grid gap-3">
                 <StatRow
-                  label="Available helpers"
+                  label="Bookable helpers"
                   value={String(experts.length)}
                 />
                 <StatRow label="Verified" value={String(verifiedCount)} />
-                <StatRow
-                  label="Payments ready"
-                  value={String(paymentReadyCount)}
-                />
                 <StatRow label="Open times" value={String(totalOpenTimes)} />
                 <StatRow label="Sort" value={sortLabels[sort] ?? "Best match"} />
               </div>
@@ -513,7 +503,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 ) : null}
               </div>
 
-              <div className="mt-3 grid gap-3 md:grid-cols-5">
+              <div className="mt-3 grid gap-3 md:grid-cols-4">
                 <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)]">
                   <input
                     type="checkbox"
@@ -522,16 +512,6 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                     defaultChecked={verifiedOnly}
                   />
                   Verified
-                </label>
-
-                <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)]">
-                  <input
-                    type="checkbox"
-                    name="paymentReady"
-                    value="true"
-                    defaultChecked={paymentReadyOnly}
-                  />
-                  Payments ready
                 </label>
 
                 <select
@@ -608,12 +588,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 <Step
                   number="3"
                   title="Pick a time"
-                  text="Check open times and choose a short 1:1 call."
+                  text="Choose one of the available short 1:1 call slots."
                 />
                 <Step
                   number="4"
                   title="Pay safely"
-                  text="Confirm through checkout and get your call details."
+                  text="Confirm through checkout and receive your call details."
                 />
               </div>
             </Card>
@@ -638,8 +618,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <TrustPoint text="Only approved helpers with active services are shown." />
-                <TrustPoint text="Payment readiness is visible before booking." />
+                <TrustPoint text="Only approved helpers with active services and future availability are shown." />
+                <TrustPoint text="Prices, call duration and available times are visible before booking." />
                 <TrustPoint text="Reviews and completed sessions help you compare people." />
               </div>
             </Card>
@@ -670,7 +650,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             ) : (
               <EmptyState
                 title="No helpers found"
-                text="Try another keyword, remove filters, or check back later when more helpers create active services."
+                text="Try another keyword, remove filters, or check back later when more helpers open bookable time slots."
               />
             )}
           </div>
@@ -772,15 +752,20 @@ function ExpertSearchCard({
       ? Math.round((solvedReviews / problemOutcomeTotal) * 100)
       : null;
 
-  const isPaymentReady =
-    Boolean(expert.stripeAccountId) &&
-    expert.stripeChargesEnabled &&
-    expert.stripePayoutsEnabled &&
-    expert.stripeDetailsSubmitted;
-
   const profileHref = mainService
     ? `/experts/${expert.id}?service=${mainService.id}`
     : `/experts/${expert.id}`;
+
+  const ratingLabel =
+    expert.totalReviews > 0 ? expert.rating.toFixed(1) : "New";
+
+  const publicTrustLabel = getPublicTrustLabel({
+    isVerified: expert.isVerified,
+    totalSessions: expert.totalSessions,
+    totalReviews: expert.totalReviews,
+    qualityScore: expert.qualityScore,
+    searchScore: expert.searchScore,
+  });
 
   return (
     <Link href={profileHref} className="group">
@@ -804,43 +789,15 @@ function ExpertSearchCard({
                   <Badge variant="accent">New helper</Badge>
                 )}
 
-                {isPaymentReady ? (
-                  <Badge variant="success">
-                    <WalletCards size={14} />
-                    Payments ready
-                  </Badge>
-                ) : (
-                  <Badge variant="accent">
-                    <WalletCards size={14} />
-                    Payments not ready
-                  </Badge>
-                )}
+                <Badge variant="primary">
+                  <CalendarDays size={14} />
+                  Bookable
+                </Badge>
 
-                {expert.availability.length > 0 ? (
-                  <Badge variant="primary">
-                    <CalendarDays size={14} />
-                    Open times
-                  </Badge>
-                ) : (
-                  <Badge variant="accent">
-                    <CalendarDays size={14} />
-                    No open times
-                  </Badge>
-                )}
-
-                {expert.searchScore > 0 ? (
-                  <Badge variant="primary">
-                    <Sparkles size={14} />
-                    Match {expert.searchScore}
-                  </Badge>
-                ) : (
-                  <Badge
-                    variant={expert.qualityScore >= 80 ? "success" : "primary"}
-                  >
-                    <Sparkles size={14} />
-                    Quality {expert.qualityScore}/100
-                  </Badge>
-                )}
+                <Badge variant={publicTrustLabel.variant}>
+                  <Sparkles size={14} />
+                  {publicTrustLabel.label}
+                </Badge>
 
                 {expert.country ? (
                   <Badge>
@@ -851,14 +808,14 @@ function ExpertSearchCard({
 
                 <Badge>
                   <Star size={14} />
-                  {expert.rating ? expert.rating.toFixed(1) : "New"}
+                  {ratingLabel}
                 </Badge>
 
                 {problemSolvedRate !== null ? (
                   <Badge variant={problemSolvedRate >= 70 ? "success" : "accent"}>
                     <Target size={14} />
                     {problemSolvedRate}% solved
-                 </Badge>
+                  </Badge>
                 ) : null}
               </div>
 
@@ -923,12 +880,7 @@ function ExpertSearchCard({
                 value={nextSlot ? formatShortDateTime(nextSlot.startTime) : "—"}
               />
 
-              <SideRow
-                label="Payments"
-                value={isPaymentReady ? "Ready" : "Not ready"}
-              />
-
-              <SideRow label="Quality" value={`${expert.qualityScore}/100`} />
+              <SideRow label="Rating" value={ratingLabel} />
 
               <SideRow
                 label="Solved"
@@ -1298,6 +1250,46 @@ function calculateQualityScore({
       verifiedScore +
       availabilityScore,
   );
+}
+
+function getPublicTrustLabel({
+  isVerified,
+  totalSessions,
+  totalReviews,
+  qualityScore,
+  searchScore,
+}: {
+  isVerified: boolean;
+  totalSessions: number;
+  totalReviews: number;
+  qualityScore: number;
+  searchScore: number;
+}) {
+  if (searchScore > 0) {
+    return {
+      label: "Good match",
+      variant: "primary" as const,
+    };
+  }
+
+  if (isVerified) {
+    return {
+      label: "Verified helper",
+      variant: "success" as const,
+    };
+  }
+
+  if (totalSessions >= 10 || totalReviews >= 5 || qualityScore >= 80) {
+    return {
+      label: "Experienced",
+      variant: "success" as const,
+    };
+  }
+
+  return {
+    label: "Available now",
+    variant: "primary" as const,
+  };
 }
 
 function averageNullable(values: (number | null)[]) {

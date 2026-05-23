@@ -32,6 +32,7 @@ type BookingStatusValue = BookingStatus;
 const PENDING_BOOKING_EXPIRES_MINUTES = 15;
 const MAX_BOOKING_NOTE_LENGTH = 500;
 const BOOKING_STEP_MINUTES = 15;
+const MAX_BOOKING_DAYS_AHEAD = 90;
 
 const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
   BookingStatus.PENDING,
@@ -51,7 +52,11 @@ function getStringValue(formData: FormData, key: string) {
 }
 
 function cleanBookingNote(value: string) {
-  return value.replace(/\s+/g, " ").trim();
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function parseBookingStartTime(value: string) {
@@ -236,6 +241,14 @@ export async function createBookingAction(formData: FormData) {
     redirect(`/experts/${expertId}?service=${serviceId}&error=slot-not-available`);
   }
 
+  const maxBookingDate = new Date(
+    now.getTime() + MAX_BOOKING_DAYS_AHEAD * 24 * 60 * 60 * 1000,
+  );
+
+  if (requestedStartTime > maxBookingDate) {
+    redirect(`/experts/${expertId}?service=${serviceId}&error=slot-not-available`);
+  }
+
   const expert = await prisma.expertProfile.findUnique({
     where: {
       id: expertId,
@@ -381,7 +394,7 @@ export async function createBookingAction(formData: FormData) {
             startTime: requestedStartTime,
             endTime: requestedEndTime,
             priceCents: pricing.servicePriceCents,
-            currency: service.currency,
+            currency: service.currency || "EUR",
             platformFeeCents: pricing.platformFeeCents,
             providerNetCents: pricing.providerNetCents,
             clientServiceFeeCents: pricing.clientServiceFeeCents,
@@ -546,7 +559,7 @@ export async function cancelBookingAction(formData: FormData) {
     );
   }
 
-  const now = new Date();
+  
 
   await prisma.$transaction(async (tx) => {
     await cancelBooking(

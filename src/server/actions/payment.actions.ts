@@ -34,6 +34,16 @@ function getAppUrl() {
   return appUrl.replace(/\/$/, "");
 }
 
+function normalizeStripeCurrency(currency: string | null | undefined) {
+  const normalizedCurrency = (currency || "EUR").trim().toLowerCase();
+
+  if (!/^[a-z]{3}$/.test(normalizedCurrency)) {
+    return "eur";
+  }
+
+  return normalizedCurrency;
+}
+
 function revalidatePaymentPaths(expertId: string, bookingId: string) {
   revalidatePath("/");
   revalidatePath("/experts");
@@ -59,12 +69,10 @@ function revalidatePaymentPaths(expertId: string, bookingId: string) {
 async function cancelExpiredPendingBooking({
   bookingId,
   expertId,
-  availabilityId,
   hasCallRoom,
 }: {
   bookingId: string;
   expertId: string;
-  availabilityId: string | null;
   hasCallRoom: boolean;
 }) {
   const now = new Date();
@@ -85,17 +93,6 @@ async function cancelExpiredPendingBooking({
 
     if (updatedBooking.count === 0) {
       return;
-    }
-
-    if (availabilityId) {
-      await tx.availability.updateMany({
-        where: {
-          id: availabilityId,
-        },
-        data: {
-          isActive: true,
-        },
-      });
     }
 
     if (hasCallRoom) {
@@ -188,7 +185,6 @@ export async function createCheckoutSessionAction(bookingId: string) {
     await cancelExpiredPendingBooking({
       bookingId: booking.id,
       expertId: booking.expertId,
-      availabilityId: booking.availabilityId,
       hasCallRoom: Boolean(booking.callRoom),
     });
 
@@ -271,7 +267,7 @@ export async function createCheckoutSessionAction(bookingId: string) {
 
   const helperName = booking.expert.user.name ?? "SkillDrop helper";
   const serviceTitle = booking.service?.title ?? "SkillDrop call";
-  const currency = pricing.currency.toLowerCase();
+  const currency = normalizeStripeCurrency(pricing.currency);
 
   const stripeMetadata = {
     bookingId: booking.id,
@@ -324,7 +320,7 @@ export async function createCheckoutSessionAction(bookingId: string) {
           metadata: stripeMetadata,
         },
 
-        success_url: `${appUrl}/buyer/bookings?payment=success&booking=${booking.id}`,
+        success_url: `${appUrl}${getCheckoutHref(booking.id)}?payment=success`,
         cancel_url: `${appUrl}${getCheckoutHref(booking.id)}`,
 
         metadata: stripeMetadata,

@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card";
 const legalPages = [
   {
     title: "Terms of Service",
-    text: "Understand how SkillDrop works for buyers, providers, bookings, payments, reviews and marketplace rules.",
+    text: "Understand how SkillDrop works for buyers, helpers, bookings, payments, reviews and marketplace rules.",
     href: "/legal/terms",
     icon: FileText,
   },
@@ -88,13 +88,13 @@ export default function LegalPage() {
       <section className="mt-10">
         <Card soft className="p-6 md:p-8">
           <p className="text-sm font-black text-[var(--foreground)]">
-            MVP legal note
+            Important notice
           </p>
 
           <p className="mt-2 text-sm font-bold leading-6 text-muted">
-            These pages are practical MVP drafts. Before a full public launch,
-            review them with a qualified legal professional and adapt them to
-            your company, country, payment setup and marketplace rules.
+            SkillDrop provides a marketplace for short 1:1 calls between buyers
+            and helpers. These policies explain how accounts, bookings,
+            payments, reviews, reports and safety rules work on the platform.
           </p>
         </Card>
       </section>

@@ -18,6 +18,11 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import {
+  formatDateTime,
+  getDurationMinutes,
+  getUserTimezone,
+} from "@/lib/date-time";
 
 type CallAccessPageProps = {
   params: Promise<{
@@ -42,11 +47,18 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     where: {
       email,
     },
+    include: {
+      buyerSettings: true,
+    },
   });
 
   if (!currentUser) {
     redirect("/sign-in");
   }
+
+  const userTimezone = getUserTimezone(
+    currentUser.buyerSettings?.preferredTimezone,
+  );
 
   const booking = await prisma.booking.findUnique({
     where: {
@@ -117,9 +129,9 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
         text={`You can join ${JOIN_BEFORE_MINUTES} minutes before the scheduled start time. This helps keep the room protected and avoids early access confusion.`}
         backHref={backHref}
         timeLabel="Call starts"
-        timeValue={formatDateTime(booking.startTime)}
+        timeValue={formatDateTime(booking.startTime, userTimezone)}
         secondaryLabel="Join opens"
-        secondaryValue={formatDateTime(joinOpensAt)}
+        secondaryValue={formatDateTime(joinOpensAt, userTimezone)}
       />
     );
   }
@@ -135,7 +147,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
         },
         data: {
           status: CallRoomStatus.ENDED,
-          endsAt: booking.endTime,
+          endsAt: joinClosesAt,
         },
       });
     }
@@ -146,9 +158,9 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
         text="The video room is no longer available for this booking. Go back to your bookings to review the session or manage your next call."
         backHref={backHref}
         timeLabel="Call ended"
-        timeValue={formatDateTime(booking.endTime)}
+        timeValue={formatDateTime(booking.endTime, userTimezone)}
         secondaryLabel="Room closed"
-        secondaryValue={formatDateTime(joinClosesAt)}
+        secondaryValue={formatDateTime(joinClosesAt, userTimezone)}
       />
     );
   }
@@ -177,7 +189,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
   const helperName = booking.expert.user.name ?? booking.expert.user.email;
 
   return (
-    <main className="p-6 md:p-8 lg:p-10">
+    <main className="container-page py-8 md:py-10 lg:py-12">
       <Link
         href={backHref}
         className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
@@ -213,7 +225,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
               <InfoBox
                 icon={Clock3}
                 label="Time"
-                value={formatDateTime(booking.startTime)}
+                value={formatDateTime(booking.startTime, userTimezone)}
               />
 
               <InfoBox
@@ -263,9 +275,8 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
               </Badge>
 
               <p className="mt-4 text-sm font-bold leading-7 text-muted">
-                SkillDrop calls should be shown in each user’s local timezone.
-                The scheduled time above is displayed according to your current
-                browser locale and timezone.
+                Times are shown using your SkillDrop timezone settings when available. If
+                something looks wrong, check your account settings before the call.
               </p>
             </div>
 
@@ -412,7 +423,7 @@ function CallBlockedPage({
   secondaryValue?: string;
 }) {
   return (
-    <main className="p-6 md:p-8 lg:p-10">
+    <main className="container-page py-8 md:py-10 lg:py-12">
       <Link
         href={backHref}
         className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
@@ -547,22 +558,6 @@ function getBlockedStatusText(status: string) {
   return "This booking is not available for joining right now.";
 }
 
-function getDurationMinutes(startTime: Date, endTime: Date) {
-  return Math.max(
-    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
-    0,
-  );
-}
-
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function formatStatus(status: string) {
   if (status === "PENDING") {
@@ -570,7 +565,7 @@ function formatStatus(status: string) {
   }
 
   if (status === "PAID") {
-    return "Paid";
+    return "Confirming";
   }
 
   if (status === "CONFIRMED") {

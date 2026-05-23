@@ -41,7 +41,7 @@ export default function PrivacyPage() {
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
           This page explains what data SkillDrop may use to operate accounts,
-          expert profiles, bookings, payments, notifications, reviews, disputes
+          helper profiles, bookings, payments, notifications, reviews, disputes
           and marketplace trust.
         </p>
 
@@ -94,13 +94,12 @@ export default function PrivacyPage() {
           <Card soft className="p-5">
             <Badge variant="primary">
               <BadgeCheck size={14} />
-              MVP note
+              Data rights
             </Badge>
 
             <p className="mt-4 text-sm font-bold leading-6 text-muted">
-              This is a practical MVP privacy draft. Before production, review
-              it for GDPR, cookies, analytics, storage, retention and user
-              rights.
+              Users may request account deletion or data access according to applicable
+              privacy laws and platform procedures.
             </p>
           </Card>
         </aside>
@@ -115,7 +114,7 @@ export default function PrivacyPage() {
           <PrivacyCard
             icon={Database}
             title="Marketplace data"
-            text="Provider profiles, services, availability, bookings, reviews and saved experts are stored to run the marketplace."
+            text="Helper profiles, services, availability, bookings, reviews and saved experts are stored to run the marketplace."
           />
 
           <PrivacyCard
@@ -133,7 +132,7 @@ export default function PrivacyPage() {
           <PrivacyCard
             icon={Eye}
             title="Safety review"
-            text="Disputes, reports, reviews, booking history and admin actions may be reviewed to protect buyers, providers and the platform."
+            text="Disputes, reports, reviews, booking history and admin actions may be reviewed to protect buyers, helpers and the platform."
           />
 
           <PrivacyCard
@@ -176,7 +175,7 @@ export default function PrivacyPage() {
 
             <PolicyRow
               title="Bookings"
-              text="Buyer, provider, service, time slot, status, payment status, price, fees and call room information."
+              text="Buyer, helper, service, time slot, status, payment status, price, fees and call room information."
             />
 
             <PolicyRow
@@ -249,9 +248,9 @@ export default function PrivacyPage() {
               </p>
 
               <p className="mt-1 text-sm font-bold leading-6 text-muted">
-                This MVP privacy text is a practical placeholder. Before
-                production, review it for GDPR, cookies, analytics, email
-                providers, Stripe, storage, retention, deletion and user rights.
+                This privacy policy explains how SkillDrop may process data for accounts,
+                bookings, payments, notifications, reviews, disputes, safety and marketplace
+                operations.
               </p>
             </div>
           </div>

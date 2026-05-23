@@ -127,7 +127,7 @@ export default async function BuyerReviewsPage({
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <div className="surface-grid absolute inset-0 opacity-40" />
 
-        <div className="relative p-6 md:p-8 lg:p-10">
+        <div className="container-page relative py-8 md:py-10 lg:py-12">
           <Link
             href="/buyer"
             className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
@@ -170,15 +170,15 @@ export default async function BuyerReviewsPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Your feedback helps strong providers grow and helps other
-                clients choose with confidence.
+                Your feedback helps strong helpers grow and helps other
+                buyers choose with confidence.
               </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
               <ButtonLink href="/experts">
                 <Search size={18} />
-                Find providers
+                Find helpers
               </ButtonLink>
 
               <ButtonLink href="/buyer/bookings" variant="secondary">
@@ -226,7 +226,7 @@ export default async function BuyerReviewsPage({
         </div>
       </section>
 
-      <section className="p-6 md:p-8 lg:p-10">
+      <section className="container-page py-8 md:py-10 lg:py-12">
         <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-start">
           <div className="grid gap-6">
             {selectedBooking?.review ? (
@@ -298,9 +298,9 @@ export default async function BuyerReviewsPage({
               </h2>
 
               <div className="mt-5 grid gap-3">
-                <Tip text="Reviews help clients choose providers faster." />
-                <Tip text="Detailed feedback helps providers improve their offers." />
-                <Tip text="Good reviews help verified providers grow safely." />
+                <Tip text="Reviews help buyers choose helpers faster." />
+                <Tip text="Detailed feedback helps helpers improve their offers." />
+                <Tip text="Good reviews help verified helpers grow safely." />
               </div>
             </Card>
 
@@ -405,7 +405,7 @@ function ReviewFormCard({
           <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
             <p className="text-sm font-bold leading-6 text-muted">
               Be honest and practical. Mention what was useful, what could be
-              better, and whether you would recommend this provider.
+              better, and whether you would recommend this helper.
             </p>
           </div>
         </div>
@@ -452,8 +452,8 @@ function ReviewFormCard({
           <div>
             <label className="text-sm font-black">Would you recommend?</label>
 
-            <select name="wouldRecommend" className="input mt-2">
-              <option value="">Choose</option>
+            <select name="wouldRecommend" className="input mt-2" defaultValue="" required>
+              <option value="" disabled>Choose</option>
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
@@ -465,7 +465,7 @@ function ReviewFormCard({
             <textarea
               name="comment"
               rows={4}
-              maxLength={1200}
+              maxLength={1500}
               className="mt-2 w-full rounded-[22px] border border-[var(--border)] bg-white/88 p-4 text-sm font-semibold leading-6 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
               placeholder="What was helpful? What should other clients know?"
             />
@@ -608,7 +608,7 @@ function ReviewedCard({
       <h3 className="mt-4 font-black tracking-[-0.02em]">{serviceTitle}</h3>
 
       <p className="mt-1 text-sm font-semibold text-muted">
-        Provider: {providerName}
+        Helper: {providerName}
       </p>
 
       <p className="mt-1 inline-flex items-center gap-2 text-xs font-bold text-muted">
@@ -740,6 +740,10 @@ function formatReviewError(error: string) {
 
   if (error === "already-reviewed") {
     return "You already reviewed this call.";
+  }
+
+  if (error === "comment-too-long") {
+    return "Your comment is too long. Please keep it under 1500 characters.";
   }
 
   return "Something went wrong. Please try again.";
