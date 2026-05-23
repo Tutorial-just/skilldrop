@@ -9,13 +9,12 @@ import {
   Lock,
   Mail,
   ShieldCheck,
-  SlidersHorizontal,
   Video,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 
-type ProviderSettings = {
+type HelperSettings = {
   bookingEmails: boolean;
   callReminders: boolean;
   reviewAlerts: boolean;
@@ -31,11 +30,11 @@ type ProviderSettings = {
   minimumNotice: string;
   bufferBetweenCalls: string;
 
-  hideEmailFromClients: boolean;
-  requireClientMessage: boolean;
+  hideEmailFromBuyers: boolean;
+  requireBuyerMessage: boolean;
 };
 
-const defaultSettings: ProviderSettings = {
+const defaultSettings: HelperSettings = {
   bookingEmails: true,
   callReminders: true,
   reviewAlerts: true,
@@ -51,14 +50,14 @@ const defaultSettings: ProviderSettings = {
   minimumNotice: "2 hours",
   bufferBetweenCalls: "10 minutes",
 
-  hideEmailFromClients: true,
-  requireClientMessage: true,
+  hideEmailFromBuyers: true,
+  requireBuyerMessage: true,
 };
 
-const storageKey = "skilldrop-provider-settings";
+const storageKey = "skilldrop-helper-settings";
 
 export function ProviderSettingsControls() {
-  const [settings, setSettings] = useState<ProviderSettings>(defaultSettings);
+  const [settings, setSettings] = useState<HelperSettings>(defaultSettings);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -69,7 +68,7 @@ export function ProviderSettingsControls() {
     }
 
     try {
-      const parsed = JSON.parse(raw) as Partial<ProviderSettings>;
+      const parsed = JSON.parse(raw) as Partial<HelperSettings>;
 
       setSettings({
         ...defaultSettings,
@@ -80,9 +79,9 @@ export function ProviderSettingsControls() {
     }
   }, []);
 
-  function updateSetting<K extends keyof ProviderSettings>(
+  function updateSetting<K extends keyof HelperSettings>(
     key: K,
-    value: ProviderSettings[K],
+    value: HelperSettings[K],
   ) {
     const nextSettings = {
       ...settings,
@@ -102,7 +101,7 @@ export function ProviderSettingsControls() {
   return (
     <div className="grid gap-5">
       {saved ? (
-        <div className="rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+        <div className="rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
           Settings saved on this device.
         </div>
       ) : null}
@@ -116,7 +115,7 @@ export function ProviderSettingsControls() {
         >
           <ToggleRow
             label="New booking emails"
-            description="Get an email when a client books you."
+            description="Get an email when a buyer books you."
             checked={settings.bookingEmails}
             onChange={(value) => updateSetting("bookingEmails", value)}
           />
@@ -130,7 +129,7 @@ export function ProviderSettingsControls() {
 
           <ToggleRow
             label="Review alerts"
-            description="Know when a client leaves a review."
+            description="Know when a buyer leaves a review."
             checked={settings.reviewAlerts}
             onChange={(value) => updateSetting("reviewAlerts", value)}
           />
@@ -147,11 +146,11 @@ export function ProviderSettingsControls() {
           icon={Eye}
           badge="Visibility"
           title="Public profile"
-          text="Control what clients can see before booking."
+          text="Control what buyers can see before booking."
         >
           <ToggleRow
             label="Profile visible"
-            description="Allow clients to discover your profile."
+            description="Allow buyers to discover your profile."
             checked={settings.profileVisible}
             onChange={(value) => updateSetting("profileVisible", value)}
           />
@@ -184,7 +183,7 @@ export function ProviderSettingsControls() {
           icon={CalendarClock}
           badge="Scheduling"
           title="Booking rules"
-          text="Set simple rules for how people can book calls."
+          text="Set simple rules for how buyers can book calls."
         >
           <ToggleRow
             label="Auto-confirm bookings"
@@ -195,7 +194,7 @@ export function ProviderSettingsControls() {
 
           <ToggleRow
             label="Allow same-day bookings"
-            description="Let clients book available slots today."
+            description="Let buyers book available slots today."
             checked={settings.allowSameDayBookings}
             onChange={(value) => updateSetting("allowSameDayBookings", value)}
           />
@@ -212,7 +211,13 @@ export function ProviderSettingsControls() {
             label="Buffer between calls"
             description="Break time between two calls."
             value={settings.bufferBetweenCalls}
-            options={["No buffer", "5 minutes", "10 minutes", "15 minutes", "30 minutes"]}
+            options={[
+              "No buffer",
+              "5 minutes",
+              "10 minutes",
+              "15 minutes",
+              "30 minutes",
+            ]}
             onChange={(value) => updateSetting("bufferBetweenCalls", value)}
           />
         </SettingsSection>
@@ -220,21 +225,21 @@ export function ProviderSettingsControls() {
         <SettingsSection
           icon={Lock}
           badge="Privacy"
-          title="Client protection"
+          title="Buyer protection"
           text="Protect your contact details and improve booking quality."
         >
           <ToggleRow
-            label="Hide email from clients"
-            description="Clients will contact you through SkillDrop."
-            checked={settings.hideEmailFromClients}
-            onChange={(value) => updateSetting("hideEmailFromClients", value)}
+            label="Hide email from buyers"
+            description="Buyers will contact you through SkillDrop."
+            checked={settings.hideEmailFromBuyers}
+            onChange={(value) => updateSetting("hideEmailFromBuyers", value)}
           />
 
           <ToggleRow
-            label="Require client message"
-            description="Ask clients to explain what they need before booking."
-            checked={settings.requireClientMessage}
-            onChange={(value) => updateSetting("requireClientMessage", value)}
+            label="Require buyer message"
+            description="Ask buyers to explain what they need before booking."
+            checked={settings.requireBuyerMessage}
+            onChange={(value) => updateSetting("requireBuyerMessage", value)}
           />
 
           <InfoRow
@@ -243,11 +248,7 @@ export function ProviderSettingsControls() {
             value="Protected through platform flow"
           />
 
-          <InfoRow
-            icon={Video}
-            label="Calls"
-            value="Jitsi video rooms enabled"
-          />
+          <InfoRow icon={Video} label="Calls" value="Video rooms enabled" />
         </SettingsSection>
       </div>
     </div>
@@ -268,15 +269,19 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--border)] bg-white/64 p-5 shadow-sm">
+    <section className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-sm)]">
       <Badge variant="primary">
         <Icon size={14} />
         {badge}
       </Badge>
 
-      <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">{title}</h3>
+      <h3 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
+      <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
 
       <div className="mt-5 grid gap-3">{children}</div>
     </section>
@@ -295,10 +300,13 @@ function ToggleRow({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <div>
-        <p className="font-black tracking-[-0.02em]">{label}</p>
-        <p className="mt-1 text-sm font-semibold leading-6 text-muted">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <div className="min-w-0">
+        <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+          {label}
+        </p>
+
+        <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
           {description}
         </p>
       </div>
@@ -308,13 +316,19 @@ function ToggleRow({
         onClick={() => onChange(!checked)}
         className={
           checked
-            ? "flex h-8 w-14 shrink-0 items-center justify-end rounded-full bg-[var(--primary)] p-1 transition"
-            : "flex h-8 w-14 shrink-0 items-center justify-start rounded-full bg-[var(--border-strong)] p-1 transition"
+            ? "flex h-8 w-14 shrink-0 items-center justify-end rounded-full border border-[var(--primary)] bg-[var(--primary)] p-1 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.28)]"
+            : "flex h-8 w-14 shrink-0 items-center justify-start rounded-full border border-[var(--border)] bg-[var(--background-soft)] p-1 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.28)]"
         }
         aria-pressed={checked}
       >
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm">
-          {checked ? <Check size={14} className="text-[var(--primary)]" /> : null}
+        <span
+          className={
+            checked
+              ? "flex h-6 w-6 items-center justify-center rounded-full bg-white text-[var(--primary)] shadow-sm"
+              : "flex h-6 w-6 items-center justify-center rounded-full bg-[var(--muted-foreground)]/30 shadow-sm"
+          }
+        >
+          {checked ? <Check size={14} /> : null}
         </span>
       </button>
     </div>
@@ -335,11 +349,14 @@ function SelectRow({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="grid gap-3 md:grid-cols-[1fr_180px] md:items-center">
         <div>
-          <p className="font-black tracking-[-0.02em]">{label}</p>
-          <p className="mt-1 text-sm font-semibold leading-6 text-muted">
+          <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+            {label}
+          </p>
+
+          <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             {description}
           </p>
         </div>
@@ -370,16 +387,20 @@ function InfoRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
           <Icon size={18} />
         </div>
 
-        <p className="font-black tracking-[-0.02em]">{label}</p>
+        <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+          {label}
+        </p>
       </div>
 
-      <p className="text-right text-sm font-bold text-muted">{value}</p>
+      <p className="text-right text-sm font-medium text-[var(--muted-foreground)]">
+        {value}
+      </p>
     </div>
   );
 }

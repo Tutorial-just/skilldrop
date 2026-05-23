@@ -47,7 +47,7 @@ export function WorkspaceNav({ role }: WorkspaceNavProps) {
     pathname.startsWith("/expert") &&
     (role === "EXPERT" || role === "ADMIN")
   ) {
-    title = "Expert workspace";
+    title = "Helper workspace";
     links = expertLinks;
   } else if (pathname.startsWith("/buyer") && role) {
     title = "Buyer workspace";
@@ -59,9 +59,9 @@ export function WorkspaceNav({ role }: WorkspaceNavProps) {
   }
 
   return (
-    <div className="border-b border-[var(--border)] bg-white/80 backdrop-blur-sm theme-dark:bg-[#0f1117]/80">
+    <div className="border-b border-[var(--border)] bg-[var(--background-soft)]/88 backdrop-blur-xl">
       <div className="container-page flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">
+        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
           {title}
         </p>
 
@@ -74,11 +74,27 @@ export function WorkspaceNav({ role }: WorkspaceNavProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm font-black transition ${
+                className={[
+                  "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold",
+                  "transition duration-200 ease-out",
+                  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.28)]",
                   isActive
-                    ? "bg-[var(--foreground)] text-[var(--background)]"
-                    : "border border-[var(--border)] bg-white/80 text-muted hover:bg-[var(--card-soft)] hover:text-[var(--foreground)] theme-dark:bg-white/[0.04]"
-                }`}
+                    ? [
+                        "border-[rgba(167,139,250,0.55)]",
+                        "bg-[var(--primary)]",
+                        "text-white",
+                        "shadow-[0_12px_28px_rgba(139,92,246,0.26)]",
+                      ].join(" ")
+                    : [
+                        "border-[var(--border)]",
+                        "bg-[var(--card)]/72",
+                        "text-[var(--muted-foreground)]",
+                        "hover:border-[var(--border-strong)]",
+                        "hover:bg-[var(--primary-soft)]",
+                        "hover:text-[var(--primary-dark)]",
+                        "active:bg-[var(--primary-soft)]",
+                      ].join(" "),
+                ].join(" ")}
               >
                 {item.label}
               </Link>

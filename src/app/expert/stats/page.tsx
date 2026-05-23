@@ -237,7 +237,7 @@ export default async function ExpertStatsPage() {
             <div>
               <Link
                 href="/expert"
-                className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+                className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
               >
                 <ArrowLeft size={16} />
                 Back to dashboard
@@ -251,10 +251,10 @@ export default async function ExpertStatsPage() {
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Your provider performance.
+                Your helper performance.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Track earnings, calls, trust, services and growth in one clean
                 dashboard.
               </p>
@@ -276,7 +276,7 @@ export default async function ExpertStatsPage() {
           <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Metric
               icon={CircleDollarSign}
-              label="Total value"
+              label="Gross value"
               value={formatMoney(totalRevenueCents)}
               hint="Completed + upcoming"
             />
@@ -320,7 +320,7 @@ export default async function ExpertStatsPage() {
                     {growthScore}% ready to grow
                   </h2>
 
-                  <p className="mt-3 leading-7 text-muted">
+                  <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
                     This score combines profile quality, services, availability,
                     reviews and completed calls.
                   </p>
@@ -338,7 +338,7 @@ export default async function ExpertStatsPage() {
                   <HealthCheck done={activeServices.length > 0} text="Active offer" />
                   <HealthCheck done={openSlots.length > 0} text="Open availability" />
                   <HealthCheck done={expert.skills.length >= 3} text="Searchable skills" />
-                  <HealthCheck done={expert.reviews.length > 0} text="Client reviews" />
+                  <HealthCheck done={expert.reviews.length > 0} text="Buyer reviews" />
                   <HealthCheck done={expert.isVerified} text="Verified badge" />
                 </div>
               </div>
@@ -356,12 +356,12 @@ export default async function ExpertStatsPage() {
                     {expert.isVerified ? "Verified" : "In progress"}
                   </h2>
 
-                  <p className="mt-2 text-sm leading-6 text-muted">
+                  <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                     Verified after 3 successful calls and 3.8+ rating.
                   </p>
                 </div>
 
-                <p className="text-5xl font-black tracking-[-0.06em]">
+                <p className="text-5xl font-bold tracking-[-0.06em]">
                   {verificationProgress}%
                 </p>
               </div>
@@ -401,7 +401,7 @@ export default async function ExpertStatsPage() {
                     : "No outcome data yet"}
                 </h2>
 
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
                   This shows whether buyers felt their problem was solved after
                   your calls. It is one of the strongest trust signals on
                   SkillDrop.
@@ -491,7 +491,7 @@ export default async function ExpertStatsPage() {
                     Monthly overview
                   </h2>
 
-                  <p className="mt-2 text-sm leading-6 text-muted">
+                  <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                     Completed calls and revenue.
                   </p>
                 </div>
@@ -521,14 +521,14 @@ export default async function ExpertStatsPage() {
                   </h2>
 
                   {bestService ? (
-                    <p className="mt-2 text-sm leading-6 text-muted">
+                    <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                       Best performer:{" "}
-                      <span className="font-black text-[var(--foreground)]">
+                      <span className="font-bold text-[var(--foreground)]">
                         {bestService.title}
                       </span>
                     </p>
                   ) : (
-                    <p className="mt-2 text-sm leading-6 text-muted">
+                    <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                       Add services to start tracking performance.
                     </p>
                   )}
@@ -593,7 +593,7 @@ export default async function ExpertStatsPage() {
                     icon={activeServices.length > 1 ? BadgeCheck : ShieldCheck}
                     text={
                       activeServices.length > 1
-                        ? "Multiple offers help clients choose faster."
+                        ? "Multiple offers help buyers choose faster."
                         : "Add one more offer for a different need."
                     }
                   />
@@ -603,7 +603,7 @@ export default async function ExpertStatsPage() {
                     text={
                       expert.reviews.length > 0
                         ? "Reviews build trust. Keep asking after calls."
-                        : "Complete calls and ask clients to leave reviews."
+                        : "Complete calls and ask buyers to leave reviews."
                     }
                   />
                 </div>
@@ -617,7 +617,7 @@ export default async function ExpertStatsPage() {
                 <Badge variant="accent">Recent feedback</Badge>
 
                 <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                  Client reviews
+                  Buyer reviews
                 </h2>
               </div>
 
@@ -629,11 +629,11 @@ export default async function ExpertStatsPage() {
                 recentReviews.map((review) => (
                   <div
                     key={review.id}
-                    className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+                    className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3"> 
                      <div className="flex flex-wrap items-center gap-2">
-                       <p className="flex items-center gap-2 font-black">
+                       <p className="flex items-center gap-2 font-bold">
                          <Star size={16} fill="currentColor" />
                          {review.rating}/5
                        </p>
@@ -642,12 +642,12 @@ export default async function ExpertStatsPage() {
                        </Badge>
                      </div>
 
-                      <p className="text-xs font-bold text-muted">
+                      <p className="text-xs font-bold text-[var(--muted-foreground)]">
                         {formatDate(review.createdAt)}
                       </p>
                     </div>
 
-                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">
+                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-[var(--muted-foreground)]">
                       {review.comment || "No comment left."}
                     </p>
                   </div>
@@ -679,35 +679,37 @@ function OutcomeBox({
   hint: string;
   variant: "success" | "accent" | "danger";
 }) {
+  const boxClassName =
+    variant === "success"
+      ? "rounded-[22px] border border-[var(--success)]/20 bg-[var(--success-soft)] p-4"
+      : variant === "danger"
+        ? "rounded-[22px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4"
+        : "rounded-[22px] border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4";
+
+  const iconClassName =
+    variant === "success"
+      ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--success)]"
+      : variant === "danger"
+        ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--danger)]"
+        : "flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--accent)]";
+
   return (
-    <div
-      className={
-        variant === "success"
-          ? "rounded-[22px] border border-[var(--success)]/20 bg-[var(--success-soft)] p-4"
-          : variant === "danger"
-            ? "rounded-[22px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4"
-            : "rounded-[22px] border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4"
-      }
-    >
-      <div
-        className={
-          variant === "success"
-            ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--success)]"
-            : variant === "danger"
-              ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--danger)]"
-              : "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--accent)]"
-        }
-      >
+    <div className={boxClassName}>
+      <div className={iconClassName}>
         <Icon size={18} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p>
+      <p className="mt-2 text-3xl font-bold tracking-[-0.05em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-xs font-semibold leading-5 text-muted">{hint}</p>
+      <p className="mt-1 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </div>
   );
 }
@@ -730,23 +732,27 @@ function Metric({
           <Icon size={20} />
         </div>
 
-        <ArrowRight size={16} className="text-muted" />
+        <ArrowRight size={16} className="text-[var(--muted-foreground)]" />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </Card>
   );
 }
 
 function HealthCheck({ done, text }: { done: boolean; text: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 px-4 py-3 text-sm font-bold text-[var(--muted-foreground)]">
+    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 py-3 text-sm font-medium text-[var(--muted-foreground)]">
       <div
         className={
           done
@@ -764,9 +770,12 @@ function HealthCheck({ done, text }: { done: boolean; text: string }) {
 
 function TinyStat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-xl font-black tracking-[-0.04em]">{value}</p>
-      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
+
+      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
     </div>
@@ -789,12 +798,26 @@ function MoneyBox({
       className={
         strong
           ? "rounded-[22px] border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-4"
-          : "rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+          : "rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
       }
     >
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
-      <p className="mt-1 text-xs font-semibold text-muted">{hint}</p>
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p
+        className={
+          strong
+            ? "mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--primary-dark)]"
+            : "mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]"
+        }
+      >
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs font-medium text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </div>
   );
 }
@@ -813,7 +836,9 @@ function MonthBar({
 
   return (
     <div className="grid grid-cols-[56px_1fr_auto] items-center gap-3">
-      <p className="text-sm font-black">{month.label}</p>
+      <p className="text-sm font-bold text-[var(--foreground)]">
+        {month.label}
+      </p>
 
       <div className="h-3 overflow-hidden rounded-full bg-[var(--border)]">
         <div
@@ -822,7 +847,7 @@ function MonthBar({
         />
       </div>
 
-      <p className="text-xs font-bold text-muted">
+      <p className="text-xs font-medium text-[var(--muted-foreground)]">
         {month.bookings} · {formatMoney(month.revenueCents)}
       </p>
     </div>
@@ -844,7 +869,7 @@ function ServiceRow({
   };
 }) {
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
           <div className="flex flex-wrap gap-2">
@@ -855,20 +880,23 @@ function ServiceRow({
             <Badge>{service.durationMinutes} min</Badge>
           </div>
 
-          <h3 className="mt-3 font-black tracking-[-0.02em]">
+          <h3 className="mt-3 font-bold tracking-[-0.02em] text-[var(--foreground)]">
             {service.title}
           </h3>
 
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
             {service.bookingsCount} bookings · {service.completedCount} completed
           </p>
         </div>
 
         <div className="text-left sm:text-right">
-          <p className="text-xl font-black tracking-[-0.04em]">
+          <p className="text-xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
             {formatMoney(service.revenueCents)}
           </p>
-          <p className="text-xs font-bold text-muted">revenue</p>
+
+          <p className="text-xs font-medium text-[var(--muted-foreground)]">
+            revenue
+          </p>
         </div>
       </div>
     </div>
@@ -877,9 +905,12 @@ function ServiceRow({
 
 function ActivityRow({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-lg font-black">{value}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-lg font-bold text-[var(--foreground)]">{value}</p>
     </div>
   );
 }
@@ -892,21 +923,28 @@ function SmartTip({
   text: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/62 p-4">
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <Icon size={16} />
       </div>
 
-      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+      <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
 
 function EmptyMini({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-[var(--border-strong)] bg-white/55 p-6 text-center md:col-span-2">
-      <h3 className="text-xl font-black tracking-[-0.03em]">{title}</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">{text}</p>
+    <div className="rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-6 text-center md:col-span-2">
+      <h3 className="text-xl font-bold tracking-[-0.03em] text-[var(--foreground)]">
+        {title}
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }

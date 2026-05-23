@@ -250,14 +250,14 @@ export default async function ExpertAvailabilityPage({
             <div>
               <Link
                 href="/expert"
-                className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+                className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
               >
                 <ArrowLeft size={16} />
                 Back to dashboard
               </Link>
 
               {resolvedSearchParams.saved ? (
-                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
                   {createdCount && createdCount > 0
                     ? `${createdCount} availability window${
                         createdCount === 1 ? "" : "s"
@@ -273,7 +273,7 @@ export default async function ExpertAvailabilityPage({
               ) : null}
 
               {resolvedSearchParams.deleted ? (
-                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
                   {deletedCount && deletedCount > 1
                     ? `${deletedCount} old availability windows removed.`
                     : "Availability window removed."}
@@ -316,7 +316,7 @@ export default async function ExpertAvailabilityPage({
                 Manage your bookable time windows.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Add time windows when you are available. Buyers will be able to
                 choose a short 1:1 call inside those windows based on your offers.
               </p>
@@ -363,24 +363,24 @@ export default async function ExpertAvailabilityPage({
                   Create windows long enough for your current offers.
                 </h2>
 
-                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                <p className="mt-2 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                   Your shortest active offer is{" "}
-                  <span className="font-black text-[var(--foreground)]">
+                  <span className="font-bold text-[var(--foreground)]">
                     {shortestServiceDuration} minutes
                   </span>
                   . A buyer can only book inside a window if there is enough free
                   time for the selected call duration.
                 </p>
 
-                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-4 text-sm font-bold leading-6 text-muted">
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                   Example: if you create a 10:00–14:00 window, buyers can book
                   15, 30, 45 or 60 minute calls inside it, as long as the time is
                   still free.
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-4 text-sm font-bold leading-6 text-muted">
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                   Shortest offer:{" "}
-                  <span className="font-black text-[var(--foreground)]">
+                  <span className="font-bold text-[var(--foreground)]">
                     {shortestActiveService?.title}
                   </span>{" "}
                   · {shortestServiceDuration} min
@@ -392,7 +392,7 @@ export default async function ExpertAvailabilityPage({
                   Create an active offer first.
                 </h2>
 
-                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                <p className="mt-2 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                   Availability works together with your offers. Add at least one
                   active offer before creating time windows.
                 </p>
@@ -425,7 +425,7 @@ export default async function ExpertAvailabilityPage({
           </Card>
 
           <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr] xl:items-start">
-            <details className="self-start rounded-[26px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur">
+            <details className="self-start rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-sm)] backdrop-blur">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[20px]">
                 <div className="flex items-center gap-4">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
@@ -433,10 +433,10 @@ export default async function ExpertAvailabilityPage({
                   </div>
 
                   <div>
-                    <p className="font-black tracking-[-0.02em]">
+                    <p className="font-bold tracking-[-0.02em]">
                       Add available window
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-muted">
+                    <p className="mt-1 text-sm font-semibold text-[var(--muted-foreground)]">
                       Add one bookable time window.
                     </p>
                   </div>
@@ -454,7 +454,7 @@ export default async function ExpertAvailabilityPage({
                   className="grid gap-4 md:grid-cols-[1fr_160px_auto] md:items-end"
                 >
                   <div>
-                    <label htmlFor="startTime" className="text-sm font-black">
+                    <label htmlFor="startTime" className="text-sm font-bold">
                       Start time
                     </label>
 
@@ -467,7 +467,7 @@ export default async function ExpertAvailabilityPage({
                       className="input mt-2"
                     />
 
-                    <p className="mt-2 text-xs font-bold leading-5 text-muted">
+                    <p className="mt-2 text-xs font-bold leading-5 text-[var(--muted-foreground)]">
                       Use your local time. Buyers should see the equivalent time
                       in their own timezone.
                     </p>
@@ -476,7 +476,7 @@ export default async function ExpertAvailabilityPage({
                   <div>
                     <label
                       htmlFor="durationMinutes"
-                      className="text-sm font-black"
+                      className="text-sm font-bold"
                     >
                       Window length
                     </label>
@@ -496,7 +496,7 @@ export default async function ExpertAvailabilityPage({
                     </select>
 
                     {shortestServiceDuration ? (
-                      <p className="mt-2 text-xs font-bold leading-5 text-muted">
+                      <p className="mt-2 text-xs font-bold leading-5 text-[var(--muted-foreground)]">
                         Minimum recommended: {shortestServiceDuration} min.
                       </p>
                     ) : null}
@@ -514,7 +514,7 @@ export default async function ExpertAvailabilityPage({
               </div>
             </details>
 
-            <details className="self-start rounded-[26px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur">
+            <details className="self-start rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-sm)] backdrop-blur">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
@@ -522,10 +522,10 @@ export default async function ExpertAvailabilityPage({
                   </div>
 
                   <div>
-                    <p className="font-black tracking-[-0.02em]">
+                    <p className="font-bold tracking-[-0.02em]">
                       Bulk create windows
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-muted">
+                    <p className="mt-1 text-sm font-semibold text-[var(--muted-foreground)]">
                       Create repeated weekly availability windows.
                     </p>
                   </div>
@@ -538,7 +538,7 @@ export default async function ExpertAvailabilityPage({
                 <form action={createBulkAvailabilityAction} className="grid gap-5">
                   <div className="grid gap-4 md:grid-cols-3">
                     <div>
-                      <label htmlFor="startDate" className="text-sm font-black">
+                      <label htmlFor="startDate" className="text-sm font-bold">
                         Start date
                       </label>
 
@@ -555,7 +555,7 @@ export default async function ExpertAvailabilityPage({
                     <div>
                       <label
                         htmlFor="bulkStartTime"
-                        className="text-sm font-black"
+                        className="text-sm font-bold"
                       >
                         From
                       </label>
@@ -571,7 +571,7 @@ export default async function ExpertAvailabilityPage({
                     </div>
 
                     <div>
-                      <label htmlFor="bulkEndTime" className="text-sm font-black">
+                      <label htmlFor="bulkEndTime" className="text-sm font-bold">
                         To
                       </label>
 
@@ -587,13 +587,13 @@ export default async function ExpertAvailabilityPage({
                   </div>
 
                   <div>
-                    <p className="text-sm font-black">Weekdays</p>
+                    <p className="text-sm font-bold">Weekdays</p>
 
                     <div className="mt-2 flex flex-wrap gap-2">
                       {weekdays.map((day) => (
                         <label
                           key={day.value}
-                          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--primary-dark)]"
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2 text-sm font-bold text-[var(--muted-foreground)] transition hover:bg-[var(--background-soft)] hover:text-[var(--primary-dark)]"
                         >
                           <input
                             type="checkbox"
@@ -613,7 +613,7 @@ export default async function ExpertAvailabilityPage({
                     <div>
                       <label
                         htmlFor="bulkDurationMinutes"
-                        className="text-sm font-black"
+                        className="text-sm font-bold"
                       >
                         Minimum call length
                       </label>
@@ -633,7 +633,7 @@ export default async function ExpertAvailabilityPage({
                       </select>
 
                       {shortestServiceDuration ? (
-                        <p className="mt-2 text-xs font-bold leading-5 text-muted">
+                        <p className="mt-2 text-xs font-bold leading-5 text-[var(--muted-foreground)]">
                           Window must fit at least {shortestServiceDuration} min.
                         </p>
                       ) : null}
@@ -642,7 +642,7 @@ export default async function ExpertAvailabilityPage({
                     <div>
                       <label
                         htmlFor="breakMinutes"
-                        className="text-sm font-black"
+                        className="text-sm font-bold"
                       >
                         Break between calls
                       </label>
@@ -661,13 +661,13 @@ export default async function ExpertAvailabilityPage({
                         ))}
                       </select>
 
-                      <p className="mt-2 text-xs font-bold leading-5 text-muted">
+                      <p className="mt-2 text-xs font-bold leading-5 text-[var(--muted-foreground)]">
                         Used later when generating buyer start times.
                       </p>
                     </div>
 
                     <div>
-                      <label htmlFor="repeatWeeks" className="text-sm font-black">
+                      <label htmlFor="repeatWeeks" className="text-sm font-bold">
                         Repeat
                       </label>
 
@@ -687,8 +687,8 @@ export default async function ExpertAvailabilityPage({
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-[var(--border)] bg-white/55 p-4">
-                    <p className="text-sm font-bold leading-6 text-muted">
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+                    <p className="text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                       Existing overlapping windows will be skipped automatically.
                       Each selected day creates one availability window.
                     </p>
@@ -719,7 +719,7 @@ export default async function ExpertAvailabilityPage({
                   Time windows
                 </h2>
 
-                <p className="mt-2 max-w-2xl leading-7 text-muted">
+                <p className="mt-2 max-w-2xl leading-7 text-[var(--muted-foreground)]">
                   Showing {visibleWindows.length} of {filteredWindows.length}{" "}
                   windows. Keep your open schedule fresh so buyers can book
                   quickly.
@@ -751,8 +751,8 @@ export default async function ExpertAvailabilityPage({
                   href={`/expert/availability?view=${tab.value}`}
                   className={
                     currentView === tab.value
-                      ? "flex shrink-0 items-center rounded-full bg-[var(--primary)] px-4 py-2 text-xs font-black text-white"
-                      : "flex shrink-0 items-center rounded-full border border-[var(--border)] bg-white/72 px-4 py-2 text-xs font-black text-[var(--muted-foreground)] transition hover:bg-white hover:text-[var(--foreground)]"
+                      ? "flex shrink-0 items-center rounded-full border border-[var(--primary)] bg-[var(--primary)] px-4 py-2 text-xs font-bold text-white shadow-[0_10px_24px_rgba(139,92,246,0.22)]"
+                      : "flex shrink-0 items-center rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2 text-xs font-bold text-[var(--muted-foreground)] transition hover:border-[var(--border-strong)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
                   }
                 >
                   {tab.label}
@@ -766,15 +766,15 @@ export default async function ExpertAvailabilityPage({
                   <details
                     key={group.label}
                     open
-                    className="rounded-[22px] border border-[var(--border)] bg-white/45 p-4"
+                    className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
                   >
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                        <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
                           {group.label}
                         </p>
 
-                        <p className="mt-1 text-xs font-bold text-muted">
+                        <p className="mt-1 text-xs font-bold text-[var(--muted-foreground)]">
                           {group.openCount} open · {group.bookedCount} with
                           bookings
                         </p>
@@ -820,15 +820,15 @@ export default async function ExpertAvailabilityPage({
                   expert.bookings.map((booking) => (
                     <div
                       key={booking.id}
-                      className="rounded-2xl border border-[var(--border)] bg-white/64 p-4"
+                      className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-black">
+                          <p className="font-bold">
                             {booking.service?.title ?? "1:1 call"}
                           </p>
 
-                          <p className="mt-1 text-sm text-muted">
+                          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                             {booking.buyer.name ?? booking.buyer.email}
                           </p>
                         </div>
@@ -842,9 +842,9 @@ export default async function ExpertAvailabilityPage({
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-[22px] border border-dashed border-[var(--border-strong)] bg-white/55 p-5">
-                    <p className="font-black">No upcoming bookings</p>
-                    <p className="mt-2 text-sm leading-6 text-muted">
+                  <div className="rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-5">
+                    <p className="font-bold">No upcoming bookings</p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                       Buyer bookings will appear here after someone reserves
                       time inside your availability windows.
                     </p>
@@ -884,15 +884,15 @@ function WindowChip({
   const freeMinutes = getWindowFreeMinutes(window);
   const totalMinutes = getDurationMinutes(window.startTime, window.endTime);
 
+  const chipClassName = hasBookings
+    ? "group inline-flex min-h-10 flex-wrap items-center gap-2 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] px-3 py-2 text-sm font-bold text-[var(--success)]"
+    : isPast
+      ? "group inline-flex min-h-10 items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-sm font-bold text-[var(--muted-foreground)]"
+      : "group inline-flex min-h-10 items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-sm font-bold text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]";
+
   return (
     <div
-      className={
-        hasBookings
-          ? "group inline-flex min-h-10 flex-wrap items-center gap-2 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] px-3 py-2 text-sm font-black text-[var(--success)]"
-          : isPast
-            ? "group inline-flex min-h-10 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/45 px-3 py-2 text-sm font-black text-muted"
-            : "group inline-flex min-h-10 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]"
-      }
+      className={chipClassName}
       title={`${formatTime(window.startTime)} — ${formatTime(window.endTime)}`}
     >
       <Clock3 size={14} />
@@ -901,22 +901,22 @@ function WindowChip({
         {formatTime(window.startTime)}–{formatTime(window.endTime)}
       </span>
 
-      <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+      <span className="rounded-full bg-[var(--card-soft)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em]">
         {totalMinutes} min
       </span>
 
       {hasBookings ? (
-        <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+        <span className="rounded-full bg-[var(--card-soft)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em]">
           {window.bookings.length} booking
           {window.bookings.length === 1 ? "" : "s"}
         </span>
       ) : isPast ? (
-        <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+        <span className="rounded-full bg-[var(--card-soft)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em]">
           Past
         </span>
       ) : (
         <>
-          <span className="rounded-full bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+          <span className="rounded-full bg-[var(--primary-soft)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--primary-dark)]">
             {freeMinutes} min free
           </span>
 
@@ -925,7 +925,7 @@ function WindowChip({
 
             <button
               type="submit"
-              className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-muted transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+              className="ml-1 flex h-7 w-7 items-center justify-center rounded-full text-[var(--muted-foreground)] transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
               aria-label="Delete window"
               title="Delete window"
             >
@@ -937,39 +937,42 @@ function WindowChip({
     </div>
   );
 }
-
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <Card soft className="p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
     </Card>
   );
 }
 
 function CompactTip({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/62 p-4">
-      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
 
 function EmptyState({ view }: { view: AvailabilityView }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center">
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-7 text-center">
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <CalendarDays size={22} />
       </div>
 
-      <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+      <h3 className="mt-4 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
         No windows found
       </h3>
 
-      <p className="mx-auto mt-3 max-w-md leading-7 text-muted">
+      <p className="mx-auto mt-3 max-w-md leading-7 text-[var(--muted-foreground)]">
         There are no availability windows for the “{view}” filter. Add
         availability or choose another filter.
       </p>
@@ -1140,7 +1143,7 @@ function formatStatus(status: string) {
   }
 
   if (status === "PAID") {
-    return "Paid";
+    return "Confirming";
   }
 
   if (status === "CONFIRMED") {

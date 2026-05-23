@@ -28,8 +28,7 @@ export default async function BecomeExpertSuccessPage({
         </h1>
 
         <p className="mx-auto mt-5 max-w-xl text-lg leading-8 text-[#6f6a63]">
-          We created your expert application. In the MVP, profiles are approved
-          manually from Supabase before they appear in the marketplace.
+          During the early launch, profiles are reviewed manually before they become bookable.
         </p>
 
         {expertId ? (

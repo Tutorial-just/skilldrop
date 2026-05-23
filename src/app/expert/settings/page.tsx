@@ -94,20 +94,20 @@ export default async function ExpertSettingsPage({
             <div>
               <Link
                 href="/expert"
-                className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+                className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
               >
                 <ArrowLeft size={16} />
                 Back to dashboard
               </Link>
 
               {resolvedSearchParams.stripe ? (
-                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
                   {formatStripeMessage(resolvedSearchParams.stripe)}
                 </div>
               ) : null}
 
               {resolvedSearchParams.error ? (
-                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
                   {formatSettingsError(resolvedSearchParams.error)}
                 </div>
               ) : null}
@@ -120,13 +120,12 @@ export default async function ExpertSettingsPage({
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Professional account settings.
+                Helper account settings.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Manage your account, payments, workspace appearance, public
-                visibility, booking rules, notifications and provider
-                preferences.
+                visibility, booking rules, notifications and helper preferences.
               </p>
             </div>
 
@@ -151,12 +150,12 @@ export default async function ExpertSettingsPage({
                 Account
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Account details
               </h2>
 
-              <p className="mt-3 text-sm leading-6 text-muted">
-                Basic information connected to your provider workspace.
+              <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                Basic information connected to your helper workspace.
               </p>
 
               <div className="mt-6 grid gap-3">
@@ -194,12 +193,12 @@ export default async function ExpertSettingsPage({
                 Appearance
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Workspace theme
               </h2>
 
-              <p className="mt-3 leading-7 text-muted">
-                Choose how your provider dashboard looks while you work.
+              <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
+                Choose how your helper dashboard looks while you work.
               </p>
 
               <div className="mt-6">
@@ -216,15 +215,15 @@ export default async function ExpertSettingsPage({
                   Stripe payouts
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   {stripeStatus.ready
                     ? "Payments are ready."
                     : "Connect Stripe to receive payouts."}
                 </h2>
 
-                <p className="mt-3 max-w-3xl leading-7 text-muted">
+                <p className="mt-3 max-w-3xl leading-7 text-[var(--muted-foreground)]">
                   Buyers can only pay for your calls when your Stripe Connect
-                  account is ready. Stripe handles card payments and provider
+                  account is ready. Stripe handles card payments and helper
                   payout setup.
                 </p>
 
@@ -249,25 +248,25 @@ export default async function ExpertSettingsPage({
                 </div>
 
                 {!stripeStatus.ready ? (
-                  <div className="mt-6 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-sm font-black leading-6 text-[var(--warning)]">
+                  <div className="mt-6 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-sm font-bold leading-6 text-[var(--warning)]">
                     Your profile can exist, but paid bookings stay blocked until
                     payouts are ready.
                   </div>
                 ) : (
-                  <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
-                    Your payout setup is ready. Clients can pay and confirm
+                  <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold leading-6 text-[var(--success)]">
+                    Your payout setup is ready. Buyers can pay and confirm
                     bookings with you.
                   </div>
                 )}
 
                 {stripeStatus.error ? (
-                  <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
+                  <div className="mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold leading-6 text-[var(--danger)]">
                     {stripeStatus.error}
                   </div>
                 ) : null}
               </div>
 
-              <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+              <div className="grid gap-3 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
                 <form action={createStripeConnectAccountAction}>
                   <button type="submit" className="btn btn-primary w-full">
                     <CreditCard size={17} />
@@ -293,7 +292,7 @@ export default async function ExpertSettingsPage({
                   </form>
                 ) : null}
 
-                <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-4">
                   <div className="flex gap-3">
                     {stripeStatus.ready ? (
                       <ShieldCheck
@@ -307,7 +306,7 @@ export default async function ExpertSettingsPage({
                       />
                     )}
 
-                    <p className="text-sm font-bold leading-6 text-muted">
+                    <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                       {stripeStatus.ready
                         ? "Stripe confirmed that charges and payouts are enabled."
                         : "Finish Stripe onboarding, then refresh the status here."}
@@ -322,16 +321,16 @@ export default async function ExpertSettingsPage({
             <Card className="p-5 md:p-6">
               <Badge variant={expert.isVerified ? "success" : "accent"}>
                 <BadgeCheck size={14} />
-                Provider status
+                Helper status
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 {expert.isVerified
-                  ? "Verified provider"
+                  ? "Verified helper"
                   : "Verification in progress"}
               </h2>
 
-              <p className="mt-3 leading-7 text-muted">
+              <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
                 Verification is earned after 3 successful calls and a rating of
                 at least 3.8.
               </p>
@@ -357,12 +356,12 @@ export default async function ExpertSettingsPage({
                 Profile visibility
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Public profile health
               </h2>
 
-              <p className="mt-3 leading-7 text-muted">
-                These signals affect how ready your profile is for clients.
+              <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
+                These signals affect how ready your profile is for buyers.
               </p>
 
               <div className="mt-6 grid gap-3">
@@ -409,17 +408,17 @@ export default async function ExpertSettingsPage({
                   Data tools
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                  Provider data and exports
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+                  Helper data and exports
                 </h2>
 
-                <p className="mt-3 max-w-3xl leading-7 text-muted">
+                <p className="mt-3 max-w-3xl leading-7 text-[var(--muted-foreground)]">
                   Later this area can include booking export, review export,
                   invoices, tax documents and account archive.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 text-sm font-black text-[var(--muted-foreground)]">
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-bold text-[var(--muted-foreground)]">
                 Coming soon
               </div>
             </div>
@@ -433,18 +432,18 @@ export default async function ExpertSettingsPage({
                   Danger zone
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   Sensitive account actions
                 </h2>
 
-                <p className="mt-3 max-w-3xl leading-7 text-muted">
-                  Later this area can include pause profile, deactivate provider
+                <p className="mt-3 max-w-3xl leading-7 text-[var(--muted-foreground)]">
+                  Later this area can include pause profile, deactivate helper
                   account, export data and delete account. For now these actions
                   are disabled to protect your data.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-[var(--danger)]/20 bg-white/64 p-4 text-sm font-black text-[var(--danger)]">
+              <div className="rounded-2xl border border-[var(--danger)]/20 bg-[var(--background-soft)] p-4 text-sm font-bold text-[var(--danger)]">
                 Protected
               </div>
             </div>
@@ -502,17 +501,19 @@ function SettingRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <Icon size={18} />
       </div>
 
       <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
           {label}
         </p>
 
-        <p className="mt-1 truncate font-black">{value}</p>
+        <p className="mt-1 truncate font-bold text-[var(--foreground)]">
+          {value}
+        </p>
       </div>
     </div>
   );
@@ -528,8 +529,11 @@ function VisibilityRow({
   tone: "success" | "accent";
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <p className="text-sm font-bold text-muted">{label}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
       <Badge variant={tone}>{value}</Badge>
     </div>
   );
@@ -545,8 +549,8 @@ function PayoutStatusBox({
   tone: "success" | "accent";
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
@@ -559,10 +563,12 @@ function PayoutStatusBox({
 
 function SmallStat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <p className="text-2xl font-black tracking-[-0.04em]">{value}</p>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-muted">
+      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
     </div>

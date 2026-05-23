@@ -215,20 +215,20 @@ export default async function ExpertServicesPage({
             <div>
               <Link
                 href="/expert"
-                className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+                className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
               >
                 <ArrowLeft size={16} />
                 Back to dashboard
               </Link>
 
               {resolvedSearchParams.created ? (
-                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
                   Offer created successfully.
                 </div>
               ) : null}
 
               {resolvedSearchParams.updated ? (
-                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
                   Offer updated successfully.
                 </div>
               ) : null}
@@ -250,7 +250,7 @@ export default async function ExpertServicesPage({
                 Create offers people can understand, find and book.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Each offer should solve one clear problem. Explain who it is for,
                 what happens during the call and what the buyer gets by the end.
               </p>
@@ -339,7 +339,7 @@ export default async function ExpertServicesPage({
           {!isBookable ? (
             <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
               <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/70 text-[var(--warning)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--warning)]">
                   <Lightbulb size={24} />
                 </div>
 
@@ -348,7 +348,7 @@ export default async function ExpertServicesPage({
                     Your offers are not fully ready for paid bookings yet.
                   </h2>
 
-                  <p className="mt-2 leading-7 text-muted">
+                  <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
                     You need at least one active offer, open availability and
                     Stripe payouts connected before buyers can book smoothly.
                   </p>
@@ -371,7 +371,7 @@ export default async function ExpertServicesPage({
           ) : (
             <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6">
               <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/70 text-[var(--success)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--success)]">
                   <CheckCircle2 size={24} />
                 </div>
 
@@ -380,7 +380,7 @@ export default async function ExpertServicesPage({
                     Your profile can accept bookings.
                   </h2>
 
-                  <p className="mt-2 leading-7 text-muted">
+                  <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
                     You have active offers, open slots and payout setup. Keep
                     your offers clear, searchable and easy to book.
                   </p>
@@ -406,7 +406,7 @@ export default async function ExpertServicesPage({
                   Pricing overview
                 </h2>
 
-                <p className="mt-3 text-sm font-bold leading-6 text-muted">
+                <p className="mt-3 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                   Use this to understand your offer range and estimated helper
                   net after SkillDrop commission.
                 </p>
@@ -507,7 +507,7 @@ export default async function ExpertServicesPage({
                   Your offer title and description help buyers find you.
                 </h2>
 
-                <p className="mt-3 text-sm font-bold leading-6 text-muted">
+                <p className="mt-3 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                   SkillDrop search reads your profile, skills, tags and service
                   details. Add simple words people would type when they need
                   help.
@@ -517,7 +517,7 @@ export default async function ExpertServicesPage({
                   {keywordExamples.map((example) => (
                     <div
                       key={example}
-                      className="rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-sm font-black text-[var(--muted-foreground)]"
+                      className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3 text-sm font-bold text-[var(--muted-foreground)]"
                     >
                       {example}
                     </div>
@@ -529,7 +529,7 @@ export default async function ExpertServicesPage({
             <div className="grid gap-6">
               <details
                 id="add-offer"
-                className="group rounded-[28px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur"
+                className="group rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-sm)] backdrop-blur"
                 open={expert.services.length === 0}
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-[22px] p-2">
@@ -539,10 +539,10 @@ export default async function ExpertServicesPage({
                     </div>
 
                     <div>
-                      <p className="font-black tracking-[-0.02em]">
+                      <p className="font-bold tracking-[-0.02em]">
                         Add new offer
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-muted">
+                      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
                         Create one clear service people can find and book.
                       </p>
                     </div>
@@ -563,11 +563,11 @@ export default async function ExpertServicesPage({
                       />
 
                       <div>
-                        <p className="font-black text-[var(--primary-dark)]">
+                        <p className="font-bold text-[var(--primary-dark)]">
                           Build your offer around one buyer problem
                         </p>
 
-                        <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
+                        <p className="mt-1 text-sm font-medium leading-6 text-[var(--primary-dark)]/80">
                           A good offer answers four questions: what problem do
                           you solve, who is it for, what happens during the
                           call, and what result does the buyer get?
@@ -625,7 +625,7 @@ export default async function ExpertServicesPage({
                         rows={6}
                         minLength={30}
                         maxLength={800}
-                        className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm font-semibold leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+                        className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-[var(--background-soft)] p-4 text-sm font-medium leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
                         placeholder="Explain who this is for, what problem you solve, what happens during the call, and what the buyer gets by the end. Add searchable words like CV, visa, documents, coding, interview, translation, study or relocation when relevant."
                       />
                     </Field>
@@ -656,7 +656,7 @@ export default async function ExpertServicesPage({
                         <div className="relative mt-2">
                           <Euro
                             size={17}
-                            className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                            className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
                           />
 
                           <input
@@ -695,7 +695,7 @@ export default async function ExpertServicesPage({
                       Services list
                     </h2>
 
-                    <p className="mt-3 max-w-2xl leading-7 text-muted">
+                    <p className="mt-3 max-w-2xl leading-7 text-[var(--muted-foreground)]">
                       Active offers appear on your public profile. Edit opens
                       inside the page and shows a price breakdown before saving.
                     </p>
@@ -750,13 +750,17 @@ function MiniStat({
         <Icon size={20} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-3xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-2 text-3xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-sm font-semibold text-muted">{text}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </Card>
   );
 }
@@ -771,14 +775,16 @@ function InfoRow({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
 
       <p
         className={
           strong
-            ? "text-right text-sm font-black text-[var(--primary-dark)]"
-            : "text-right text-sm font-black"
+            ? "text-right text-sm font-bold text-[var(--primary-dark)]"
+            : "text-right text-sm font-bold text-[var(--foreground)]"
         }
       >
         {value}
@@ -798,7 +804,10 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="text-sm font-black">
+      <label
+        htmlFor={htmlFor}
+        className="text-sm font-bold text-[var(--foreground)]"
+      >
         {label}
       </label>
 
@@ -809,7 +818,7 @@ function Field({
 
 function CheckRow({ done, text }: { done: boolean; text: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
       <div
         className={
           done
@@ -820,14 +829,16 @@ function CheckRow({ done, text }: { done: boolean; text: string }) {
         {done ? <CheckCircle2 size={16} /> : <Clock3 size={16} />}
       </div>
 
-      <p className="text-sm font-bold text-muted">{text}</p>
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
 
 function Tip({ text }: { text: string }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/62 p-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
       <BadgeCheck size={17} className="mt-0.5 shrink-0 text-[var(--success)]" />
       {text}
     </div>
@@ -836,7 +847,7 @@ function Tip({ text }: { text: string }) {
 
 function ExampleBox({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-[24px] border border-[var(--border)] bg-white/55 p-4">
+    <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex gap-3">
         <Lightbulb
           size={18}
@@ -844,13 +855,15 @@ function ExampleBox({ title, items }: { title: string; items: string[] }) {
         />
 
         <div>
-          <p className="text-sm font-black">{title}</p>
+          <p className="text-sm font-bold text-[var(--foreground)]">
+            {title}
+          </p>
 
           <div className="mt-3 grid gap-2">
             {items.map((item) => (
               <div
                 key={item}
-                className="rounded-2xl border border-[var(--border)] bg-white/64 px-3 py-2 text-sm font-bold leading-6 text-muted"
+                className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]"
               >
                 {item}
               </div>
@@ -864,16 +877,16 @@ function ExampleBox({ title, items }: { title: string; items: string[] }) {
 
 function EmptyState() {
   return (
-    <div className="rounded-[26px] border border-dashed border-[var(--border-strong)] bg-white/55 p-8 text-center">
+    <div className="rounded-[26px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-8 text-center">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <FileText size={24} />
       </div>
 
-      <h3 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+      <h3 className="mt-5 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
         No offers yet
       </h3>
 
-      <p className="mx-auto mt-3 max-w-md leading-7 text-muted">
+      <p className="mx-auto mt-3 max-w-md leading-7 text-[var(--muted-foreground)]">
         Open “Add new offer” and create your first bookable service around one
         clear buyer problem.
       </p>

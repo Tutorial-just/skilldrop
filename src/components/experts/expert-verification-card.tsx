@@ -30,51 +30,53 @@ export function ExpertVerificationCard({
   return (
     <section
       className={cn(
-        "rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950",
+        "rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-sm)] md:p-6",
         className,
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <div
             className={cn(
-              "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
+              "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold",
               isVerified
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-                : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
+                ? "border-[var(--success)]/20 bg-[var(--success-soft)] text-[var(--success)]"
+                : "border-[var(--warning)]/20 bg-[var(--warning-soft)] text-[var(--warning)]",
             )}
           >
             <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
-            {isVerified ? "Earned Verified" : "Verification progress"}
+            {isVerified ? "Verified helper" : "Verification progress"}
           </div>
 
-          <h2 className="mt-3 text-lg font-bold text-slate-950 dark:text-white">
-            {isVerified ? "You earned your verification badge" : "Earn your verification badge"}
+          <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+            {isVerified
+              ? "You earned your verification badge"
+              : "Earn your verification badge"}
           </h2>
 
-          <p className="mt-1 max-w-xl text-sm text-slate-600 dark:text-slate-400">
+          <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             {isVerified
-              ? "Your profile has enough successful calls, reviews and rating to be trusted by clients."
-              : "Complete successful calls and collect positive reviews to unlock Earned Verified automatically."}
+              ? "Your profile has enough successful calls, buyer reviews and rating to be trusted faster."
+              : "Complete successful calls and collect positive buyer reviews to unlock Earned Verified automatically."}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right dark:border-slate-800 dark:bg-slate-900/60">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 py-3 text-left lg:text-right">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
             Progress
           </p>
 
-          <p className="mt-1 text-3xl font-bold text-slate-950 dark:text-white">
+          <p className="mt-1 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
             {progress}%
           </p>
         </div>
       </div>
 
-      <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+      <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-[var(--border)]">
         <div
           className={cn(
             "h-full rounded-full transition-all",
-            isVerified ? "bg-emerald-500" : "bg-amber-500",
+            isVerified ? "bg-[var(--success)]" : "bg-[var(--warning)]",
           )}
           style={{ width: `${progress}%` }}
         />
@@ -96,11 +98,11 @@ export function ExpertVerificationCard({
         <VerificationStep
           done={reviewsDone}
           icon={BadgeCheck}
-          label="Client reviews"
+          label="Buyer reviews"
           value={`${Math.min(totalReviews, requirements.minReviews)}/${requirements.minReviews}`}
           helper={
             reviewsDone
-              ? "Enough client reviews."
+              ? "Enough buyer reviews."
               : `${Math.max(requirements.minReviews - totalReviews, 0)} more needed.`
           }
         />
@@ -137,10 +139,10 @@ function VerificationStep({
   return (
     <div
       className={cn(
-        "rounded-2xl border p-4",
+        "rounded-2xl border p-4 transition",
         done
-          ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
-          : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50",
+          ? "border-[var(--success)]/20 bg-[var(--success-soft)]"
+          : "border-[var(--border)] bg-[var(--card-soft)]",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -148,8 +150,8 @@ function VerificationStep({
           className={cn(
             "flex h-10 w-10 items-center justify-center rounded-2xl",
             done
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300"
-              : "bg-white text-slate-500 dark:bg-slate-950 dark:text-slate-400",
+              ? "bg-[var(--success-soft)] text-[var(--success)]"
+              : "bg-[var(--background-soft)] text-[var(--muted-foreground)]",
           )}
         >
           <Icon className="h-4 w-4" aria-hidden="true" />
@@ -157,23 +159,26 @@ function VerificationStep({
 
         {done ? (
           <CheckCircle2
-            className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+            className="h-5 w-5 text-[var(--success)]"
             aria-hidden="true"
           />
         ) : (
-          <Circle className="h-5 w-5 text-slate-400" aria-hidden="true" />
+          <Circle
+            className="h-5 w-5 text-[var(--muted-foreground)]"
+            aria-hidden="true"
+          />
         )}
       </div>
 
-      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-1 text-2xl font-bold text-slate-950 dark:text-white">
+      <p className="mt-1 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
         {value}
       </p>
 
-      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+      <p className="mt-1 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
         {helper}
       </p>
     </div>

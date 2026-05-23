@@ -195,8 +195,8 @@ export default async function ExpertDashboardPage({
   }
 
   const bio = expert.bio ?? "";
-  const providerName = expert.user.name || "Provider";
-  const providerEmail = expert.user.email || email;
+  const helperName = expert.user.name || "Helper";
+  const helperEmail = expert.user.email || email;
 
   const activeServices = expert.services.filter((service) => service.isActive);
   const quality = getExpertQuality({
@@ -311,11 +311,6 @@ export default async function ExpertDashboardPage({
     isVerified: expert.isVerified,
   });
 
-  const verificationProgress = calculateVerificationProgress({
-    totalSessions: expert.totalSessions,
-    rating: expert.rating,
-    isVerified: expert.isVerified,
-  });
 
   const checklist = [
     {
@@ -330,7 +325,7 @@ export default async function ExpertDashboardPage({
     },
     {
       title: "Create at least one offer",
-      text: "Clients need a clear service to book.",
+      text: "Buyers need a clear offer to understand what they will get.",
       done: activeServices.length > 0,
       href: "/expert/services",
     },
@@ -342,7 +337,7 @@ export default async function ExpertDashboardPage({
     },
     {
       title: "Connect Stripe payouts",
-      text: "Required before clients can safely book and pay you.",
+      text: "Required before buyers can safely book and pay you.",
       done: hasStripePayouts,
       href: "/expert/earnings",
     },
@@ -354,7 +349,7 @@ export default async function ExpertDashboardPage({
     },
     {
       title: "Earn client reviews",
-      text: "Reviews make future clients trust you faster.",
+      text: "Reviews help future buyers trust you faster.",
       done: expert.totalReviews > 0,
       href: "/expert/stats",
     },
@@ -366,8 +361,8 @@ export default async function ExpertDashboardPage({
   );
 
   const avatarLetter = (
-    providerName.charAt(0) ||
-    providerEmail.charAt(0) ||
+    helperName.charAt(0) ||
+    helperEmail.charAt(0) ||
     "P"
   ).toUpperCase();
 
@@ -378,8 +373,8 @@ export default async function ExpertDashboardPage({
 
         <div className="relative p-6 md:p-8 lg:p-10">
           {resolvedSearchParams.profile === "created" ? (
-            <div className="mb-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
-              Your provider profile is live. Add availability so clients can book your calls.
+            <div className="mb-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
+              Your helper profile is live. Add availability so clients can book your calls.
             </div>
           ) : null}
 
@@ -390,7 +385,7 @@ export default async function ExpertDashboardPage({
                   {expert.isVerified ? (
                     <>
                       <BadgeCheck size={14} />
-                      Verified provider
+                      Verified helper
                     </>
                   ) : (
                     <>
@@ -423,12 +418,11 @@ export default async function ExpertDashboardPage({
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Welcome back, {providerName}.
+                Welcome back, {helperName}.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Your workspace for calls, offers, availability, payouts, profile
-                growth and client trust.
+                Manage your calls, offers, availability, payouts and buyer trust from one place.
               </p>
             </div>
 
@@ -466,7 +460,7 @@ export default async function ExpertDashboardPage({
               icon={CircleDollarSign}
               label="Confirmed net"
               value={formatMoney(upcomingRevenueCents)}
-              hint="Estimated provider net"
+              hint="Estimated helper net"
             />
 
             <MetricCard
@@ -498,7 +492,7 @@ export default async function ExpertDashboardPage({
           {!isBookable ? (
             <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
               <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/70 text-[var(--warning)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--warning)]">
                   <ShieldCheck size={24} />
                 </div>
 
@@ -525,7 +519,7 @@ export default async function ExpertDashboardPage({
           ) : (
             <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6">
               <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/70 text-[var(--success)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--success)]">
                   <CheckCircle2 size={24} />
                 </div>
 
@@ -558,7 +552,7 @@ export default async function ExpertDashboardPage({
                       Today
                     </Badge>
 
-                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                    <h2 className="mt-4 text-3xl font-bold tracking-[-0.05em]">
                       {todaysBookings.length > 0
                         ? "Your next call is ready."
                         : "Your next call is upcoming."}
@@ -571,7 +565,7 @@ export default async function ExpertDashboardPage({
                     </p>
 
                     {nextBooking.note ? (
-                      <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                      <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
                         <div className="flex gap-3">
                           <MessageCircle
                             size={18}
@@ -579,7 +573,7 @@ export default async function ExpertDashboardPage({
                           />
 
                           <div>
-                            <p className="text-sm font-black">Client note</p>
+                            <p className="text-sm font-bold">Buyer note</p>
                             <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
                               {nextBooking.note}
                             </p>
@@ -601,21 +595,21 @@ export default async function ExpertDashboardPage({
                     </div>
                   </div>
 
-                  <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+                  <div className="rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
                     <Badge variant="accent">
                       <Clock3 size={14} />
                       {todaysBookings.length > 0 ? "Next call today" : "Upcoming call"}
                     </Badge>
 
                     <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                      {nextBooking.service?.title ?? "Provider call"}
+                      {nextBooking.service?.title ?? "Helper call"}
                     </h3>
 
                     <p className="mt-2 text-sm font-semibold leading-6 text-muted">
                       Client: {nextBooking.buyer.name ?? nextBooking.buyer.email}
                     </p>
 
-                    <p className="mt-4 text-sm font-black text-[var(--primary-dark)]">
+                    <p className="mt-4 text-sm font-bold text-[var(--primary-dark)]">
                       {formatDateTime(nextBooking.startTime)}
                     </p>
 
@@ -626,7 +620,7 @@ export default async function ExpertDashboardPage({
                       />
 
                       <SmallInfoRow
-                        label="Provider net"
+                        label="Helper net"
                         value={formatMoney(getProviderNetCents(nextBooking))}
                       />
                     </div>
@@ -673,7 +667,7 @@ export default async function ExpertDashboardPage({
                     Today
                   </Badge>
 
-                  <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  <h2 className="mt-4 text-3xl font-bold tracking-[-0.05em]">
                     {nextTodayOpenSlot
                       ? "You have open availability today."
                       : "No calls yet today."}
@@ -720,7 +714,7 @@ export default async function ExpertDashboardPage({
                   </p>
                 </div>
 
-                <p className="text-sm font-black text-[var(--primary-dark)]">
+                <p className="text-sm font-bold text-[var(--primary-dark)]">
                   {checklistProgress >= 80 ? "Strong" : "Keep going"}
                 </p>
               </div>
@@ -809,8 +803,8 @@ export default async function ExpertDashboardPage({
                       <SlotChip key={slot.id} slot={slot} />
                     ))
                   ) : (
-                    <div className="w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-white/55 p-5">
-                      <p className="font-black">No bookable times yet</p>
+                    <div className="w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-5">
+                      <p className="font-bold">No bookable times yet</p>
 
                       <p className="mt-2 text-sm leading-6 text-muted">
                         Add availability so clients can choose a time.
@@ -842,7 +836,7 @@ export default async function ExpertDashboardPage({
 
                 <div className="mt-5 flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-5xl font-black tracking-[-0.06em]">
+                    <p className="text-5xl font-bold tracking-[-0.06em]">
                       {profileScore}%
                     </p>
 
@@ -885,7 +879,7 @@ export default async function ExpertDashboardPage({
                     </Badge>
 
                     <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                      Manage your provider business
+                      Manage your helper business
                     </h2>
 
                     <p className="mt-3 max-w-2xl leading-7 text-muted">
@@ -900,7 +894,7 @@ export default async function ExpertDashboardPage({
 
                     return (
                       <Link key={item.href} href={item.href} className="group">
-                        <div className="h-full rounded-[22px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+                        <div className="h-full rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
                               <Icon size={18} />
@@ -978,13 +972,13 @@ export default async function ExpertDashboardPage({
                   </Badge>
 
                   <div className="mt-5 flex items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-black text-white">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-bold text-white">
                       {avatarLetter}
                     </div>
 
                     <div className="min-w-0">
-                      <p className="font-black tracking-[-0.02em]">
-                        {providerName}
+                      <p className="font-bold tracking-[-0.02em]">
+                        {helperName}
                       </p>
 
                       <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">
@@ -997,7 +991,7 @@ export default async function ExpertDashboardPage({
                     {expert.skills.slice(0, 4).map((skill) => (
                       <span
                         key={skill}
-                        className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]"
+                        className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1 text-xs font-black text-[var(--muted-foreground)]"
                       >
                         #{skill}
                       </span>
@@ -1012,7 +1006,7 @@ export default async function ExpertDashboardPage({
 
                   <div className="mt-5">
                     <ButtonLink href={`/experts/${expert.id}`} variant="secondary">
-                      View as client
+                      View as buyer
                     </ButtonLink>
                   </div>
                 </Card>
@@ -1020,7 +1014,7 @@ export default async function ExpertDashboardPage({
             </div>
           </div>
 
-          <UnreadNotificationsCard userId={expert.user.id} email={providerEmail} />
+          <UnreadNotificationsCard userId={expert.user.id} email={helperEmail} />
 
           <Card soft className="p-5 md:p-6">
             <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
@@ -1096,18 +1090,18 @@ function AttentionCard({
         className={`h-full p-5 transition group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)] ${className}`}
       >
         <div className="flex items-start justify-between gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/70 text-[var(--primary-dark)]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--primary-dark)]">
             <Icon size={21} />
           </div>
 
-          <p className="text-3xl font-black tracking-[-0.05em]">{value}</p>
+          <p className="text-3xl font-bold tracking-[-0.05em]">{value}</p>
         </div>
 
         <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
 
         <p className="mt-2 text-sm font-bold leading-6 text-muted">{text}</p>
 
-        <div className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]">
+        <div className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]">
           Open bookings
           <ArrowRight size={16} />
         </div>
@@ -1136,7 +1130,7 @@ function SlotChip({
   return (
     <Link
       href="/expert/availability"
-      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-3 py-2 text-sm font-black text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--shadow-sm)]"
+      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-sm font-bold text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]"
       title={`${formatDateTime(slot.startTime)} — ${formatTime(slot.endTime)}`}
     >
       <Clock3 size={14} />
@@ -1178,7 +1172,7 @@ function MetricCard({
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-2 text-2xl font-bold tracking-[-0.04em]">{value}</p>
 
       <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
     </Card>
@@ -1198,7 +1192,7 @@ function ChecklistRow({
   return (
     <Link
       href={item.href}
-      className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-3 transition hover:bg-white hover:shadow-[var(--shadow-sm)]"
+      className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3 transition hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]"
     >
       <div
         className={
@@ -1211,7 +1205,7 @@ function ChecklistRow({
       </div>
 
       <div className="min-w-0">
-        <p className="font-black tracking-[-0.02em]">{item.title}</p>
+        <p className="font-bold tracking-[-0.02em]">{item.title}</p>
 
         <p className="mt-1 line-clamp-1 text-xs font-semibold text-muted">
           {item.text}
@@ -1223,7 +1217,7 @@ function ChecklistRow({
 
 function MiniCheck({ done, text }: { done: boolean; text: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
       <div
         className={
           done
@@ -1239,32 +1233,21 @@ function MiniCheck({ done, text }: { done: boolean; text: string }) {
   );
 }
 
-function TinyStat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-xl font-black tracking-[-0.04em]">{value}</p>
-
-      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-        {label}
-      </p>
-    </div>
-  );
-}
 
 function MoneyRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
       <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="font-black">{value}</p>
+      <p className="font-bold">{value}</p>
     </div>
   );
 }
 
 function SmallInfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
       <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
+      <p className="text-right text-sm font-bold">{value}</p>
     </div>
   );
 }
@@ -1514,7 +1497,7 @@ function formatStatus(status: BookingStatus) {
   }
 
   if (status === BookingStatus.PAID) {
-    return "Paid";
+    return "Confirming";
   }
 
   if (status === BookingStatus.CONFIRMED) {

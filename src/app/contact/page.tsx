@@ -250,8 +250,7 @@ export default function ContactPage() {
               </h2>
 
               <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-muted">
-                For the MVP, support is handled manually by email. Later, you can
-                add an in-app support ticket system.
+                During the early launch, support is handled manually by email.
               </p>
             </div>
 

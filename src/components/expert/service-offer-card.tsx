@@ -71,7 +71,7 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
   const [isEditing, setIsEditing] = useState(false);
 
   return (
-    <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4 transition hover:bg-white hover:shadow-[var(--shadow-sm)]">
+    <div className="rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]">
       <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -87,15 +87,15 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
             </Badge>
           </div>
 
-          <p className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-muted">
+          <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
             Buyer problem / offer
           </p>
 
-          <h3 className="mt-2 text-xl font-black tracking-[-0.03em]">
+          <h3 className="mt-2 text-xl font-black tracking-[-0.03em] text-[var(--foreground)]">
             {service.title}
           </h3>
 
-          <p className="mt-2 line-clamp-3 text-sm font-semibold leading-6 text-muted">
+          <p className="mt-2 line-clamp-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             {service.description}
           </p>
 
@@ -146,11 +146,11 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
                 Edit offer
               </Badge>
 
-              <h4 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              <h4 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                 Make this offer clear and searchable
               </h4>
 
-              <p className="mt-2 text-sm font-bold leading-6 text-muted">
+              <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 Update what problem you solve, who this is for, and what the
                 buyer gets after the call.
               </p>
@@ -159,7 +159,7 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
             <button
               type="button"
               onClick={() => setIsEditing(false)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--muted-foreground)] shadow-sm transition hover:bg-white hover:text-[var(--foreground)]"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--background-soft)] text-[var(--muted-foreground)] shadow-sm transition hover:border-[var(--border-strong)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
               aria-label="Close edit form"
             >
               <X size={19} />
@@ -226,7 +226,7 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
                 minLength={30}
                 maxLength={800}
                 defaultValue={service.description}
-                className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm font-semibold leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+                className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-[var(--background-soft)] p-4 text-sm font-medium leading-7 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(139,92,246,0.14)]"
                 placeholder="Explain who this is for, what problem you solve, what happens during the call, and what the buyer gets by the end. Add searchable words like CV, visa, documents, coding, interview, translation, study or relocation when relevant."
               />
             </Field>
@@ -297,15 +297,17 @@ function MiniInfo({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/55 p-3">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-3">
       <div className="flex items-center gap-2 text-[var(--primary-dark)]">
         <Icon size={15} />
-        <p className="text-xs font-black uppercase tracking-[0.12em]">
+        <p className="text-xs font-bold uppercase tracking-[0.12em]">
           {label}
         </p>
       </div>
 
-      <p className="mt-2 text-sm font-black">{value}</p>
+      <p className="mt-2 text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
@@ -320,7 +322,7 @@ function HelpBox({
   text: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--background-soft)] p-4">
       <div className="flex gap-3">
         <Icon
           size={18}
@@ -328,8 +330,11 @@ function HelpBox({
         />
 
         <div>
-          <p className="text-sm font-black">{title}</p>
-          <p className="mt-1 text-sm font-semibold leading-6 text-muted">
+          <p className="text-sm font-bold text-[var(--foreground)]">
+            {title}
+          </p>
+
+          <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             {text}
           </p>
         </div>
@@ -349,7 +354,10 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="text-sm font-black">
+      <label
+        htmlFor={htmlFor}
+        className="text-sm font-bold text-[var(--foreground)]"
+      >
         {label}
       </label>
 
@@ -360,7 +368,7 @@ function Field({
 
 function ExampleBox({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-[24px] border border-[var(--border)] bg-white/55 p-4">
+    <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex gap-3">
         <BadgeCheck
           size={18}
@@ -368,13 +376,15 @@ function ExampleBox({ title, items }: { title: string; items: string[] }) {
         />
 
         <div>
-          <p className="text-sm font-black">{title}</p>
+          <p className="text-sm font-bold text-[var(--foreground)]">
+            {title}
+          </p>
 
           <div className="mt-3 grid gap-2">
             {items.map((item) => (
               <div
                 key={item}
-                className="rounded-2xl border border-[var(--border)] bg-white/64 px-3 py-2 text-sm font-bold leading-6 text-muted"
+                className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]"
               >
                 {item}
               </div>

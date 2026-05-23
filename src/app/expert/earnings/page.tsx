@@ -108,20 +108,20 @@ export default async function ExpertEarningsPage({
         <div className="relative p-6 md:p-8 lg:p-10">
           <Link
             href="/expert"
-            className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
           >
             <ArrowLeft size={16} />
             Back to dashboard
           </Link>
 
           {resolvedSearchParams.stripe ? (
-            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
               {formatStripeMessage(resolvedSearchParams.stripe)}
             </div>
           ) : null}
 
           {resolvedSearchParams.error ? (
-            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
               {formatStripeError(resolvedSearchParams.error)}
             </div>
           ) : null}
@@ -137,7 +137,7 @@ export default async function ExpertEarningsPage({
                 Track your SkillDrop earnings.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 See completed paid calls, SkillDrop commission, payout-ready
                 estimates and upcoming confirmed value.
               </p>
@@ -180,7 +180,7 @@ export default async function ExpertEarningsPage({
               icon={ShieldCheck}
               label="SkillDrop commission"
               value={formatMoney(completedTotals.providerCommissionCents)}
-              hint="Provider-side fee"
+              hint="Helper-side fee"
             />
 
             <MetricCard
@@ -213,7 +213,7 @@ export default async function ExpertEarningsPage({
                 Money flow
               </h2>
 
-              <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+              <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 Completed calls are payout-ready estimates. Confirmed and paid
                 calls are not counted as payout-ready until completed.
               </p>
@@ -256,7 +256,7 @@ export default async function ExpertEarningsPage({
                 Completed, confirmed and paid calls
               </h2>
 
-              <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+              <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 Completed calls count toward payout-ready earnings. Confirmed
                 calls are upcoming value. Paid calls are waiting for final
                 confirmation or webhook processing.
@@ -292,14 +292,14 @@ export default async function ExpertEarningsPage({
                     : "Connect Stripe account."}
               </h2>
 
-              <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+              <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 Buyers can pay only when Stripe Connect is ready. Stripe handles
                 onboarding, identity verification and payout setup.
               </p>
 
               <div className="mt-5 grid gap-3">
-                <InfoRow label="Provider commission" value="10%" />
-                <InfoRow label="Payout provider" value="Stripe Connect" />
+                <InfoRow label="Helper commission" value="10%" />
+                <InfoRow label="Payout processor" value="Stripe Connect" />
                 <InfoRow
                   label="Stripe account"
                   value={expert.stripeAccountId ? "Created" : "Not connected"}
@@ -311,21 +311,21 @@ export default async function ExpertEarningsPage({
               </div>
 
               {expert.stripeAccountId ? (
-                <p className="mt-5 break-all rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-xs font-bold text-muted">
+                <p className="mt-5 break-all rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3 text-xs font-bold text-[var(--muted-foreground)]">
                   Stripe account: {maskStripeAccountId(expert.stripeAccountId)}
                 </p>
               ) : null}
 
               {stripeStatus.error ? (
-                <div className="mt-5 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
+                <div className="mt-5 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold leading-6 text-[var(--danger)]">
                   {stripeStatus.error}
                 </div>
               ) : stripeStatus.ready ? (
-                <div className="mt-5 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
+                <div className="mt-5 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold leading-6 text-[var(--success)]">
                   Stripe confirmed charges and payouts are enabled.
                 </div>
               ) : (
-                <div className="mt-5 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-sm font-black leading-6 text-[var(--warning)]">
+                <div className="mt-5 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-sm font-bold leading-6 text-[var(--warning)]">
                   Continue onboarding, then refresh status.
                 </div>
               )}
@@ -365,8 +365,8 @@ export default async function ExpertEarningsPage({
               </Badge>
 
               <div className="mt-4 grid gap-3">
-                <Tip text="Client service fees are paid by clients on top of the service price." />
-                <Tip text="Client service fees are not deducted from your provider earnings." />
+                <Tip text="Buyer service fees are paid by buyers on top of the offer price." />
+                <Tip text="Buyer service fees are not deducted from your helper earnings." />
                 <Tip text="Earnings become payout-ready only after a call is completed." />
                 <Tip text="Cancelled, refunded or disputed bookings do not count as payout-ready." />
               </div>
@@ -458,9 +458,9 @@ function EarningBookingCard({
   const isPaid = booking.status === "PAID";
 
   return (
-    <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-        <div>
+        <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
 
@@ -469,7 +469,7 @@ function EarningBookingCard({
             ) : isConfirmed ? (
               <Badge variant="primary">Upcoming value</Badge>
             ) : isPaid ? (
-              <Badge variant="accent">Payment processing</Badge>
+              <Badge variant="accent">Confirming payment</Badge>
             ) : null}
 
             {booking.review ? (
@@ -477,29 +477,31 @@ function EarningBookingCard({
             ) : null}
           </div>
 
-          <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+          <h3 className="mt-4 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
             {booking.service?.title ?? "Booked call"}
           </h3>
 
-          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             Buyer: {booking.buyer.name ?? booking.buyer.email}
           </p>
 
-          <p className="mt-3 inline-flex items-center gap-2 text-sm font-black text-muted">
+          <p className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[var(--muted-foreground)]">
             <Clock3 size={14} />
             {formatDateTime(booking.startTime)}
           </p>
         </div>
 
-        <div className="grid min-w-[240px] gap-2 rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+        <div className="grid min-w-[240px] gap-2 rounded-[22px] border border-[var(--border)] bg-[var(--background-soft)] p-4">
           <InfoRow
-            label="Service price"
+            label="Offer price"
             value={formatMoney(pricing.servicePriceCents)}
           />
+
           <InfoRow
             label="SkillDrop commission"
             value={formatMoney(pricing.providerCommissionCents)}
           />
+
           <InfoRow
             label={isCompleted ? "Net estimate" : "Net if completed"}
             value={formatMoney(pricing.providerNetCents)}
@@ -508,10 +510,14 @@ function EarningBookingCard({
           <div className="my-1 h-px bg-[var(--border)]" />
 
           <InfoRow
-            label="Client service fee"
+            label="Buyer service fee"
             value={formatMoney(pricing.clientServiceFeeCents)}
           />
-          <InfoRow label="Client paid" value={formatMoney(pricing.clientTotalCents)} />
+
+          <InfoRow
+            label="Buyer paid"
+            value={formatMoney(pricing.clientTotalCents)}
+          />
         </div>
       </div>
     </div>
@@ -535,13 +541,17 @@ function MetricCard({
         <Icon size={20} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </Card>
   );
 }
@@ -562,21 +572,40 @@ function MoneyBox({
       className={
         strong
           ? "rounded-[22px] border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-4"
-          : "rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+          : "rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
       }
     >
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
-      <p className="mt-1 text-xs font-semibold text-muted">{hint}</p>
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p
+        className={
+          strong
+            ? "mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--primary-dark)]"
+            : "mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]"
+        }
+      >
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs font-medium text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </div>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-right text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
@@ -591,7 +620,7 @@ function StatusBadge({ status }: { status: string }) {
   }
 
   if (status === "PAID") {
-    return <Badge variant="accent">Paid</Badge>;
+    return <Badge variant="accent">Confirming</Badge>;
   }
 
   return <Badge variant="accent">{status.toLowerCase()}</Badge>;
@@ -599,18 +628,22 @@ function StatusBadge({ status }: { status: string }) {
 
 function Tip({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
 
 function EmptyState({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center">
-      <h3 className="text-2xl font-black tracking-[-0.04em]">{title}</h3>
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-7 text-center">
+      <h3 className="text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+      <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         {text}
       </p>
     </div>

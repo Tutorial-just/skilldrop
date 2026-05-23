@@ -153,95 +153,99 @@ export default async function ExpertLayout({
     isVerified: expert.isVerified,
   });
 
-  const displayName = expert.user.name || "Provider";
+  const displayName = expert.user.name || "Helper";
   const displayEmail = expert.user.email || email;
   const initials = getInitials(displayName || displayEmail);
 
   return (
-    <div className="min-h-[calc(100vh-76px)] p-4 md:p-6">
+    <div className="min-h-[calc(100vh-76px)] px-4 py-5 md:px-6 md:py-7">
       <div className="mx-auto grid max-w-[1500px] gap-6 xl:grid-cols-[280px_1fr]">
         <aside className="xl:sticky xl:top-[92px] xl:self-start">
-          <div className="max-h-none overflow-visible rounded-[32px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur-xl xl:max-h-[calc(100vh-116px)] xl:overflow-y-auto">
-            <div className="rounded-[28px] bg-gradient-to-br from-[#2f2a68] to-[#111827] p-4 text-white">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/14 text-lg font-black">
-                {initials}
-              </div>
+          <div className="rounded-[30px] border border-[var(--border)] bg-[var(--card)]/90 p-3 shadow-[var(--shadow-sm)] backdrop-blur-xl xl:max-h-[calc(100vh-116px)] xl:overflow-y-auto">
+            <div className="rounded-[26px] border border-white/10 bg-gradient-to-br from-[#312e81] via-[#1e1b4b] to-[#0f172a] p-4 text-white shadow-[var(--shadow-sm)]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/14 text-base font-bold ring-1 ring-white/12">
+                  {initials}
+                </div>
 
-              <h2 className="mt-4 truncate text-lg font-black tracking-[-0.04em]">
-                {displayName}
-              </h2>
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-bold tracking-[-0.03em]">
+                    {displayName}
+                  </h2>
 
-              <p className="mt-1 truncate text-xs font-bold text-white/70">
-                {displayEmail}
-              </p>
-
-              <div className="mt-4 grid gap-2">
-                <div className="rounded-2xl bg-white/12 p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
-                    Workspace
+                  <p className="mt-1 truncate text-xs font-medium text-white/70">
+                    {displayEmail}
                   </p>
-                  <p className="mt-1 text-sm font-black">Provider</p>
                 </div>
-
-                <div className="rounded-2xl bg-white/12 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
-                      Profile
-                    </p>
-                    <p className="text-xs font-black text-white">
-                      {profileScore}%
-                    </p>
-                  </div>
-
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/14">
-                    <div
-                      className="h-full rounded-full bg-white"
-                      style={{ width: `${profileScore}%` }}
-                    />
-                  </div>
-                </div>
-
-                {needsCompletionBookings.length > 0 ? (
-                  <Link
-                    href="/expert/bookings"
-                    className="rounded-2xl bg-white/12 p-3 transition hover:bg-white/18"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
-                        Needs action
-                      </p>
-                      <p className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#111827]">
-                        {needsCompletionBookings.length}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-sm font-black">
-                      Complete finished calls
-                    </p>
-                  </Link>
-                ) : null}
-
-                {unreadNotifications > 0 ? (
-                  <Link
-                    href="/notifications?filter=unread"
-                    className="rounded-2xl bg-white/12 p-3 transition hover:bg-white/18"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
-                        Unread
-                      </p>
-                      <p className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#111827]">
-                        {unreadNotifications}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-sm font-black">
-                      Notifications waiting
-                    </p>
-                  </Link>
-                ) : null}
               </div>
+
+              <div className="mt-4 rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/56">
+                    Helper profile
+                  </p>
+
+                  <p className="text-sm font-bold text-white">
+                    {profileScore}%
+                  </p>
+                </div>
+
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/14">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-violet-300 to-white"
+                    style={{ width: `${profileScore}%` }}
+                  />
+                </div>
+
+                <p className="mt-2 text-xs font-medium leading-5 text-white/66">
+                  Complete your profile to look more trustworthy and get more bookings.
+                </p>
+              </div>
+
+              {needsCompletionBookings.length > 0 ? (
+                <Link
+                  href="/expert/bookings"
+                  className="mt-3 block rounded-2xl bg-amber-300/16 p-3 text-white ring-1 ring-amber-200/20 transition hover:bg-amber-300/22"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-100/80">
+                      Needs action
+                    </p>
+
+                    <p className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-950">
+                      {needsCompletionBookings.length}
+                    </p>
+                  </div>
+
+                  <p className="mt-1 text-sm font-bold">
+                    Complete finished calls
+                  </p>
+                </Link>
+              ) : null}
+
+              {unreadNotifications > 0 ? (
+                <Link
+                  href="/notifications?filter=unread"
+                  className="mt-3 block rounded-2xl bg-violet-300/16 p-3 text-white ring-1 ring-violet-200/20 transition hover:bg-violet-300/22"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-violet-100/80">
+                      Unread
+                    </p>
+
+                    <p className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-950">
+                      {unreadNotifications}
+                    </p>
+                  </div>
+
+                  <p className="mt-1 text-sm font-bold">
+                    Notifications waiting
+                  </p>
+                </Link>
+              ) : null}
             </div>
 
-            <nav className="mt-4 grid gap-1.5">
+            <nav className="mt-4 grid gap-1">
               {expertLinks.map((link) => {
                 const Icon = link.icon;
                 const badgeValue =
@@ -251,21 +255,29 @@ export default async function ExpertLayout({
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="group flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-sm font-black text-[var(--foreground)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
+                    className={[
+                      "group flex items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5",
+                      "text-sm font-semibold text-[var(--muted-foreground)]",
+                      "transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]",
+                      "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.25)]",
+                    ].join(" ")}
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <Icon size={17} className="shrink-0" />
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)] transition group-hover:bg-[var(--primary)] group-hover:text-white">
+                        <Icon size={16} />
+                      </span>
+
                       <span className="truncate">{link.label}</span>
                     </span>
 
                     <span className="flex shrink-0 items-center gap-2">
                       {badgeValue > 0 ? (
-                        <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-black text-white">
+                        <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-bold text-white">
                           {badgeValue}
                         </span>
                       ) : null}
 
-                      <span className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]">
+                      <span className="text-[var(--muted)] transition group-hover:translate-x-0.5 group-hover:text-[var(--primary-dark)]">
                         ›
                       </span>
                     </span>
@@ -283,13 +295,15 @@ export default async function ExpertLayout({
               <SidebarStat label="Unread" value={String(unreadNotifications)} />
             </div>
 
-            <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/62 p-4">
+            <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-[var(--primary-dark)]" />
-                <p className="text-sm font-black">Quick tip</p>
+                <p className="text-sm font-bold text-[var(--foreground)]">
+                  Quick tip
+                </p>
               </div>
 
-              <p className="mt-2 text-xs font-semibold leading-5 text-muted">
+              <p className="mt-2 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
                 Keep your offers clear, complete finished calls, and add fresh
                 availability windows every week.
               </p>
@@ -297,9 +311,9 @@ export default async function ExpertLayout({
           </div>
         </aside>
 
-        <div className="min-w-0 overflow-hidden rounded-[32px] border border-[var(--border)] bg-white/38 shadow-[var(--shadow-sm)] backdrop-blur-xl">
+        <main className="min-w-0 overflow-hidden rounded-[30px] border border-[var(--border)] bg-[var(--card)]/92 shadow-[var(--shadow-sm)] backdrop-blur-xl">
           {children}
-        </div>
+        </main>
       </div>
     </div>
   );
@@ -307,9 +321,12 @@ export default async function ExpertLayout({
 
 function SidebarStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/62 px-4 py-2.5">
-      <p className="text-xs font-bold text-muted">{label}</p>
-      <p className="text-xs font-black">{value}</p>
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2.5">
+      <p className="text-xs font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-xs font-bold text-[var(--foreground)]">{value}</p>
     </div>
   );
 }
@@ -320,7 +337,7 @@ function getInitials(value: string) {
     .split(" ")
     .filter(Boolean);
 
-  const first = parts[0]?.charAt(0) ?? "P";
+  const first = parts[0]?.charAt(0) ?? "H";
   const second = parts[1]?.charAt(0) ?? "";
 
   return `${first}${second}`.toUpperCase();
