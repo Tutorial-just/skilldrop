@@ -141,16 +141,20 @@ export function TagInput({
     updateItems(items.filter((item) => item !== itemToRemove));
   }
 
+  const hasError = required && items.length === 0;
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <label className="text-sm font-black">{label}</label>
+        <label className="text-sm font-bold text-[var(--foreground)]">
+          {label}
+        </label>
 
         <p
           className={
-            required && items.length === 0
-              ? "text-xs font-black text-[var(--danger)]"
-              : "text-xs font-bold text-muted"
+            hasError
+              ? "text-xs font-bold text-[var(--danger)]"
+              : "text-xs font-bold text-[var(--muted-foreground)]"
           }
         >
           {items.length}/{maxItems}
@@ -165,19 +169,25 @@ export function TagInput({
         readOnly
       />
 
-      <div className="mt-2 rounded-[24px] border border-[var(--border)] bg-white/64 p-3 transition focus-within:border-[var(--primary)]/50 focus-within:shadow-[0_0_0_4px_rgba(139,92,246,0.12)]">
+      <div
+        className={
+          hasError
+            ? "mt-2 rounded-[24px] border border-[var(--danger)]/40 bg-[var(--background-soft)] p-3 transition focus-within:border-[var(--danger)]/60 focus-within:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]"
+            : "mt-2 rounded-[24px] border border-[var(--border)] bg-[var(--background-soft)] p-3 transition focus-within:border-[var(--primary)]/50 focus-within:shadow-[0_0_0_4px_rgba(139,92,246,0.12)]"
+        }
+      >
         <div className="flex flex-wrap gap-2">
           {items.map((item) => (
             <span
               key={item}
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--primary)]/20 bg-[var(--primary-soft)] px-3 py-2 text-sm font-black text-[var(--primary-dark)]"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--primary)]/20 bg-[var(--primary-soft)] px-3 py-2 text-sm font-bold text-[var(--primary-dark)]"
             >
               #{item}
 
               <button
                 type="button"
                 onClick={() => removeItem(item)}
-                className="flex h-5 w-5 items-center justify-center rounded-full bg-white/64 text-[var(--primary-dark)] transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+                className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--background-soft)] text-[var(--primary-dark)] transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
                 aria-label={`Remove ${item}`}
               >
                 <X size={13} />
@@ -205,14 +215,14 @@ export function TagInput({
               }}
               onBlur={() => addItem(value)}
               required={required && items.length === 0}
-              className="min-h-9 flex-1 border-0 bg-transparent px-2 text-sm font-semibold text-[var(--foreground)] outline-none placeholder:text-muted"
+              className="min-h-9 flex-1 border-0 bg-transparent px-2 text-sm font-medium text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
               placeholder={items.length === 0 ? placeholder : "Add more..."}
             />
 
             <button
               type="button"
               onClick={() => addItem(value)}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.28)]"
               aria-label={`Add ${label}`}
             >
               <Plus size={15} />
@@ -221,8 +231,8 @@ export function TagInput({
         </div>
 
         {filteredSuggestions.length > 0 ? (
-          <div className="mt-3 rounded-[20px] border border-[var(--border)] bg-white/70 p-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-muted">
+          <div className="mt-3 rounded-[20px] border border-[var(--border)] bg-[var(--card-soft)] p-3">
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
               <Sparkles size={13} />
               Suggestions
             </div>
@@ -236,7 +246,7 @@ export function TagInput({
                     event.preventDefault();
                     addItem(suggestion);
                   }}
-                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)] transition hover:border-[var(--primary)]/30 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
+                  className="rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-1.5 text-xs font-bold text-[var(--muted-foreground)] transition hover:-translate-y-0.5 hover:border-[var(--primary)]/30 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.22)]"
                 >
                   #{suggestion}
                 </button>
@@ -246,12 +256,12 @@ export function TagInput({
         ) : null}
       </div>
 
-      {required && items.length === 0 ? (
-        <p className="mt-2 text-xs font-black leading-5 text-[var(--danger)]">
+      {hasError ? (
+        <p className="mt-2 text-xs font-bold leading-5 text-[var(--danger)]">
           Add at least one item.
         </p>
       ) : helperText ? (
-        <p className="mt-2 text-xs font-semibold leading-5 text-muted">
+        <p className="mt-2 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
           {helperText}
         </p>
       ) : null}

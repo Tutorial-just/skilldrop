@@ -60,7 +60,9 @@ export function AppearanceSettings() {
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("skilldrop-theme") as ThemeMode | null;
+    const savedTheme = localStorage.getItem("skilldrop-theme") as
+      | ThemeMode
+      | null;
     const nextTheme = savedTheme ?? "system";
 
     setTheme(nextTheme);
@@ -71,7 +73,9 @@ export function AppearanceSettings() {
 
     function handleSystemChange() {
       const nextSystemTheme = getSystemTheme();
-      const currentTheme = localStorage.getItem("skilldrop-theme") as ThemeMode | null;
+      const currentTheme = localStorage.getItem("skilldrop-theme") as
+        | ThemeMode
+        | null;
 
       setSystemTheme(nextSystemTheme);
 
@@ -107,12 +111,19 @@ export function AppearanceSettings() {
               onClick={() => handleChange(option.value)}
               className={
                 isActive
-                  ? "rounded-[24px] border border-[var(--primary)]/40 bg-[var(--primary-soft)] p-4 text-left shadow-sm"
-                  : "rounded-[24px] border border-[var(--border)] bg-white/64 p-4 text-left transition hover:bg-white hover:shadow-sm"
+                  ? "rounded-[24px] border border-[var(--primary)]/40 bg-[var(--primary-soft)] p-4 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.28)]"
+                  : "rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4 text-left transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.28)]"
               }
+              aria-pressed={isActive}
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-white/64 text-[var(--primary-dark)] shadow-sm">
+                <div
+                  className={
+                    isActive
+                      ? "flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--primary)]/20 bg-[var(--background-soft)] text-[var(--primary-dark)] shadow-sm"
+                      : "flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] text-[var(--primary-dark)] shadow-sm"
+                  }
+                >
                   <Icon size={19} />
                 </div>
 
@@ -123,16 +134,16 @@ export function AppearanceSettings() {
                 ) : null}
               </div>
 
-              <p className="mt-4 font-black tracking-[-0.02em]">
+              <p className="mt-4 font-bold tracking-[-0.02em] text-[var(--foreground)]">
                 {option.label}
               </p>
 
-              <p className="mt-1 text-sm font-semibold leading-6 text-muted">
+              <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 {option.description}
               </p>
 
               {option.value === "system" ? (
-                <p className="mt-3 rounded-full bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]">
+                <p className="mt-3 w-fit rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-1 text-xs font-bold text-[var(--muted-foreground)]">
                   Currently: {systemTheme}
                 </p>
               ) : null}
@@ -141,7 +152,7 @@ export function AppearanceSettings() {
         })}
       </div>
 
-      <p className="mt-4 text-sm font-semibold leading-6 text-muted">
+      <p className="mt-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         System mode follows your device setting. If your device is currently in
         light mode, System will look like Light.
       </p>

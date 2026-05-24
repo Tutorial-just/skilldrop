@@ -34,11 +34,14 @@ export function TextareaWithCounter({
   }, [defaultValue]);
 
   const length = value.trim().length;
-  const hasMinimum = typeof minLength === "number";
   const hasMaximum = typeof maxLength === "number";
 
-  const isTooShort = hasMinimum && length > 0 && length < minLength;
+  const isTooShort =
+    typeof minLength === "number" && length > 0 && length < minLength;
+
   const isEmptyRequired = required && length === 0;
+
+  const hasError = isTooShort || isEmptyRequired;
 
   const counterText = getCounterText({
     length,
@@ -49,15 +52,15 @@ export function TextareaWithCounter({
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor={id} className="text-sm font-black">
+        <label htmlFor={id} className="text-sm font-bold text-[var(--foreground)]">
           {label}
         </label>
 
         <p
           className={
-            isTooShort || isEmptyRequired
-              ? "text-xs font-black text-[var(--danger)]"
-              : "text-xs font-bold text-muted"
+            hasError
+              ? "text-xs font-bold text-[var(--danger)]"
+              : "text-xs font-bold text-[var(--muted-foreground)]"
           }
         >
           {counterText}
@@ -74,27 +77,33 @@ export function TextareaWithCounter({
         value={value}
         onChange={(event) => setValue(event.target.value)}
         className={
-          isTooShort || isEmptyRequired
-            ? "mt-2 w-full rounded-[24px] border border-[var(--danger)]/40 bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--danger)]/60 focus:shadow-[0_0_0_4px_rgba(239,68,68,0.12)]"
-            : "mt-2 w-full rounded-[24px] border border-[var(--border)] bg-white/88 p-4 text-sm leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+          hasError
+            ? "mt-2 w-full rounded-[24px] border border-[var(--danger)]/40 bg-[var(--background-soft)] p-4 text-sm font-medium leading-7 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--danger)]/60 focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]"
+            : "mt-2 w-full rounded-[24px] border border-[var(--border)] bg-[var(--background-soft)] p-4 text-sm font-medium leading-7 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
         }
         placeholder={placeholder}
       />
 
+      {isEmptyRequired ? (
+        <p className="mt-2 text-xs font-bold leading-5 text-[var(--danger)]">
+          This field is required.
+        </p>
+      ) : null}
+
       {isTooShort ? (
-        <p className="mt-2 text-xs font-black leading-5 text-[var(--danger)]">
+        <p className="mt-2 text-xs font-bold leading-5 text-[var(--danger)]">
           Write at least {minLength} characters. You have {length}.
         </p>
       ) : null}
 
-      {!isTooShort && helperText ? (
-        <p className="mt-2 text-xs font-semibold leading-5 text-muted">
+      {!hasError && helperText ? (
+        <p className="mt-2 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
           {helperText}
         </p>
       ) : null}
 
-      {hasMaximum && maxLength - length <= 80 && maxLength - length > 0 ? (
-        <p className="mt-2 text-xs font-semibold leading-5 text-muted">
+      {!hasError && hasMaximum && maxLength - length <= 80 && maxLength - length > 0 ? (
+        <p className="mt-2 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
           {maxLength - length} characters left.
         </p>
       ) : null}

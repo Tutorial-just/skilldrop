@@ -456,13 +456,13 @@ export default async function ExpertPublicPage({
                       "I can help with practical questions through short calls"}
                   </p>
 
-                  <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
+                  <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
                     {bioText}
                   </p>
 
                   {mainHelpAreas.length > 0 ? (
-                    <div className="mt-6 rounded-[26px] border border-[var(--border)] bg-white/60 p-5">
-                      <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                    <div className="mt-6 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
+                      <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
                         Can help with
                       </p>
 
@@ -470,7 +470,7 @@ export default async function ExpertPublicPage({
                         {mainHelpAreas.map((service) => (
                           <div
                             key={service.id}
-                            className="rounded-2xl border border-[var(--border)] bg-white/70 p-4"
+                            className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-4"
                           >
                             <div className="flex flex-wrap gap-2">
                               <Badge>{service.category?.name ?? "Help"}</Badge>
@@ -484,7 +484,7 @@ export default async function ExpertPublicPage({
                               {service.title}
                             </p>
 
-                            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+                            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
                               {service.description ||
                                 "Short practical help through a 1:1 call."}
                             </p>
@@ -494,12 +494,12 @@ export default async function ExpertPublicPage({
                     </div>
                   ) : null}
 
-                  <div className="mt-6 rounded-[26px] border border-[var(--border)] bg-white/55 p-5">
-                    <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                  <div className="mt-6 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
+                    <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
                       Keywords people can use to find this helper
                     </p>
 
-                    <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                    <p className="mt-2 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
                       These tags and words help buyers find the right person when
                       they search for a problem, topic, language or skill.
                     </p>
@@ -510,7 +510,7 @@ export default async function ExpertPublicPage({
                       ))}
 
                       {searchableKeywords.length === 0 ? (
-                        <span className="text-sm font-semibold text-muted">
+                        <span className="text-sm font-semibold text-[var(--muted-foreground)]">
                           No searchable keywords added yet.
                         </span>
                       ) : null}
@@ -518,8 +518,8 @@ export default async function ExpertPublicPage({
                   </div>
 
                   {bookableTimes.length > 0 ? (
-                    <div className="mt-7 rounded-[24px] border border-[var(--border)] bg-white/55 p-4">
-                      <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                    <div className="mt-7 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
+                      <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
                         Next available
                       </p>
 
@@ -527,7 +527,7 @@ export default async function ExpertPublicPage({
                         {bookableTimes.slice(0, 5).map((time) => (
                           <span
                             key={time.id}
-                            className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]"
+                            className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]"
                           >
                             {formatDateTime(time.startTime)}
                           </span>
@@ -549,7 +549,7 @@ export default async function ExpertPublicPage({
                 Book a 1:1 call
               </h2>
 
-              <p className="mt-2 text-sm font-bold leading-6 text-muted">
+              <p className="mt-2 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                 Choose what you need help with, add context and pick an
                 available time. Your slot is reserved while you complete
                 checkout.
@@ -635,7 +635,7 @@ export default async function ExpertPublicPage({
                 />
               </div>
 
-              <p className="mt-4 text-center text-xs font-bold leading-5 text-muted">
+              <p className="mt-4 text-center text-xs font-bold leading-5 text-[var(--muted-foreground)]">
                 Booking is protected by SkillDrop{" "}
                 <Link href="/legal/safety" className="text-[var(--primary-dark)]">
                   Safety
@@ -656,7 +656,7 @@ export default async function ExpertPublicPage({
                     Sign in to book
                   </Link>
                 ) : isOwnProfile ? (
-                  <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-sm font-bold text-muted">
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3 text-sm font-bold text-[var(--muted-foreground)]">
                     This is your own helper profile.
                   </div>
                 ) : savedExpert ? (
@@ -709,7 +709,7 @@ export default async function ExpertPublicPage({
                 Choose a service
               </h2>
 
-              <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+              <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                 Choose the type of help you need. The total includes the helper
                 price plus a small SkillDrop service fee. You will confirm and
                 pay after choosing a time.
@@ -728,7 +728,7 @@ export default async function ExpertPublicPage({
                         className={
                           isSelected
                             ? "rounded-[26px] border border-[var(--primary)]/30 bg-[var(--primary-soft)] p-4 shadow-sm transition hover:-translate-y-0.5"
-                            : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--shadow-sm)]"
+                            : "rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]"
                         }
                       >
                         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -753,13 +753,13 @@ export default async function ExpertPublicPage({
                               {service.title}
                             </h3>
 
-                            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted">
+                            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
                               {service.description ||
                                 "Short practical help through a 1:1 call."}
                             </p>
                           </div>
 
-                          <div className="grid shrink-0 gap-2 rounded-2xl border border-[var(--border)] bg-white/64 p-4 md:min-w-[220px]">
+                          <div className="grid shrink-0 gap-2 rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-4 md:min-w-[220px]">
                             <SummaryRow
                               label="Service"
                               value={formatMoneyFromCents(
@@ -805,7 +805,7 @@ export default async function ExpertPublicPage({
                     Choose a time
                   </h2>
 
-                  <p className="mt-2 max-w-2xl leading-7 text-muted">
+                  <p className="mt-2 max-w-2xl leading-7 text-[var(--muted-foreground)]">
                     Add a short note, then pick one available time for your 1:1
                     call.
                   </p>
@@ -830,7 +830,7 @@ export default async function ExpertPublicPage({
                       value={selectedService.id}
                     />
 
-                    <div className="rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+                    <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
                       <div className="flex flex-col gap-2">
                         <label
                           htmlFor="booking-note"
@@ -839,10 +839,9 @@ export default async function ExpertPublicPage({
                           Describe your problem and desired result
                         </label>
 
-                        <p className="text-sm font-semibold leading-6 text-muted">
-                           Help the provider prepare before the call. Explain what problem
-                           you want to solve, what result you expect by the end of the call,
-                           and what you already tried if it is relevant.
+                        <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+                           Help the helper prepare before the call. Explain what problem you want to solve,
+                           what result you expect by the end of the call, and what you already tried if it is relevant.
                         </p>
 
                         <div className="mt-3 rounded-2xl border border-[var(--primary)]/15 bg-[var(--primary-soft)] p-4">
@@ -867,11 +866,11 @@ export default async function ExpertPublicPage({
                           Desired result:
 
                           Already tried:`}
-                            className="mt-2 min-h-44 resize-y rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold leading-6 outline-none transition placeholder:text-muted focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
+                            className="mt-2 min-h-44 resize-y rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-4 py-3 text-sm font-medium leading-6 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
                         />
                           
 
-                       <p className="text-xs font-bold text-muted">
+                       <p className="text-xs font-bold text-[var(--muted-foreground)]">
                           Optional, but recommended. Max {MAX_BOOKING_NOTE_LENGTH} characters.
                        </p>
                       </div>
@@ -880,15 +879,15 @@ export default async function ExpertPublicPage({
                     {groupedTimes.map((group) => (
                       <div
                         key={group.label}
-                        className="rounded-[24px] border border-[var(--border)] bg-white/45 p-4"
+                        className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div>
-                            <p className="text-sm font-black uppercase tracking-[0.14em] text-muted">
+                            <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
                               {group.label}
                             </p>
 
-                            <p className="mt-1 text-xs font-bold text-muted">
+                            <p className="mt-1 text-xs font-bold text-[var(--muted-foreground)]">
                               {group.times.length} available
                             </p>
                           </div>
@@ -903,7 +902,7 @@ export default async function ExpertPublicPage({
                               type="submit"
                               name="timeSlot"
                               value={`${time.availabilityId}|${time.startTime.toISOString()}`}
-                              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
+                              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
                               title={`${formatDateTime(
                                 time.startTime,
                               )} — ${formatTime(time.endTime)}`}
@@ -919,12 +918,12 @@ export default async function ExpertPublicPage({
                 ) : null}
 
                 {groupedTimes.length > 0 && selectedService && !canBook ? (
-                  <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center">
+                  <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-7 text-center">
                     <h3 className="text-2xl font-black tracking-[-0.04em]">
                       Booking is not available yet
                     </h3>
 
-                    <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+                    <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
                       {bookingBlockedReason ??
                         "This helper cannot be booked right now."}
                     </p>
@@ -1039,7 +1038,7 @@ export default async function ExpertPublicPage({
                        : "No outcome data yet"}
                     </h2>
 
-                    <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                    <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                       Buyers answer whether their problem was solved after the call. This is
                       one of the strongest trust signals on SkillDrop.
                     </p>
@@ -1081,7 +1080,7 @@ export default async function ExpertPublicPage({
               <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                   <h2 className="text-3xl font-black tracking-[-0.05em]">
-                    Client feedback
+                    Buyer feedback
                   </h2>
                 </div>
 
@@ -1093,7 +1092,7 @@ export default async function ExpertPublicPage({
                   expert.reviews.map((review) => (
                     <div
                       key={review.id}
-                      className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+                      className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <Badge variant="success">
@@ -1109,7 +1108,7 @@ export default async function ExpertPublicPage({
                           {formatProblemSolved(review.problemSolved)}
                         </Badge>
 
-                        <p className="text-xs font-bold text-muted">
+                        <p className="text-xs font-bold text-[var(--muted-foreground)]">
                           {formatShortDate(review.createdAt)}
                         </p>
                       </div>
@@ -1132,7 +1131,7 @@ export default async function ExpertPublicPage({
                         </p>
                       ) : null}
 
-                      <p className="mt-4 line-clamp-4 text-sm font-semibold leading-6 text-muted">
+                      <p className="mt-4 line-clamp-4 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
                         {review.comment || "No comment left."}
                       </p>
                     </div>
@@ -1158,7 +1157,7 @@ export default async function ExpertPublicPage({
                 {expert.isVerified ? "Verified helper" : "Helper profile"}
               </h2>
 
-              <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+              <p className="mt-3 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
                 Review the helper’s services, languages, availability and past feedback
                 before booking a call.
               </p>
@@ -1257,7 +1256,7 @@ export default async function ExpertPublicPage({
                 Best before booking
               </Badge>
 
-              <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              <p className="mt-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                 Prepare one clear question, share enough context, and choose the
                 service that matches the result you want from the call.
               </p>
@@ -1280,33 +1279,33 @@ function OutcomeBox({
   value: number;
   variant: "success" | "accent" | "danger";
 }) {
+  const boxClassName =
+    variant === "success"
+      ? "rounded-[22px] border border-[var(--success)]/20 bg-[var(--success-soft)] p-4"
+      : variant === "danger"
+        ? "rounded-[22px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4"
+        : "rounded-[22px] border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4";
+
+  const iconClassName =
+    variant === "success"
+      ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--success)]"
+      : variant === "danger"
+        ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--danger)]"
+        : "flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--accent)]";
+
   return (
-    <div
-      className={
-        variant === "success"
-          ? "rounded-[22px] border border-[var(--success)]/20 bg-[var(--success-soft)] p-4"
-          : variant === "danger"
-            ? "rounded-[22px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4"
-            : "rounded-[22px] border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4"
-      }
-    >
-      <div
-        className={
-          variant === "success"
-            ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--success)]"
-            : variant === "danger"
-              ? "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--danger)]"
-              : "flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[var(--accent)]"
-        }
-      >
+    <div className={boxClassName}>
+      <div className={iconClassName}>
         <Icon size={18} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p>
+      <p className="mt-2 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
@@ -1334,7 +1333,7 @@ function AvatarPreview({
 
 function HashTag({ text }: { text: string }) {
   return (
-    <span className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-sm font-black text-[var(--muted-foreground)]">
+    <span className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1.5 text-sm font-bold text-[var(--muted-foreground)]">
       #{text}
     </span>
   );
@@ -1350,13 +1349,16 @@ function SummaryRow({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
       <p
         className={
           strong
-            ? "text-right text-sm font-black text-[var(--primary-dark)]"
-            : "text-right text-sm font-black"
+            ? "text-right text-sm font-bold text-[var(--primary-dark)]"
+            : "text-right text-sm font-bold text-[var(--foreground)]"
         }
       >
         {value}
@@ -1375,25 +1377,32 @@ function InfoBox({
   value: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <Icon size={18} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-sm font-black leading-6">{value}</p>
+      <p className="mt-2 text-sm font-bold leading-6 text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
 
 function SideFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-right text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
@@ -1408,14 +1417,19 @@ function Step({
   text: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-black text-[var(--primary-dark)]">
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-bold text-[var(--primary-dark)]">
         {number}
       </div>
 
       <div>
-        <p className="font-black tracking-[-0.02em]">{title}</p>
-        <p className="mt-1 text-sm font-semibold leading-6 text-muted">{text}</p>
+        <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+          {title}
+        </p>
+
+        <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+          {text}
+        </p>
       </div>
     </div>
   );
@@ -1423,9 +1437,12 @@ function Step({
 
 function EmptyState({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center md:col-span-2">
-      <h3 className="text-2xl font-black tracking-[-0.04em]">{title}</h3>
-      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-7 text-center md:col-span-2">
+      <h3 className="text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {title}
+      </h3>
+
+      <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         {text}
       </p>
     </div>
@@ -1440,9 +1457,14 @@ function ReviewScore({
   value: number | null;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 px-3 py-2">
-      <p className="text-xs font-black text-muted">{label}</p>
-      <p className="text-xs font-black">{value ? `${value}/5` : "—"}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2">
+      <p className="text-xs font-bold text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-xs font-bold text-[var(--foreground)]">
+        {value ? `${value}/5` : "—"}
+      </p>
     </div>
   );
 }

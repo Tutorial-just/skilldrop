@@ -55,11 +55,12 @@ export function BookingCountdown({ expiresAt }: BookingCountdownProps) {
   if (isExpired) {
     return (
       <div className="rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-[var(--danger)]">
-        <div className="flex items-center gap-3">
-          <Clock3 size={18} />
-          <p className="text-sm font-black leading-6">
+        <div className="flex items-start gap-3">
+          <Clock3 size={18} className="mt-0.5 shrink-0" />
+
+          <p className="text-sm font-bold leading-6">
             This reservation has expired. The slot may be available to other
-            clients now. Please go back and choose a new time.
+            buyers now. Please go back and choose a new time.
           </p>
         </div>
       </div>
@@ -68,10 +69,13 @@ export function BookingCountdown({ expiresAt }: BookingCountdownProps) {
 
   return (
     <div className="rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-[var(--warning)]">
-      <div className="flex items-center gap-3">
-        <Clock3 size={18} />
-        <p className="text-sm font-black leading-6">
-          Reserved for {formatted}. Complete payment before this time runs out.
+      <div className="flex items-start gap-3">
+        <Clock3 size={18} className="mt-0.5 shrink-0" />
+
+        <p className="text-sm font-bold leading-6">
+          Reserved for{" "}
+          <span className="font-black tabular-nums">{formatted}</span>.
+          Complete payment before this time runs out.
         </p>
       </div>
     </div>

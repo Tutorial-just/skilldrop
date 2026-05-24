@@ -430,7 +430,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 Find the right person for the help you need.
               </h1>
 
-              <p className="mt-5 max-w-3xl text-lg leading-8 text-muted">
+              <p className="mt-5 max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Search with simple words and discover people who can help with
                 documents, career, languages, moving abroad, tech, studies or
                 practical everyday questions.
@@ -473,17 +473,17 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           </div>
 
           <form action="/experts" className="mt-8">
-            <div className="rounded-[28px] border border-[var(--border)] bg-white/64 p-3 shadow-[var(--shadow-sm)] backdrop-blur">
+            <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card-soft)] p-3 shadow-[var(--shadow-sm)] backdrop-blur">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-white/70 px-4">
-                  <Search size={18} className="text-muted" />
+                <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-[var(--background-soft)] px-4">
+                  <Search size={18} className="text-[var(--muted-foreground)]" />
 
                   <input
                     name="q"
                     type="search"
                     defaultValue={query}
                     placeholder="What do you need help with?"
-                    className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-muted"
+                    className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-[var(--muted-foreground)]"
                   />
                 </div>
 
@@ -504,7 +504,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </div>
 
               <div className="mt-3 grid gap-3 md:grid-cols-4">
-                <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)]">
+                <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)]">
                   <input
                     type="checkbox"
                     name="verified"
@@ -517,7 +517,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 <select
                   name="maxPrice"
                   defaultValue={resolvedSearchParams.maxPrice ?? ""}
-                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
                 >
                   <option value="">Any service price</option>
                   <option value="20">Up to €20</option>
@@ -530,13 +530,13 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   name="language"
                   defaultValue={language}
                   placeholder="Language"
-                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none placeholder:text-muted"
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
                 />
 
                 <select
                   name="sort"
                   defaultValue={sort}
-                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-white/64 px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
                 >
                   <option value="best">Best match</option>
                   <option value="cheapest">Cheapest</option>
@@ -554,7 +554,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:-translate-y-0.5 hover:bg-white hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2 text-sm font-black text-[var(--muted-foreground)] transition hover:-translate-y-0.5 hover:bg-[var(--background-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
                 >
                   <Icon size={15} />
                   {item.label}
@@ -604,7 +604,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 Good search examples
               </Badge>
 
-              <p className="mt-4 text-sm font-bold leading-6 text-muted">
+              <p className="mt-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                 Try “French documents”, “CV review”, “mock interview”, “moving
                 to France”, “website bug”, “translation”, “math help” or “admin
                 letter”.
@@ -632,7 +632,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   {query ? `Help for “${query}”` : "Available helpers"}
                 </h2>
 
-                <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                <p className="mt-2 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
                   Choose someone by what they can help with, language, price,
                   reviews, availability and trust signals.
                 </p>
@@ -827,13 +827,13 @@ function ExpertSearchCard({
                 {expert.headline || "Practical help through short calls"}
               </p>
 
-              <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+              <p className="mt-2 line-clamp-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 {expert.bio || "This helper has not added a bio yet."}
               </p>
 
               {mainService ? (
-                <div className="mt-4 rounded-[22px] border border-[var(--border)] bg-white/60 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+                <div className="mt-4 rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
                     Can help with
                   </p>
 
@@ -841,7 +841,7 @@ function ExpertSearchCard({
                     {mainService.title}
                   </p>
 
-                  <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted">
+                  <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
                     {mainService.description}
                   </p>
                 </div>
@@ -860,7 +860,7 @@ function ExpertSearchCard({
                 ))}
 
                 {visibleTags.length === 0 ? (
-                  <span className="text-sm font-semibold text-muted">
+                  <span className="text-sm font-medium text-[var(--muted-foreground)]">
                     No tags added yet.
                   </span>
                 ) : null}
@@ -868,7 +868,7 @@ function ExpertSearchCard({
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+          <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
             <div className="grid gap-3">
               <SideRow
                 label="From"
@@ -890,7 +890,7 @@ function ExpertSearchCard({
               <SideRow label="Sessions" value={String(expert.totalSessions)} />
             </div>
 
-            <div className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--foreground)] px-4 py-3 text-sm font-black text-[var(--background)] transition group-hover:shadow-[var(--shadow-sm)]">
+            <div className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-[var(--primary)] bg-[var(--primary)] px-4 py-3 text-sm font-bold text-white transition group-hover:shadow-[0_12px_28px_rgba(139,92,246,0.26)]">
               View profile
               <ArrowRight size={16} />
             </div>
@@ -905,7 +905,7 @@ function ExpertSearchCard({
               return (
                 <div
                   key={service.id}
-                  className="rounded-[22px] border border-[var(--border)] bg-white/55 p-4"
+                  className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -918,11 +918,11 @@ function ExpertSearchCard({
                         </Badge>
                       </div>
 
-                      <p className="mt-3 font-black tracking-[-0.02em]">
+                      <p className="mt-3 font-bold tracking-[-0.02em] text-[var(--foreground)]">
                         {service.title}
                       </p>
 
-                      <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted">
+                      <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
                         {service.description}
                       </p>
                     </div>
@@ -932,7 +932,7 @@ function ExpertSearchCard({
                     </Badge>
                   </div>
 
-                  <p className="mt-3 text-xs font-bold text-muted">
+                  <p className="mt-3 text-xs font-medium text-[var(--muted-foreground)]">
                     Total shown before checkout. Service price:{" "}
                     {formatMoney(pricing.servicePriceCents)}
                   </p>
@@ -969,9 +969,12 @@ function AvatarPreview({
 
 function StatRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-sm font-black">{value}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-sm font-bold text-[var(--foreground)]">{value}</p>
     </div>
   );
 }
@@ -986,14 +989,19 @@ function Step({
   text: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-black text-[var(--primary-dark)]">
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-bold text-[var(--primary-dark)]">
         {number}
       </div>
 
       <div>
-        <p className="font-black tracking-[-0.02em]">{title}</p>
-        <p className="mt-1 text-sm font-semibold leading-6 text-muted">{text}</p>
+        <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+          {title}
+        </p>
+
+        <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+          {text}
+        </p>
       </div>
     </div>
   );
@@ -1001,19 +1009,22 @@ function Step({
 
 function TrustPoint({ text }: { text: string }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <CheckCircle2
         size={17}
         className="mt-0.5 shrink-0 text-[var(--success)]"
       />
-      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+
+      <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
 
 function HashTag({ text }: { text: string }) {
   return (
-    <span className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]">
+    <span className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1 text-xs font-bold text-[var(--muted-foreground)]">
       #{text}
     </span>
   );
@@ -1022,8 +1033,13 @@ function HashTag({ text }: { text: string }) {
 function SideRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-right text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
@@ -1035,9 +1051,11 @@ function EmptyState({ title, text }: { title: string; text: string }) {
         <UserRound size={24} />
       </div>
 
-      <h3 className="mt-5 text-2xl font-black tracking-[-0.04em]">{title}</h3>
+      <h3 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+      <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         {text}
       </p>
 

@@ -14,6 +14,7 @@ import {
   Video,
   XCircle,
 } from "lucide-react";
+
 import {
   formatDateTime,
   getDurationMinutes,
@@ -160,7 +161,7 @@ export default async function BuyerBookingsPage({
         <div className="container-page relative py-8 md:py-10 lg:py-12">
           <Link
             href="/buyer"
-            className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
           >
             <ArrowLeft size={16} />
             Back to dashboard
@@ -170,8 +171,8 @@ export default async function BuyerBookingsPage({
             <div
               className={
                 topMessage.variant === "success"
-                  ? "mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]"
-                  : "mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]"
+                  ? "mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]"
+                  : "mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]"
               }
             >
               {topMessage.text}
@@ -189,7 +190,7 @@ export default async function BuyerBookingsPage({
                 Your calls, payments and reviews.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Manage reserved calls, complete payments, join confirmed
                 sessions, review completed calls and keep your help history in
                 one place.
@@ -251,7 +252,7 @@ export default async function BuyerBookingsPage({
               </Badge>
 
               {nextBooking ? (
-                <NextBookingPanel 
+                <NextBookingPanel
                   booking={nextBooking}
                   timezone={userTimezone}
                 />
@@ -267,11 +268,11 @@ export default async function BuyerBookingsPage({
                   Payment waiting
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   Complete payment to confirm your calls.
                 </h2>
 
-                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   Pending reservations are held only for a short time. If payment
                   expires, the time slot becomes available again.
                 </p>
@@ -293,14 +294,14 @@ export default async function BuyerBookingsPage({
               <Card className="border-[var(--primary)]/20 bg-[var(--primary-soft)] p-5 md:p-6">
                 <Badge variant="primary">
                   <Euro size={14} />
-                  Paid bookings
+                  Confirming payments
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   Payment received, confirmation pending.
                 </h2>
 
-                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   These bookings have payment received but are waiting for final
                   confirmation. If this stays here too long, contact support.
                 </p>
@@ -325,11 +326,11 @@ export default async function BuyerBookingsPage({
                   Reviews waiting
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   Leave feedback after your calls.
                 </h2>
 
-                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   Reviews help good helpers grow and help other buyers choose
                   safely.
                 </p>
@@ -386,11 +387,11 @@ export default async function BuyerBookingsPage({
                   All bookings
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   Booking history
                 </h2>
 
-                <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   Upcoming, completed, cancelled, expired, refunded and disputed
                   calls appear here.
                 </p>
@@ -410,16 +411,16 @@ export default async function BuyerBookingsPage({
                   />
                 ))
               ) : (
-                <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-8 text-center">
+                <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-8 text-center">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
                     <Search size={24} />
                   </div>
 
-                  <h3 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+                  <h3 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                     No bookings yet
                   </h3>
 
-                  <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+                  <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                     Find a helper, choose an offer and pick an available time.
                     Your booking will appear here.
                   </p>
@@ -435,10 +436,14 @@ export default async function BuyerBookingsPage({
             </div>
 
             {closedBookings.length > 0 ? (
-              <div className="mt-6 rounded-2xl border border-[var(--border)] bg-white/55 p-4">
+              <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
                 <div className="flex items-center gap-3">
-                  <XCircle size={18} className="text-muted" />
-                  <p className="text-sm font-bold leading-6 text-muted">
+                  <XCircle
+                    size={18}
+                    className="text-[var(--muted-foreground)]"
+                  />
+
+                  <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                     You have {closedBookings.length} closed booking
                     {closedBookings.length === 1 ? "" : "s"}.
                   </p>
@@ -452,7 +457,13 @@ export default async function BuyerBookingsPage({
   );
 }
 
-function NextBookingPanel({ booking, timezone}: { booking: BookingCardBooking; timezone: string; }) {
+function NextBookingPanel({
+  booking,
+  timezone,
+}: {
+  booking: BookingCardBooking;
+  timezone: string;
+}) {
   const pricing = getBookingPricing(booking);
   const helperName = booking.expert.user.name ?? booking.expert.user.email;
   const canJoin = isBookingJoinAvailable({
@@ -464,19 +475,22 @@ function NextBookingPanel({ booking, timezone}: { booking: BookingCardBooking; t
 
   return (
     <div className="mt-5">
-      <h2 className="text-3xl font-black tracking-[-0.05em]">
+      <h2 className="text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
         {booking.service?.title ?? "Booked call"}
       </h2>
 
-      <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+      <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         With{" "}
-        <span className="font-black text-[var(--foreground)]">
+        <span className="font-bold text-[var(--foreground)]">
           {helperName}
         </span>
       </p>
 
       <div className="mt-5 grid gap-3">
-        <InfoRow label="Date" value={formatDateTime(booking.startTime, timezone)} />
+        <InfoRow
+          label="Date"
+          value={formatDateTime(booking.startTime, timezone)}
+        />
 
         <InfoRow
           label="Duration"
@@ -520,10 +534,14 @@ function NextBookingPanel({ booking, timezone}: { booking: BookingCardBooking; t
       </div>
 
       {booking.status === "CONFIRMED" && !canJoin ? (
-        <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+        <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
           <div className="flex gap-3">
-            <Clock3 size={18} className="mt-0.5 text-[var(--primary-dark)]" />
-            <p className="text-sm font-bold leading-6 text-muted">
+            <Clock3
+              size={18}
+              className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+            />
+
+            <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               The call room opens 10 minutes before the start time and remains
               available for 15 minutes after the scheduled end.
             </p>
@@ -536,16 +554,16 @@ function NextBookingPanel({ booking, timezone}: { booking: BookingCardBooking; t
 
 function EmptyBookingsState() {
   return (
-    <div className="mt-6 rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-6 text-center">
+    <div className="mt-6 rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-6 text-center">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <CalendarDays size={24} />
       </div>
 
-      <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+      <h2 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
         No upcoming calls
       </h2>
 
-      <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-muted">
+      <p className="mx-auto mt-3 max-w-sm text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         Find a helper, choose an offer and book a time that works for you.
       </p>
 
@@ -600,7 +618,6 @@ function BookingCard({
   timezone: string;
 }) {
   const now = new Date();
-
   const pricing = getBookingPricing(booking);
 
   const statusUi = getBookingStatusUi({
@@ -629,9 +646,7 @@ function BookingCard({
   const needsSupportForCancellation =
     booking.status === "CONFIRMED" && booking.startTime > now;
   const canReview = isCompleted && !booking.review;
-  const canReport = ["CONFIRMED", "COMPLETED"].includes(
-    booking.status,
-  );
+  const canReport = ["CONFIRMED", "COMPLETED"].includes(booking.status);
   const helperName = booking.expert.user.name ?? booking.expert.user.email;
 
   return (
@@ -643,7 +658,7 @@ function BookingCard({
             ? "rounded-[26px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] p-4"
             : isPending
               ? "rounded-[26px] border border-[var(--warning)]/30 bg-[var(--warning-soft)] p-4"
-              : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
+              : "rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
       }
     >
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -682,19 +697,22 @@ function BookingCard({
             ) : null}
           </div>
 
-          <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+          <h3 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
             {booking.service?.title ?? "Booked call"}
           </h3>
 
-          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             With{" "}
-            <span className="font-black text-[var(--foreground)]">
+            <span className="font-bold text-[var(--foreground)]">
               {helperName}
             </span>
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <SmallPill icon={Clock3} text={formatDateTime(booking.startTime, timezone)} />
+            <SmallPill
+              icon={Clock3}
+              text={formatDateTime(booking.startTime, timezone)}
+            />
 
             <SmallPill
               icon={Video}
@@ -845,10 +863,11 @@ function BookingCard({
           ) : null}
         </div>
       </div>
+
       {canReport ? (
         <div className="mt-4">
           <ReportBookingForm bookingId={booking.id} />
-         </div>
+        </div>
       ) : null}
     </div>
   );
@@ -863,7 +882,7 @@ function BookingNote({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-[var(--border)] bg-white/64 p-4 ${className}`}
+      className={`rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 ${className}`}
     >
       <div className="flex gap-3">
         <MessageCircle
@@ -872,8 +891,10 @@ function BookingNote({
         />
 
         <div>
-          <p className="text-sm font-black">Your note</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
+          <p className="text-sm font-bold text-[var(--foreground)]">
+            Your note
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             {note}
           </p>
         </div>
@@ -899,13 +920,17 @@ function MiniStat({
         <Icon size={20} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </Card>
   );
 }
@@ -959,7 +984,7 @@ function SmallPill({
   text: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]">
+    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1.5 text-xs font-bold text-[var(--muted-foreground)]">
       <Icon size={13} />
       {text}
     </span>
@@ -976,13 +1001,15 @@ function InfoRow({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
       <p
         className={
           strong
-            ? "text-right text-sm font-black text-[var(--primary-dark)]"
-            : "text-right text-sm font-black"
+            ? "text-right text-sm font-bold text-[var(--primary-dark)]"
+            : "text-right text-sm font-bold text-[var(--foreground)]"
         }
       >
         {value}
@@ -1001,15 +1028,15 @@ function MiniMoney({
   strong?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/55 p-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
       <p
         className={
           strong
-            ? "mt-1 font-black text-[var(--primary-dark)]"
-            : "mt-1 font-black"
+            ? "mt-1 font-bold text-[var(--primary-dark)]"
+            : "mt-1 font-bold text-[var(--foreground)]"
         }
       >
         {value}
@@ -1025,18 +1052,18 @@ function StatusExplanation({
   text: string;
   variant: "warning" | "primary" | "success" | "danger" | "muted" | "accent";
 }) {
- const className =
-  variant === "warning"
-    ? "mt-4 rounded-2xl border border-[var(--warning)]/20 bg-white/55 p-3 text-sm font-bold text-[var(--warning)]"
-    : variant === "primary"
-      ? "mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]"
-      : variant === "success"
-        ? "mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-bold text-[var(--success)]"
-        : variant === "danger"
-          ? "mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]"
-          : variant === "accent"
-            ? "mt-4 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-3 text-sm font-bold text-[var(--accent)]"
-            : "mt-4 rounded-2xl border border-[var(--border)] bg-white/55 p-3 text-sm font-bold text-muted";
+  const className =
+    variant === "warning"
+      ? "mt-4 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-3 text-sm font-bold text-[var(--warning)]"
+      : variant === "primary"
+        ? "mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]"
+        : variant === "success"
+          ? "mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-bold text-[var(--success)]"
+          : variant === "danger"
+            ? "mt-4 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger)]"
+            : variant === "accent"
+              ? "mt-4 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-3 text-sm font-bold text-[var(--accent)]"
+              : "mt-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3 text-sm font-medium text-[var(--muted-foreground)]";
 
   return <p className={className}>{text}</p>;
 }
@@ -1051,16 +1078,19 @@ function Tip({
   text: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <Icon size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />
       <div>
-        <p className="font-black tracking-[-0.02em]">{title}</p>
-        <p className="mt-1 text-sm font-bold leading-6 text-muted">{text}</p>
+        <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+          {title}
+        </p>
+        <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+          {text}
+        </p>
       </div>
     </div>
   );
 }
-
 
 function getBookingPricing(booking: {
   priceCents: number;
@@ -1082,11 +1112,9 @@ function getBookingPricing(booking: {
   };
 }
 
-
 function formatMoney(cents: number) {
   return formatMoneyFromCents(cents);
 }
-
 
 function formatStatus(status: string) {
   if (status === "PENDING") {

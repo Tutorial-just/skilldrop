@@ -17,7 +17,7 @@ const initialState = {
 const reasons = [
   {
     value: "EXPERT_NO_SHOW",
-    label: "Expert did not join",
+    label: "Helper did not join",
   },
   {
     value: "BUYER_NO_SHOW",
@@ -29,7 +29,7 @@ const reasons = [
   },
   {
     value: "WRONG_SERVICE",
-    label: "Service was not as expected",
+    label: "Offer was not as expected",
   },
   {
     value: "ABUSIVE_BEHAVIOR",
@@ -52,28 +52,32 @@ export function ReportBookingForm({ bookingId }: ReportBookingFormProps) {
   );
 
   return (
-    <form action={formAction} className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
+    <form
+      action={formAction}
+      className="rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4"
+    >
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-red-600 dark:bg-red-950 dark:text-red-300">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--danger)] shadow-sm">
           <AlertTriangle className="h-5 w-5" aria-hidden="true" />
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="font-bold text-red-900 dark:text-red-100">
+          <h3 className="font-bold text-[var(--foreground)]">
             Report a problem
           </h3>
 
-          <p className="mt-1 text-sm text-red-700 dark:text-red-200">
-            Use this if something went wrong with the booking.
+          <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+            Use this if something went wrong with the booking. SkillDrop can
+            review the issue and help with the next step.
           </p>
 
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-1 text-sm font-semibold text-red-900 dark:text-red-100">
+            <label className="grid gap-1 text-sm font-bold text-[var(--foreground)]">
               Reason
               <select
                 name="reason"
                 required
-                className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-400 dark:border-red-900 dark:bg-slate-950 dark:text-white"
+                className="rounded-xl border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-sm font-medium text-[var(--foreground)] outline-none transition focus:border-[var(--danger)]/50 focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]"
               >
                 <option value="">Select a reason</option>
                 {reasons.map((reason) => (
@@ -84,13 +88,13 @@ export function ReportBookingForm({ bookingId }: ReportBookingFormProps) {
               </select>
             </label>
 
-            <label className="grid gap-1 text-sm font-semibold text-red-900 dark:text-red-100">
+            <label className="grid gap-1 text-sm font-bold text-[var(--foreground)]">
               Message optional
               <textarea
                 name="message"
                 rows={3}
                 placeholder="Explain what happened..."
-                className="resize-none rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-400 dark:border-red-900 dark:bg-slate-950 dark:text-white"
+                className="resize-none rounded-xl border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-sm font-medium leading-6 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--danger)]/50 focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]"
               />
             </label>
 
@@ -98,8 +102,8 @@ export function ReportBookingForm({ bookingId }: ReportBookingFormProps) {
               <p
                 className={
                   state.ok
-                    ? "text-sm font-semibold text-emerald-700 dark:text-emerald-300"
-                    : "text-sm font-semibold text-red-700 dark:text-red-300"
+                    ? "rounded-xl border border-[var(--success)]/20 bg-[var(--success-soft)] px-3 py-2 text-sm font-bold text-[var(--success)]"
+                    : "rounded-xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] px-3 py-2 text-sm font-bold text-[var(--danger)]"
                 }
               >
                 {state.message}
@@ -109,7 +113,7 @@ export function ReportBookingForm({ bookingId }: ReportBookingFormProps) {
             <button
               type="submit"
               disabled={pending}
-              className="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-xl border border-[var(--danger)] bg-[var(--danger)] px-4 py-2.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
               {pending ? "Reporting..." : "Report problem"}
             </button>

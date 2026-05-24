@@ -52,7 +52,7 @@ const profileIdeas = [
   },
   {
     title: "Budget",
-    text: "Set a comfortable price range to improve expert suggestions.",
+    text: "Set a comfortable price range to improve helper suggestions.",
     icon: Euro,
   },
   {
@@ -156,7 +156,7 @@ export default async function BuyerProfilePage({
     hasLanguages: preferredLanguages.length > 0,
     hasInterests: interests.length > 0,
     hasBudget: Boolean(settings?.budgetMinCents || settings?.budgetMaxCents),
-    hasSavedExperts: buyer.savedExperts.length > 0,
+    hasSavedHelpers: buyer.savedExperts.length > 0,
     hasCompletedCall: completedBookings.length > 0,
   });
 
@@ -180,14 +180,14 @@ export default async function BuyerProfilePage({
         <div className="relative p-6 md:p-8 lg:p-10">
           <Link
             href="/buyer"
-            className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
           >
             <ArrowLeft size={16} />
             Back to dashboard
           </Link>
 
           {resolvedSearchParams.saved ? (
-            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
               {resolvedSearchParams.saved === "account"
                 ? "Profile name saved."
                 : "Profile preferences saved."}
@@ -195,7 +195,7 @@ export default async function BuyerProfilePage({
           ) : null}
 
           {resolvedSearchParams.error ? (
-            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
               {formatProfileError(resolvedSearchParams.error)}
             </div>
           ) : null}
@@ -204,14 +204,14 @@ export default async function BuyerProfilePage({
             <div>
               <Badge variant="primary">
                 <UserRound size={14} />
-                Client profile
+                Buyer profile
               </Badge>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
                 Make SkillDrop fit your needs.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Your profile helps personalize search, recommendations,
                 reminders, languages, topics and booking suggestions.
               </p>
@@ -220,12 +220,12 @@ export default async function BuyerProfilePage({
             <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
               <ButtonLink href="/experts">
                 <Search size={18} />
-                Find experts
+                Find helpers
               </ButtonLink>
 
               <ButtonLink href="/buyer/saved" variant="secondary">
                 <Bookmark size={18} />
-                Saved experts
+                Saved helpers
               </ButtonLink>
             </div>
           </div>
@@ -238,7 +238,7 @@ export default async function BuyerProfilePage({
             />
 
             <MetricCard
-              label="Saved experts"
+              label="Saved helpers"
               value={String(buyer.savedExperts.length)}
               hint="Profiles saved"
             />
@@ -275,16 +275,16 @@ export default async function BuyerProfilePage({
 
               <div className="mt-5 flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-5xl font-black tracking-[-0.06em]">
+                  <p className="text-5xl font-black tracking-[-0.06em] text-[var(--foreground)]">
                     {profileScore}%
                   </p>
 
-                  <p className="mt-2 text-sm font-semibold text-muted">
+                  <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
                     More detail means better recommendations.
                   </p>
                 </div>
 
-                <p className="text-sm font-black text-[var(--primary-dark)]">
+                <p className="text-sm font-bold text-[var(--primary-dark)]">
                   {profileScore >= 85
                     ? "Excellent"
                     : profileScore >= 65
@@ -324,7 +324,7 @@ export default async function BuyerProfilePage({
 
                 <MiniCheck
                   done={buyer.savedExperts.length > 0}
-                  text="At least one expert saved"
+                  text="At least one helper saved"
                 />
 
                 <MiniCheck
@@ -337,20 +337,20 @@ export default async function BuyerProfilePage({
             <Card className="p-5 md:p-6">
               <Badge variant="accent">
                 <Eye size={14} />
-                Private client profile
+                Private buyer profile
               </Badge>
 
-              <div className="mt-5 flex items-start gap-4 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+              <div className="mt-5 flex items-start gap-4 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
                   {displayName.charAt(0).toUpperCase()}
                 </div>
 
                 <div className="min-w-0">
-                  <h2 className="text-2xl font-black tracking-[-0.04em]">
+                  <h2 className="text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                     {displayName}
                   </h2>
 
-                  <p className="mt-1 break-all text-sm font-semibold leading-6 text-muted">
+                  <p className="mt-1 break-all text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                     {buyer.email}
                   </p>
 
@@ -377,9 +377,9 @@ export default async function BuyerProfilePage({
                 </div>
               </div>
 
-              <p className="mt-5 leading-7 text-muted">
-                This profile is not a public expert profile. It is used to make
-                your buyer workspace more useful: better search, saved experts,
+              <p className="mt-5 leading-7 text-[var(--muted-foreground)]">
+                This profile is not a public helper profile. It is used to make
+                your buyer workspace more useful: better search, saved helpers,
                 suggested topics, reminders and booking defaults.
               </p>
 
@@ -390,17 +390,17 @@ export default async function BuyerProfilePage({
                   return (
                     <div
                       key={item.title}
-                      className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+                      className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
                     >
                       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
                         <Icon size={18} />
                       </div>
 
-                      <h3 className="mt-4 font-black tracking-[-0.02em]">
+                      <h3 className="mt-4 font-bold tracking-[-0.02em] text-[var(--foreground)]">
                         {item.title}
                       </h3>
 
-                      <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                      <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                         {item.text}
                       </p>
                     </div>
@@ -417,18 +417,20 @@ export default async function BuyerProfilePage({
                 Basic profile
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Your identity
               </h2>
 
-              <p className="mt-3 text-sm leading-6 text-muted">
-                This name appears in your client workspace, bookings and
-                reviews.
+              <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                This name appears in your buyer workspace, bookings and reviews.
               </p>
 
               <form action={updateBuyerAccountAction} className="mt-6 grid gap-5">
                 <div>
-                  <label htmlFor="name" className="text-sm font-black">
+                  <label
+                    htmlFor="name"
+                    className="text-sm font-bold text-[var(--foreground)]"
+                  >
                     Display name
                   </label>
 
@@ -442,21 +444,26 @@ export default async function BuyerProfilePage({
                     placeholder="Your name"
                   />
 
-                  <p className="mt-2 text-xs font-semibold text-muted">
-                    Use a name experts can recognize when preparing your call.
+                  <p className="mt-2 text-xs font-medium text-[var(--muted-foreground)]">
+                    Use a name helpers can recognize when preparing your call.
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
                   <div className="flex items-center gap-3">
-                    <Mail size={17} className="text-muted" />
+                    <Mail
+                      size={17}
+                      className="text-[var(--muted-foreground)]"
+                    />
 
                     <div className="min-w-0">
-                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
                         Email
                       </p>
 
-                      <p className="mt-1 truncate font-black">{buyer.email}</p>
+                      <p className="mt-1 truncate font-bold text-[var(--foreground)]">
+                        {buyer.email}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -474,11 +481,11 @@ export default async function BuyerProfilePage({
                 Preferences
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 What kind of help do you need?
               </h2>
 
-              <p className="mt-3 max-w-2xl leading-7 text-muted">
+              <p className="mt-3 max-w-2xl leading-7 text-[var(--muted-foreground)]">
                 These preferences can power search, recommendations, reminders
                 and booking defaults.
               </p>
@@ -488,7 +495,7 @@ export default async function BuyerProfilePage({
                   <div>
                     <label
                       htmlFor="preferredTimezone"
-                      className="text-sm font-black"
+                      className="text-sm font-bold text-[var(--foreground)]"
                     >
                       Preferred timezone
                     </label>
@@ -503,7 +510,7 @@ export default async function BuyerProfilePage({
                       placeholder="Europe/Paris"
                     />
 
-                    <p className="mt-2 text-xs font-semibold text-muted">
+                    <p className="mt-2 text-xs font-medium text-[var(--muted-foreground)]">
                       Example: Europe/Paris, Europe/London, America/New_York.
                     </p>
                   </div>
@@ -511,7 +518,7 @@ export default async function BuyerProfilePage({
                   <div>
                     <label
                       htmlFor="defaultReminderMin"
-                      className="text-sm font-black"
+                      className="text-sm font-bold text-[var(--foreground)]"
                     >
                       Default call reminder
                     </label>
@@ -534,7 +541,7 @@ export default async function BuyerProfilePage({
                   <div>
                     <label
                       htmlFor="preferredLanguages"
-                      className="text-sm font-black"
+                      className="text-sm font-bold text-[var(--foreground)]"
                     >
                       Preferred languages
                     </label>
@@ -549,7 +556,7 @@ export default async function BuyerProfilePage({
                       placeholder="English, French, Russian"
                     />
 
-                    <p className="mt-2 text-xs font-semibold text-muted">
+                    <p className="mt-2 text-xs font-medium text-[var(--muted-foreground)]">
                       Separate languages with commas.
                     </p>
 
@@ -557,7 +564,10 @@ export default async function BuyerProfilePage({
                   </div>
 
                   <div>
-                    <label htmlFor="interests" className="text-sm font-black">
+                    <label
+                      htmlFor="interests"
+                      className="text-sm font-bold text-[var(--foreground)]"
+                    >
                       Interests / topics
                     </label>
 
@@ -571,7 +581,7 @@ export default async function BuyerProfilePage({
                       placeholder="career, documents, moving abroad, life advice"
                     />
 
-                    <p className="mt-2 text-xs font-semibold text-muted">
+                    <p className="mt-2 text-xs font-medium text-[var(--muted-foreground)]">
                       Separate topics with commas.
                     </p>
 
@@ -579,14 +589,17 @@ export default async function BuyerProfilePage({
                   </div>
 
                   <div>
-                    <label htmlFor="budgetMin" className="text-sm font-black">
+                    <label
+                      htmlFor="budgetMin"
+                      className="text-sm font-bold text-[var(--foreground)]"
+                    >
                       Minimum budget
                     </label>
 
                     <div className="relative mt-2">
                       <Euro
                         size={17}
-                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
                       />
 
                       <input
@@ -603,14 +616,17 @@ export default async function BuyerProfilePage({
                   </div>
 
                   <div>
-                    <label htmlFor="budgetMax" className="text-sm font-black">
+                    <label
+                      htmlFor="budgetMax"
+                      className="text-sm font-bold text-[var(--foreground)]"
+                    >
                       Maximum budget
                     </label>
 
                     <div className="relative mt-2">
                       <Euro
                         size={17}
-                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
                       />
 
                       <input
@@ -630,8 +646,8 @@ export default async function BuyerProfilePage({
                 <div className="grid gap-4 md:grid-cols-2">
                   <ToggleCard
                     name="hideEmail"
-                    title="Hide my email from experts"
-                    text="Experts should contact you through SkillDrop, not directly by email."
+                    title="Hide my email from helpers"
+                    text="Helpers should contact you through SkillDrop, not directly by email."
                     defaultChecked={settings?.hideEmail ?? true}
                   />
 
@@ -651,12 +667,12 @@ export default async function BuyerProfilePage({
                     />
 
                     <div>
-                      <p className="font-black text-[var(--primary-dark)]">
+                      <p className="font-bold text-[var(--primary-dark)]">
                         Preferences are private
                       </p>
 
-                      <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
-                        Experts do not see this full profile. It is mainly used
+                      <p className="mt-1 text-sm font-medium leading-6 text-[var(--primary-dark)]/80">
+                        Helpers do not see this full profile. It is mainly used
                         for your own workspace and future recommendations.
                       </p>
                     </div>
@@ -684,21 +700,21 @@ export default async function BuyerProfilePage({
                 </div>
 
                 <div>
-                  <h2 className="text-2xl font-black tracking-[-0.04em]">
+                  <h2 className="text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                     {getNextActionTitle({
                       hasLanguages: preferredLanguages.length > 0,
                       hasInterests: interests.length > 0,
-                      hasSavedExperts: buyer.savedExperts.length > 0,
+                      hasSavedHelpers: buyer.savedExperts.length > 0,
                       hasUpcoming: upcomingBookings.length > 0,
                       hasPendingPayment: pendingBookings.length > 0,
                     })}
                   </h2>
 
-                  <p className="mt-2 leading-7 text-muted">
+                  <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
                     {getNextActionText({
                       hasLanguages: preferredLanguages.length > 0,
                       hasInterests: interests.length > 0,
-                      hasSavedExperts: buyer.savedExperts.length > 0,
+                      hasSavedHelpers: buyer.savedExperts.length > 0,
                       hasUpcoming: upcomingBookings.length > 0,
                       hasPendingPayment: pendingBookings.length > 0,
                     })}
@@ -709,7 +725,7 @@ export default async function BuyerProfilePage({
                   href={getNextActionHref({
                     hasLanguages: preferredLanguages.length > 0,
                     hasInterests: interests.length > 0,
-                    hasSavedExperts: buyer.savedExperts.length > 0,
+                    hasSavedHelpers: buyer.savedExperts.length > 0,
                     hasUpcoming: upcomingBookings.length > 0,
                     hasPendingPayment: pendingBookings.length > 0,
                   })}
@@ -727,11 +743,29 @@ export default async function BuyerProfilePage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <SnapshotRow label="Email visibility" value={settings?.hideEmail ?? true ? "Hidden" : "Visible"} />
-                <SnapshotRow label="Reminders" value={settings?.allowReminders ?? true ? "Enabled" : "Off"} />
-                <SnapshotRow label="Reminder time" value={`${settings?.defaultReminderMin ?? 30} min`} />
-                <SnapshotRow label="Budget" value={formatBudget(settings?.budgetMinCents, settings?.budgetMaxCents)} />
-                <SnapshotRow label="Timezone" value={settings?.preferredTimezone ?? "Not set"} />
+                <SnapshotRow
+                  label="Email visibility"
+                  value={settings?.hideEmail ?? true ? "Hidden" : "Visible"}
+                />
+                <SnapshotRow
+                  label="Reminders"
+                  value={settings?.allowReminders ?? true ? "Enabled" : "Off"}
+                />
+                <SnapshotRow
+                  label="Reminder time"
+                  value={`${settings?.defaultReminderMin ?? 30} min`}
+                />
+                <SnapshotRow
+                  label="Budget"
+                  value={formatBudget(
+                    settings?.budgetMinCents,
+                    settings?.budgetMaxCents,
+                  )}
+                />
+                <SnapshotRow
+                  label="Timezone"
+                  value={settings?.preferredTimezone ?? "Not set"}
+                />
               </div>
             </Card>
           </div>
@@ -756,20 +790,24 @@ function MetricCard({
 }) {
   return (
     <Card soft className="p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p>
+      <p className="mt-2 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </Card>
   );
 }
 
 function MiniCheck({ done, text }: { done: boolean; text: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
       <div
         className={
           done
@@ -780,7 +818,9 @@ function MiniCheck({ done, text }: { done: boolean; text: string }) {
         {done ? <CheckCircle2 size={15} /> : <CalendarClock size={15} />}
       </div>
 
-      <p className="text-sm font-bold text-muted">{text}</p>
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
@@ -797,7 +837,7 @@ function ToggleCard({
   defaultChecked: boolean;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-4 rounded-[24px] border border-[var(--border)] bg-white/64 p-4 transition hover:bg-white hover:shadow-[var(--shadow-sm)]">
+    <label className="flex cursor-pointer items-start gap-4 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]">
       <input
         name={name}
         type="checkbox"
@@ -806,8 +846,10 @@ function ToggleCard({
       />
 
       <span>
-        <span className="block font-black tracking-[-0.02em]">{title}</span>
-        <span className="mt-1 block text-sm font-semibold leading-6 text-muted">
+        <span className="block font-bold tracking-[-0.02em] text-[var(--foreground)]">
+          {title}
+        </span>
+        <span className="mt-1 block text-sm font-medium leading-6 text-[var(--muted-foreground)]">
           {text}
         </span>
       </span>
@@ -821,7 +863,7 @@ function SuggestionRow({ items }: { items: string[] }) {
       {items.slice(0, 6).map((item) => (
         <span
           key={item}
-          className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]"
+          className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1 text-xs font-bold text-[var(--muted-foreground)]"
         >
           {item}
         </span>
@@ -832,10 +874,14 @@ function SuggestionRow({ items }: { items: string[] }) {
 
 function SnapshotRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
 
-      <p className="text-right text-sm font-black">{value}</p>
+      <p className="text-right text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
@@ -846,7 +892,7 @@ function calculateProfileScore({
   hasLanguages,
   hasInterests,
   hasBudget,
-  hasSavedExperts,
+  hasSavedHelpers,
   hasCompletedCall,
 }: {
   hasName: boolean;
@@ -854,7 +900,7 @@ function calculateProfileScore({
   hasLanguages: boolean;
   hasInterests: boolean;
   hasBudget: boolean;
-  hasSavedExperts: boolean;
+  hasSavedHelpers: boolean;
   hasCompletedCall: boolean;
 }) {
   const checks = [
@@ -863,7 +909,7 @@ function calculateProfileScore({
     hasLanguages,
     hasInterests,
     hasBudget,
-    hasSavedExperts,
+    hasSavedHelpers,
     hasCompletedCall,
   ];
 
@@ -873,13 +919,13 @@ function calculateProfileScore({
 function getNextActionTitle({
   hasLanguages,
   hasInterests,
-  hasSavedExperts,
+  hasSavedHelpers,
   hasUpcoming,
   hasPendingPayment,
 }: {
   hasLanguages: boolean;
   hasInterests: boolean;
-  hasSavedExperts: boolean;
+  hasSavedHelpers: boolean;
   hasUpcoming: boolean;
   hasPendingPayment: boolean;
 }) {
@@ -891,12 +937,12 @@ function getNextActionTitle({
     return "Complete your preferences.";
   }
 
-  if (!hasSavedExperts) {
-    return "Save your first expert.";
+  if (!hasSavedHelpers) {
+    return "Save your first helper.";
   }
 
   if (!hasUpcoming) {
-    return "Book a saved expert.";
+    return "Book a saved helper.";
   }
 
   return "Prepare for your next call.";
@@ -905,13 +951,13 @@ function getNextActionTitle({
 function getNextActionText({
   hasLanguages,
   hasInterests,
-  hasSavedExperts,
+  hasSavedHelpers,
   hasUpcoming,
   hasPendingPayment,
 }: {
   hasLanguages: boolean;
   hasInterests: boolean;
-  hasSavedExperts: boolean;
+  hasSavedHelpers: boolean;
   hasUpcoming: boolean;
   hasPendingPayment: boolean;
 }) {
@@ -923,12 +969,12 @@ function getNextActionText({
     return "Add languages and topics so recommendations can become more personal.";
   }
 
-  if (!hasSavedExperts) {
-    return "Search experts and save useful profiles so you can come back later.";
+  if (!hasSavedHelpers) {
+    return "Search helpers and save useful profiles so you can come back later.";
   }
 
   if (!hasUpcoming) {
-    return "You have saved experts. Open your saved list and book a time when you are ready.";
+    return "You have saved helpers. Open your saved list and book a time when you are ready.";
   }
 
   return "Your profile looks strong. Prepare one clear question before your next call.";
@@ -937,13 +983,13 @@ function getNextActionText({
 function getNextActionHref({
   hasLanguages,
   hasInterests,
-  hasSavedExperts,
+  hasSavedHelpers,
   hasUpcoming,
   hasPendingPayment,
 }: {
   hasLanguages: boolean;
   hasInterests: boolean;
-  hasSavedExperts: boolean;
+  hasSavedHelpers: boolean;
   hasUpcoming: boolean;
   hasPendingPayment: boolean;
 }) {
@@ -955,7 +1001,7 @@ function getNextActionHref({
     return "/buyer/profile";
   }
 
-  if (!hasSavedExperts) {
+  if (!hasSavedHelpers) {
     return "/experts";
   }
 

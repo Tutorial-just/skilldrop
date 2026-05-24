@@ -179,27 +179,26 @@ export default function HomePage() {
               Need help with something? Find someone who already knows.
             </h1>
 
-            <p className="mt-7 max-w-2xl text-xl leading-8 text-muted">
-               SkillDrop helps you find real people who can help with documents,
-               career, languages, tech, relocation, studies and everyday decisions —
-               in focused 15–60 minute calls.
+            <p className="mt-7 max-w-2xl text-xl leading-8 text-[var(--muted-foreground)]">
+              SkillDrop helps you find real people who can help with documents,
+              career, languages, tech, relocation, studies and everyday decisions —
+              in focused 15–60 minute calls.
             </p>
-            
-            
+
             <form action="/experts" className="mt-8 max-w-2xl">
-              <div className="rounded-[30px] border border-[var(--border)] bg-white/80 p-3 shadow-[var(--shadow-md)] backdrop-blur">
+              <div className="rounded-[30px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-md)] backdrop-blur">
                 <div className="flex flex-col gap-3 md:flex-row">
                   <div className="relative flex-1">
                     <Search
                       size={19}
-                      className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                      className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
                     />
 
                     <input
                       name="q"
                       type="search"
                       placeholder="What do you need help with?"
-                      className="input min-h-[56px] border-transparent bg-white pl-12 shadow-none"
+                      className="input min-h-[56px] border-transparent bg-[var(--background-soft)] pl-12 shadow-none"
                     />
                   </div>
 
@@ -213,14 +212,14 @@ export default function HomePage() {
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <ButtonLink href="/experts">
-                 Find help now
-                 <Search size={18} />
+                Find help now
+                <Search size={18} />
               </ButtonLink>
 
               <ButtonLink href="/sign-up?role=expert" variant="secondary">
                 Become a helper
                 <ArrowRight size={18} />
-                </ButtonLink>
+              </ButtonLink>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -228,7 +227,7 @@ export default function HomePage() {
                 <Link
                   key={item}
                   href={`/experts?q=${encodeURIComponent(item)}`}
-                  className="rounded-full border border-[var(--border)] bg-white/70 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:text-[var(--primary-dark)]"
+                  className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2 text-sm font-bold text-[var(--muted-foreground)] shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
                 >
                   {item}
                 </Link>
@@ -270,7 +269,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section-page bg-white/35">
+      <section className="section-page bg-[var(--background-soft)]">
         <div className="container-page">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
@@ -280,7 +279,7 @@ export default function HomePage() {
                 Start with the problem, not with a complicated category.
               </h2>
 
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 SkillDrop is built for real situations where a short
                 conversation with the right person can save time, reduce stress
                 and make the next step clear.
@@ -314,7 +313,7 @@ export default function HomePage() {
                 For small questions that still matter.
               </h2>
 
-              <p className="mt-5 text-lg leading-8 text-muted">
+              <p className="mt-5 text-lg leading-8 text-[var(--muted-foreground)]">
                 Sometimes you do not need a full course, a big freelance project
                 or a long coaching program. You just need a useful conversation
                 with someone who has the right knowledge or experience.
@@ -346,7 +345,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="how-it-works" className="section-page bg-white/35">
+      <section id="how-it-works" className="section-page bg-[var(--background-soft)]">
         <div className="container-page">
           <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
             <div>
@@ -356,7 +355,7 @@ export default function HomePage() {
                 One short call can make the next step clear.
               </h2>
 
-              <p className="mt-5 text-lg leading-8 text-muted">
+              <p className="mt-5 text-lg leading-8 text-[var(--muted-foreground)]">
                 Tell SkillDrop what you need help with, choose someone with
                 relevant experience, book a time and talk directly.
               </p>
@@ -375,7 +374,7 @@ export default function HomePage() {
 
                 return (
                   <Card key={step.title} className="relative p-6">
-                    <p className="absolute right-6 top-6 text-sm font-black text-[var(--border-strong)]">
+                    <p className="absolute right-6 top-6 text-sm font-bold text-[var(--border-strong)]">
                       0{index + 1}
                     </p>
 
@@ -383,11 +382,13 @@ export default function HomePage() {
                       <Icon size={20} />
                     </div>
 
-                    <h3 className="mt-7 text-xl font-black tracking-[-0.03em]">
+                    <h3 className="mt-7 text-xl font-black tracking-[-0.03em] text-[var(--foreground)]">
                       {step.title}
                     </h3>
 
-                    <p className="mt-3 leading-7 text-muted">{step.text}</p>
+                    <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
+                      {step.text}
+                    </p>
                   </Card>
                 );
               })}
@@ -430,7 +431,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section-page bg-white/35">
+      <section className="section-page bg-[var(--background-soft)]">
         <div className="container-page">
           <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div>
@@ -443,7 +444,7 @@ export default function HomePage() {
                 Trust is built into the booking flow.
               </h2>
 
-              <p className="mt-5 text-lg leading-8 text-muted">
+              <p className="mt-5 text-lg leading-8 text-[var(--muted-foreground)]">
                 SkillDrop shows clear prices, booking details, reviews,
                 verification status and availability before people pay.
               </p>
@@ -460,9 +461,12 @@ export default function HomePage() {
                 {trustItems.map((item) => (
                   <div
                     key={item}
-                    className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/72 p-4 text-sm font-bold text-[var(--muted-foreground)]"
+                    className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-medium text-[var(--muted-foreground)]"
                   >
-                    <CheckCircle2 size={17} className="text-[var(--success)]" />
+                    <CheckCircle2
+                      size={17}
+                      className="shrink-0 text-[var(--success)]"
+                    />
                     {item}
                   </div>
                 ))}
@@ -485,7 +489,7 @@ export default function HomePage() {
                 Everyone sees the price before checkout.
               </h2>
 
-              <p className="mt-5 text-lg leading-8 text-muted">
+              <p className="mt-5 text-lg leading-8 text-[var(--muted-foreground)]">
                 Helpers set their price. Buyers choose a short call, see the
                 service price, SkillDrop fee and total before payment.
               </p>
@@ -534,7 +538,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <p className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4 text-sm font-bold leading-6 text-muted">
+              <p className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 This is a pricing example. The final total is always shown clearly
                 before payment.
               </p>
@@ -543,7 +547,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section-page bg-white/35">
+      <section className="section-page bg-[var(--background-soft)]">
         <div className="container-page">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
@@ -582,7 +586,7 @@ export default function HomePage() {
                   Need help or want to offer help?
                 </h2>
 
-                <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
+                <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                   Create your account and choose the workspace that fits you.
                 </p>
               </div>
@@ -608,8 +612,6 @@ export default function HomePage() {
 function HeroMarketplacePreview() {
   return (
     <div className="relative">
-      
-
       <Card className="relative overflow-hidden p-5 shadow-[var(--shadow-lg)]">
         <div className="rounded-[28px] bg-gradient-to-br from-[#31265f] via-[#2b275f] to-[#1f2937] p-5 text-white">
           <div className="flex items-center justify-between gap-4">
@@ -646,15 +648,19 @@ function HeroMarketplacePreview() {
         </div>
       </Card>
 
-      <div className="absolute -bottom-7 right-6 hidden rounded-3xl border border-[var(--border)] bg-white p-4 shadow-[var(--shadow-md)] sm:block">
+      <div className="absolute -bottom-7 right-6 hidden rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-md)] sm:block">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
             <ShieldCheck size={20} />
           </div>
 
           <div>
-            <p className="text-sm font-black">Clear checkout</p>
-            <p className="text-xs text-muted">Price shown before payment</p>
+            <p className="text-sm font-bold text-[var(--foreground)]">
+              Clear checkout
+            </p>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              Price shown before payment
+            </p>
           </div>
         </div>
       </div>
@@ -664,9 +670,13 @@ function HeroMarketplacePreview() {
 
 function HeroStat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/70 p-4 shadow-sm backdrop-blur">
-      <p className="text-2xl font-black tracking-tight">{value}</p>
-      <p className="mt-1 text-sm leading-5 text-muted">{label}</p>
+    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 shadow-sm backdrop-blur">
+      <p className="text-2xl font-black tracking-tight text-[var(--foreground)]">
+        {value}
+      </p>
+      <p className="mt-1 text-sm leading-5 text-[var(--muted-foreground)]">
+        {label}
+      </p>
     </div>
   );
 }
@@ -686,9 +696,11 @@ function ValueCard({
         <Icon size={21} />
       </div>
 
-      <h3 className="mt-5 text-xl font-black tracking-tight">{title}</h3>
+      <h3 className="mt-5 text-xl font-black tracking-tight text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mt-3 leading-7 text-muted">{text}</p>
+      <p className="mt-3 leading-7 text-[var(--muted-foreground)]">{text}</p>
     </Card>
   );
 }
@@ -700,9 +712,13 @@ function ReasonCard({ title, text }: { title: string; text: string }) {
         <CheckCircle2 size={18} />
       </div>
 
-      <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
+      <h3 className="mt-5 text-xl font-black tracking-[-0.03em] text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
+      <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </Card>
   );
 }
@@ -731,13 +747,15 @@ function ProblemCard({
           <Badge>{problem.tag}</Badge>
         </div>
 
-        <h3 className="mt-7 text-2xl font-black tracking-[-0.04em]">
+        <h3 className="mt-7 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
           {problem.title}
         </h3>
 
-        <p className="mt-3 leading-7 text-muted">{problem.description}</p>
+        <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
+          {problem.description}
+        </p>
 
-        <div className="mt-6 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]">
+        <div className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]">
           Find help
           <ArrowRight size={16} className="transition group-hover:translate-x-1" />
         </div>
@@ -773,17 +791,19 @@ function AudiencePanel({
         {badge}
       </Badge>
 
-      <h3 className="mt-5 text-3xl font-black tracking-[-0.05em]">{title}</h3>
+      <h3 className="mt-5 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mt-4 leading-7 text-muted">{text}</p>
+      <p className="mt-4 leading-7 text-[var(--muted-foreground)]">{text}</p>
 
       <div className="mt-6 grid gap-3">
         {points.map((point) => (
           <div
             key={point}
-            className="flex items-center gap-3 text-sm font-bold text-[var(--muted-foreground)]"
+            className="flex items-center gap-3 text-sm font-medium text-[var(--muted-foreground)]"
           >
-            <CheckCircle2 size={17} className="text-[var(--success)]" />
+            <CheckCircle2 size={17} className="shrink-0 text-[var(--success)]" />
             {point}
           </div>
         ))}
@@ -791,7 +811,7 @@ function AudiencePanel({
 
       <Link
         href={href}
-        className="mt-7 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+        className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
       >
         {action}
         <ArrowRight size={16} />
@@ -803,8 +823,12 @@ function AudiencePanel({
 function VerificationStep({ value, label }: { value: string; label: string }) {
   return (
     <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
-      <p className="text-3xl font-black tracking-[-0.05em]">{value}</p>
-      <p className="mt-2 text-sm font-bold text-muted">{label}</p>
+      <p className="text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+        {value}
+      </p>
+      <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
     </div>
   );
 }
@@ -819,16 +843,16 @@ function CommissionRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/72 p-4">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
           <Icon size={18} />
         </div>
 
-        <p className="font-black">{title}</p>
+        <p className="font-bold text-[var(--foreground)]">{title}</p>
       </div>
 
-      <p className="text-lg font-black">{value}</p>
+      <p className="text-lg font-black text-[var(--foreground)]">{value}</p>
     </div>
   );
 }
@@ -854,49 +878,55 @@ function HelperPreviewCard({
 
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-xl font-black tracking-tight">{helper.name}</h3>
+            <h3 className="text-xl font-black tracking-tight text-[var(--foreground)]">
+              {helper.name}
+            </h3>
             <Badge variant="success">Verified</Badge>
           </div>
 
-          <p className="mt-1 text-sm text-muted">{helper.role}</p>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            {helper.role}
+          </p>
         </div>
       </div>
 
-      <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/70 p-4">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
           Can help with
         </p>
 
-        <p className="mt-2 text-sm font-black leading-6">
+        <p className="mt-2 text-sm font-bold leading-6 text-[var(--foreground)]">
           {helper.canHelpWith}
         </p>
       </div>
 
       <div className="mt-5 flex items-center justify-between rounded-2xl bg-[var(--card-soft)] p-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
             Rating
           </p>
 
-          <p className="mt-1 flex items-center gap-1 text-lg font-black">
+          <p className="mt-1 flex items-center gap-1 text-lg font-black text-[var(--foreground)]">
             <Star size={16} fill="currentColor" />
             {helper.rating}
           </p>
         </div>
 
         <div className="text-right">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
             From
           </p>
 
-          <p className="mt-1 text-lg font-black">{helper.price}</p>
+          <p className="mt-1 text-lg font-black text-[var(--foreground)]">
+            {helper.price}
+          </p>
         </div>
       </div>
 
       <div className="mt-5 flex items-center justify-between gap-3">
         <Badge>{helper.tag}</Badge>
 
-        <Link href="/experts" className="text-sm font-black text-[var(--primary-dark)]">
+        <Link href="/experts" className="text-sm font-bold text-[var(--primary-dark)]">
           Book →
         </Link>
       </div>
@@ -917,21 +947,25 @@ function MiniHelper({
   };
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-[22px] border border-[var(--border)] bg-white p-4">
+    <div className="flex items-center justify-between gap-4 rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] font-black text-[var(--primary-dark)]">
           {helper.name.charAt(0)}
         </div>
 
         <div>
-          <p className="font-black leading-tight">{helper.name}</p>
-          <p className="text-sm text-muted">{helper.role}</p>
+          <p className="font-bold leading-tight text-[var(--foreground)]">
+            {helper.name}
+          </p>
+          <p className="text-sm text-[var(--muted-foreground)]">{helper.role}</p>
         </div>
       </div>
 
       <div className="text-right">
         <Badge>{helper.tag}</Badge>
-        <p className="mt-2 text-sm font-black">{helper.price}</p>
+        <p className="mt-2 text-sm font-bold text-[var(--foreground)]">
+          {helper.price}
+        </p>
       </div>
     </div>
   );

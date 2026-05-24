@@ -13,6 +13,7 @@ import {
   Video,
 } from "lucide-react";
 import { BookingStatus, CallRoomStatus } from "@prisma/client";
+
 import { markCallCompletedAction } from "@/server/actions/call.actions";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
@@ -126,7 +127,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     return (
       <CallBlockedPage
         title="Your call is not open yet."
-        text={`You can join ${JOIN_BEFORE_MINUTES} minutes before the scheduled start time. This helps keep the room protected and avoids early access confusion.`}
+        text={`You can join ${JOIN_BEFORE_MINUTES} minutes before the scheduled start time. This keeps the room protected and avoids early access confusion.`}
         backHref={backHref}
         timeLabel="Call starts"
         timeValue={formatDateTime(booking.startTime, userTimezone)}
@@ -192,7 +193,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
     <main className="container-page py-8 md:py-10 lg:py-12">
       <Link
         href={backHref}
-        className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+        className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
       >
         <ArrowLeft size={16} />
         Back to bookings
@@ -210,7 +211,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
               Join your SkillDrop call.
             </h1>
 
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+            <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
               Your booking is confirmed. Check the time, participants and call
               context below, then open the protected video room.
             </p>
@@ -228,11 +229,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
                 value={formatDateTime(booking.startTime, userTimezone)}
               />
 
-              <InfoBox
-                icon={UserRound}
-                label="Buyer"
-                value={buyerName}
-              />
+              <InfoBox icon={UserRound} label="Buyer" value={buyerName} />
 
               <InfoBox
                 icon={ShieldCheck}
@@ -241,25 +238,25 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
               />
             </div>
 
-            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
               <Badge variant="primary">
                 <MessageCircle size={14} />
                 Call context
               </Badge>
 
-              <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                 What this call is about
               </h2>
 
               {bookingNote ? (
-                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/70 p-4">
-                  <p className="whitespace-pre-wrap text-sm font-semibold leading-7 text-muted">
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-4">
+                  <p className="whitespace-pre-wrap text-sm font-medium leading-7 text-[var(--muted-foreground)]">
                     {bookingNote}
                   </p>
                 </div>
               ) : (
-                <div className="mt-4 rounded-2xl border border-dashed border-[var(--border-strong)] bg-white/55 p-4">
-                  <p className="text-sm font-semibold leading-7 text-muted">
+                <div className="mt-4 rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--background-soft)] p-4">
+                  <p className="text-sm font-medium leading-7 text-[var(--muted-foreground)]">
                     No note was added for this booking. Start the call by
                     clarifying the main question, expected result and useful
                     context.
@@ -268,19 +265,20 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
               )}
             </div>
 
-            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
               <Badge variant="primary">
                 <Globe2 size={14} />
                 Timezone note
               </Badge>
 
-              <p className="mt-4 text-sm font-bold leading-7 text-muted">
-                Times are shown using your SkillDrop timezone settings when available. If
-                something looks wrong, check your account settings before the call.
+              <p className="mt-4 text-sm font-medium leading-7 text-[var(--muted-foreground)]">
+                Times are shown using your SkillDrop timezone settings when
+                available. If something looks wrong, check your account settings
+                before the call.
               </p>
             </div>
 
-            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
               <Badge variant="primary">
                 <ShieldCheck size={14} />
                 Safety reminders
@@ -300,11 +298,11 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
               Ready
             </Badge>
 
-            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
               Enter video room
             </h2>
 
-            <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+            <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               This button opens the external video room for this booking.
             </p>
 
@@ -365,7 +363,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
             </div>
 
             {bookingNote ? (
-              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
                 <div className="flex gap-3">
                   <MessageCircle
                     size={18}
@@ -373,8 +371,11 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
                   />
 
                   <div>
-                    <p className="text-sm font-black">Buyer note</p>
-                    <p className="mt-1 line-clamp-5 text-sm font-semibold leading-6 text-muted">
+                    <p className="text-sm font-bold text-[var(--foreground)]">
+                      Buyer note
+                    </p>
+
+                    <p className="mt-1 line-clamp-5 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                       {bookingNote}
                     </p>
                   </div>
@@ -383,16 +384,16 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
             ) : null}
 
             {isBuyer ? (
-              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-                <p className="text-sm font-bold leading-6 text-muted">
+              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+                <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   After the call, you can leave a review from your bookings page.
                 </p>
               </div>
             ) : null}
 
             {isExpert ? (
-              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-                <p className="text-sm font-bold leading-6 text-muted">
+              <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+                <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   After the session, mark the call as completed so the buyer can
                   review it and your earnings can be counted correctly.
                 </p>
@@ -426,7 +427,7 @@ function CallBlockedPage({
     <main className="container-page py-8 md:py-10 lg:py-12">
       <Link
         href={backHref}
-        className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+        className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
       >
         <ArrowLeft size={16} />
         Back to bookings
@@ -443,11 +444,11 @@ function CallBlockedPage({
             Protected call room
           </Badge>
 
-          <h1 className="mt-5 text-4xl font-black tracking-[-0.06em]">
+          <h1 className="mt-5 text-4xl font-black tracking-[-0.06em] text-[var(--foreground)]">
             {title}
           </h1>
 
-          <p className="mx-auto mt-4 max-w-md text-sm font-semibold leading-6 text-muted">
+          <p className="mx-auto mt-4 max-w-md text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             {text}
           </p>
 
@@ -482,34 +483,45 @@ function InfoBox({
   value: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <Icon size={18} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 break-words text-sm font-black leading-6">{value}</p>
+      <p className="mt-2 break-words text-sm font-bold leading-6 text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
 
 function SafetyRule({ text }: { text: string }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-[var(--success)]" />
-      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <CheckCircle2
+        size={17}
+        className="mt-0.5 shrink-0 text-[var(--success)]"
+      />
+      <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
 
 function SideFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3 text-left">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3 text-left">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+      <p className="text-right text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
@@ -557,7 +569,6 @@ function getBlockedStatusText(status: string) {
 
   return "This booking is not available for joining right now.";
 }
-
 
 function formatStatus(status: string) {
   if (status === "PENDING") {

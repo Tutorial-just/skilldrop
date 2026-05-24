@@ -12,6 +12,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { BookingStatus } from "@prisma/client";
+
 import { createCheckoutSessionAction } from "@/server/actions/payment.actions";
 import { releaseExpiredPendingBookings } from "@/server/actions/booking.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
@@ -72,12 +73,12 @@ export default async function BookingCheckoutPage({
 
   const booking = await prisma.booking.findFirst({
     where: {
-       id: bookingId,
-       ...(buyer.role === "ADMIN"
+      id: bookingId,
+      ...(buyer.role === "ADMIN"
         ? {}
         : {
-          buyerId: buyer.id,
-        }),
+            buyerId: buyer.id,
+          }),
     },
     include: {
       expert: {
@@ -95,8 +96,8 @@ export default async function BookingCheckoutPage({
   }
 
   if (booking.status !== BookingStatus.PENDING) {
-     redirect(`/buyer/bookings?booked=${booking.id}`);
-   }
+    redirect(`/buyer/bookings?booked=${booking.id}`);
+  }
 
   const now = new Date();
 
@@ -106,36 +107,37 @@ export default async function BookingCheckoutPage({
 
   const helperName = booking.expert.user.name ?? booking.expert.user.email;
   const serviceTitle = booking.service?.title ?? "Booked call";
+
   const helperCanReceivePayouts =
     Boolean(booking.expert.stripeAccountId) &&
     booking.expert.stripeChargesEnabled &&
     booking.expert.stripePayoutsEnabled &&
     booking.expert.stripeDetailsSubmitted;
+
   const durationMinutes = getDurationMinutes(booking.startTime, booking.endTime);
   const bookingNote = booking.note?.trim() || "";
-
   const pricing = getBookingPricing(booking);
 
   return (
     <main className="p-6 md:p-8 lg:p-10">
       <Link
         href="/buyer/bookings"
-        className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+        className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
       >
         <ArrowLeft size={16} />
         Back to bookings
       </Link>
 
       {resolvedSearchParams.error ? (
-        <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+        <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
           {formatCheckoutError(resolvedSearchParams.error)}
         </div>
       ) : null}
 
       {resolvedSearchParams.payment === "success" ? (
-        <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
-          Payment received. We are confirming your booking now. If the call page does
-          not open automatically, check your bookings in a few seconds.
+        <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold leading-6 text-[var(--success)]">
+          Payment received. We are confirming your booking now. If the call page
+          does not open automatically, check your bookings in a few seconds.
         </div>
       ) : null}
 
@@ -170,7 +172,7 @@ export default async function BookingCheckoutPage({
               Review your call before payment.
             </h1>
 
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+            <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
               Your selected time is reserved temporarily. Complete payment to
               confirm the booking and prepare your call room.
             </p>
@@ -184,10 +186,10 @@ export default async function BookingCheckoutPage({
             <div className="mt-8 grid gap-4">
               <InfoRow label="Helper" value={helperName} />
               <InfoRow label="Offer" value={serviceTitle} />
-              <InfoRow 
-                label="Date" 
+              <InfoRow
+                label="Date"
                 value={formatDateTime(booking.startTime, userTimezone)}
-               />
+              />
               <InfoRow label="Duration" value={`${durationMinutes} minutes`} />
               <InfoRow label="Status" value="Waiting for payment" />
             </div>
@@ -199,26 +201,26 @@ export default async function BookingCheckoutPage({
               Your note for the helper
             </Badge>
 
-            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
               What you need help with
             </h2>
 
             {bookingNote ? (
-              <div className="mt-5 rounded-[24px] border border-[var(--border)] bg-white/64 p-5">
-                <p className="whitespace-pre-wrap text-sm font-bold leading-7 text-[var(--foreground)]">
+              <div className="mt-5 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
+                <p className="whitespace-pre-wrap text-sm font-medium leading-7 text-[var(--foreground)]">
                   {bookingNote}
                 </p>
               </div>
             ) : (
-              <div className="mt-5 rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-5">
-                <p className="text-sm font-bold leading-7 text-muted">
+              <div className="mt-5 rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-5">
+                <p className="text-sm font-medium leading-7 text-[var(--muted-foreground)]">
                   No note was added. The helper will still receive your booking
                   details after payment.
                 </p>
               </div>
             )}
 
-            <p className="mt-4 text-sm font-semibold leading-6 text-muted">
+            <p className="mt-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               This note helps the helper prepare before the call. You can add
               more context directly during the session.
             </p>
@@ -230,11 +232,11 @@ export default async function BookingCheckoutPage({
               Transparent pricing
             </Badge>
 
-            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
               No hidden fees
             </h2>
 
-            <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-muted">
+            <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               The helper sets the offer price. SkillDrop adds a small service
               fee to keep payments, safety tools and the marketplace running.
             </p>
@@ -321,16 +323,16 @@ export default async function BookingCheckoutPage({
             Final payment
           </Badge>
 
-          <h2 className="mt-5 text-4xl font-black tracking-[-0.06em]">
+          <h2 className="mt-5 text-4xl font-black tracking-[-0.06em] text-[var(--foreground)]">
             {formatMoney(pricing.clientTotalCents)}
           </h2>
 
-          <p className="mt-3 text-sm font-semibold leading-6 text-muted">
+          <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             Secure payment through Stripe. The helper receives their earnings
             through Stripe Connect after platform commission.
           </p>
 
-          <div className="mt-6 grid gap-3 rounded-[24px] border border-[var(--border)] bg-white/64 p-4">
+          <div className="mt-6 grid gap-3 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
             <PaymentRow label="Helper" value={helperName} />
             <PaymentRow label="Offer" value={serviceTitle} />
             <PaymentRow
@@ -361,7 +363,7 @@ export default async function BookingCheckoutPage({
           </div>
 
           {bookingNote ? (
-            <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+            <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
               <div className="flex gap-3">
                 <MessageCircle
                   size={18}
@@ -369,9 +371,11 @@ export default async function BookingCheckoutPage({
                 />
 
                 <div>
-                  <p className="text-sm font-black">Your note</p>
+                  <p className="text-sm font-bold text-[var(--foreground)]">
+                    Your note
+                  </p>
 
-                  <p className="mt-1 line-clamp-4 text-sm font-bold leading-6 text-muted">
+                  <p className="mt-1 line-clamp-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                     {bookingNote}
                   </p>
                 </div>
@@ -380,14 +384,15 @@ export default async function BookingCheckoutPage({
           ) : null}
 
           {!helperCanReceivePayouts ? (
-            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black leading-6 text-[var(--danger)]">
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold leading-6 text-[var(--danger)]">
               Payment is temporarily unavailable because this helper has not
               completed payout setup yet. Please choose another helper or try
               again later.
             </div>
           ) : (
-            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black leading-6 text-[var(--success)]">
-              Payment is available for this booking. You can continue to Stripe checkout.
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold leading-6 text-[var(--success)]">
+              Payment is available for this booking. You can continue to Stripe
+              checkout.
             </div>
           )}
 
@@ -415,7 +420,7 @@ export default async function BookingCheckoutPage({
             </ButtonLink>
           </div>
 
-          <p className="mt-4 text-center text-xs font-bold leading-5 text-muted">
+          <p className="mt-4 text-center text-xs font-medium leading-5 text-[var(--muted-foreground)]">
             By paying, you agree to SkillDrop{" "}
             <Link href="/legal/terms" className="text-[var(--primary-dark)]">
               Terms
@@ -427,25 +432,28 @@ export default async function BookingCheckoutPage({
             .
           </p>
 
-          <div className="mt-6 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+          <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
             <div className="flex gap-3">
-              <Clock3 size={18} className="mt-0.5 text-[var(--primary-dark)]" />
+              <Clock3
+                size={18}
+                className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
+              />
 
-              <p className="text-sm font-bold leading-6 text-muted">
+              <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 Your slot is held only while the countdown is active. If payment
                 is not completed in time, the slot becomes available again.
               </p>
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+          <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
             <div className="flex gap-3">
               <ShieldCheck
                 size={18}
-                className="mt-0.5 text-[var(--primary-dark)]"
+                className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
               />
 
-              <p className="text-sm font-bold leading-6 text-muted">
+              <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 Stripe handles card payment details. SkillDrop confirms the
                 booking only after payment succeeds.
               </p>
@@ -467,14 +475,16 @@ function InfoRow({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <p className="text-sm font-bold text-muted">{label}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
 
       <p
         className={
           strong
-            ? "text-right text-base font-black text-[var(--primary-dark)]"
-            : "text-right text-sm font-black"
+            ? "text-right text-base font-bold text-[var(--primary-dark)]"
+            : "text-right text-sm font-bold text-[var(--foreground)]"
         }
       >
         {value}
@@ -497,8 +507,8 @@ function PaymentRow({
       <p
         className={
           strong
-            ? "text-sm font-black text-[var(--foreground)]"
-            : "text-sm font-bold text-muted"
+            ? "text-sm font-bold text-[var(--foreground)]"
+            : "text-sm font-medium text-[var(--muted-foreground)]"
         }
       >
         {label}
@@ -507,8 +517,8 @@ function PaymentRow({
       <p
         className={
           strong
-            ? "text-right text-lg font-black tracking-[-0.03em]"
-            : "text-right text-sm font-black"
+            ? "text-right text-lg font-black tracking-[-0.03em] text-[var(--primary-dark)]"
+            : "text-right text-sm font-bold text-[var(--foreground)]"
         }
       >
         {value}
@@ -527,21 +537,25 @@ function Step({
   text: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-black text-[var(--primary-dark)]">
+    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-bold text-[var(--primary-dark)]">
         {number}
       </div>
 
-      <p className="mt-4 font-black tracking-[-0.02em]">{title}</p>
+      <p className="mt-4 font-bold tracking-[-0.02em] text-[var(--foreground)]">
+        {title}
+      </p>
 
-      <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
+      <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
 
 function TrustPoint({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex items-start gap-3">
         <CheckCircle2
           size={18}
@@ -549,9 +563,11 @@ function TrustPoint({ title, text }: { title: string; text: string }) {
         />
 
         <div>
-          <p className="font-black tracking-[-0.02em]">{title}</p>
+          <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+            {title}
+          </p>
 
-          <p className="mt-1 text-sm font-semibold leading-6 text-muted">
+          <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             {text}
           </p>
         </div>
@@ -584,13 +600,9 @@ function getBookingPricing(booking: {
   };
 }
 
-
-
 function formatMoney(cents: number) {
   return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
 }
-
-
 
 function formatCheckoutError(error: string) {
   if (

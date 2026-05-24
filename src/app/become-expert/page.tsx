@@ -46,9 +46,9 @@ const durationOptions = [15, 30, 45, 60];
 
 const profileTips = [
   "Explain clearly who you can help.",
-  "Write what clients will get after the call.",
+  "Write what buyers will get after the call.",
   "Add real skills, languages and topics.",
-  "Start with one simple service.",
+  "Start with one simple offer.",
 ];
 
 const fallbackLanguageSuggestions = [
@@ -89,7 +89,7 @@ const fallbackSkillSuggestions = [
   "Housing advice",
   "Personal finance basics",
   "Small business",
-  "Client communication",
+  "Buyer communication",
   "Conflict resolution",
   "Mental support",
 ];
@@ -128,7 +128,7 @@ export default async function BecomeExpertPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const email = user.email?.toLowerCase() ?? "";
-  const name = user.name?.trim() || user.email || "Provider";
+  const name = user.name?.trim() || user.email || "Helper";
 
   const existingProfile = email
     ? await prisma.expertProfile.findFirst({
@@ -159,12 +159,12 @@ export default async function BecomeExpertPage({
             </Badge>
 
             <h1 className="heading-lg mt-5 max-w-3xl text-balance">
-              Your help profile is ready.
+              Your helper profile is ready.
             </h1>
 
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
-              You already created your provider profile. You can manage
-              services, availability and bookings from your dashboard.
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+              You already created your helper profile. You can manage offers,
+              availability and bookings from your dashboard.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -226,22 +226,22 @@ export default async function BecomeExpertPage({
           <div>
             <Badge variant="primary">
               <Sparkles size={14} />
-              Create your help profile
+              Create your helper profile
             </Badge>
 
             <h1 className="heading-lg mt-5 max-w-4xl text-balance">
               Tell people who you are and how you can help.
             </h1>
 
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
-              Create a clear profile, add your first service and become visible
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+              Create a clear profile, add your first offer and become visible
               in the marketplace after setup.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
             <MiniStep icon={UserRound} title="Profile" text="About you" />
-            <MiniStep icon={WalletCards} title="Service" text="Price & time" />
+            <MiniStep icon={WalletCards} title="Offer" text="Price & time" />
             <MiniStep icon={ShieldCheck} title="Trust" text="Earn verification" />
           </div>
         </div>
@@ -257,14 +257,13 @@ export default async function BecomeExpertPage({
                   Verification rule
                 </Badge>
 
-                <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+                <h2 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                   Verification is earned
                 </h2>
 
-                <p className="mt-3 leading-7 text-muted">
-                  New providers start without a verified badge. The badge
-                  appears after 3 successful calls and a rating of 3.8 or
-                  higher.
+                <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
+                  New helpers start without a verified badge. The badge appears
+                  after 3 successful calls and a rating of 3.8 or higher.
                 </p>
 
                 <div className="mt-6 grid gap-3">
@@ -284,7 +283,7 @@ export default async function BecomeExpertPage({
                   {profileTips.map((tip) => (
                     <div
                       key={tip}
-                      className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/62 p-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]"
+                      className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]"
                     >
                       <CheckCircle2
                         size={17}
@@ -301,16 +300,16 @@ export default async function BecomeExpertPage({
               <div>
                 <Badge variant="primary">
                   <BriefcaseBusiness size={14} />
-                  Provider setup
+                  Helper setup
                 </Badge>
 
-                <h2 className="mt-5 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-5 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   Create your profile
                 </h2>
 
-                <p className="mt-3 leading-7 text-muted">
+                <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
                   This information will be used for your public marketplace
-                  profile and your first bookable service.
+                  profile and your first bookable offer.
                 </p>
               </div>
 
@@ -331,7 +330,7 @@ export default async function BecomeExpertPage({
                   <SectionTitle
                     icon={UserRound}
                     title="About you"
-                    text="Basic information clients will see."
+                    text="Basic information buyers will see."
                   />
 
                   <div className="grid gap-5 md:grid-cols-2">
@@ -374,13 +373,13 @@ export default async function BecomeExpertPage({
                   <TextareaWithCounter
                     id="bio"
                     name="bio"
-                    label="Autobiography / about you"
+                    label="About you"
                     required
                     rows={6}
                     minLength={80}
                     maxLength={1200}
-                    placeholder="Tell clients who you are, what kind of experience you have, who you can help, and what they can expect after a call."
-                    helperText="Be specific. Clients trust profiles that clearly explain who you help and what they get."
+                    placeholder="Tell buyers who you are, what kind of experience you have, who you can help, and what they can expect after a call."
+                    helperText="Be specific. Buyers trust profiles that clearly explain who you help and what they get."
                   />
                 </div>
 
@@ -441,7 +440,7 @@ export default async function BecomeExpertPage({
                     required
                     suggestions={skillSuggestions}
                     placeholder="Translation, moving abroad, emotional support"
-                    helperText="Add topics clients might search for. Popular topics appear as suggestions."
+                    helperText="Add topics buyers might search for. Popular topics appear as suggestions."
                     maxItems={18}
                   />
 
@@ -458,11 +457,11 @@ export default async function BecomeExpertPage({
                 <div className="grid gap-5">
                   <SectionTitle
                     icon={Clock3}
-                    title="Your first service"
-                    text="Create one clear offer that people can book."
+                    title="Your first offer"
+                    text="Create one clear service that people can book."
                   />
 
-                  <Field label="Service title" htmlFor="serviceTitle">
+                  <Field label="Offer title" htmlFor="serviceTitle">
                     <input
                       id="serviceTitle"
                       name="serviceTitle"
@@ -478,13 +477,13 @@ export default async function BecomeExpertPage({
                   <TextareaWithCounter
                     id="serviceDescription"
                     name="serviceDescription"
-                    label="Service description"
+                    label="Offer description"
                     required
                     rows={4}
                     minLength={30}
                     maxLength={800}
-                    placeholder="Explain what happens during the call and what the client will get from it."
-                    helperText="Clear service descriptions help clients book faster."
+                    placeholder="Explain what happens during the call and what the buyer will get from it."
+                    helperText="Clear offer descriptions help buyers book faster."
                   />
 
                   <div className="grid gap-5 md:grid-cols-2">
@@ -508,7 +507,7 @@ export default async function BecomeExpertPage({
                       <div className="relative mt-2">
                         <Euro
                           size={17}
-                          className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                          className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
                         />
 
                         <input
@@ -534,12 +533,12 @@ export default async function BecomeExpertPage({
                     />
 
                     <div>
-                      <p className="font-black text-[var(--primary-dark)]">
+                      <p className="font-bold text-[var(--primary-dark)]">
                         Your profile will be visible after setup
                       </p>
 
-                      <p className="mt-1 text-sm font-semibold leading-6 text-[var(--primary-dark)]/80">
-                        You can edit services and availability later from your
+                      <p className="mt-1 text-sm font-medium leading-6 text-[var(--primary-dark)]/80">
+                        You can edit offers and availability later from your
                         dashboard.
                       </p>
                     </div>
@@ -580,17 +579,25 @@ function MiniStep({
         <Icon size={19} />
       </div>
 
-      <p className="mt-4 font-black">{title}</p>
-      <p className="mt-1 text-sm font-semibold text-muted">{text}</p>
+      <p className="mt-4 font-bold text-[var(--foreground)]">{title}</p>
+
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </Card>
   );
 }
 
 function RuleItem({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/70 p-4">
-      <p className="text-2xl font-black tracking-[-0.04em]">{value}</p>
-      <p className="mt-1 text-sm font-bold text-muted">{label}</p>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
+
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
     </div>
   );
 }
@@ -611,8 +618,13 @@ function SectionTitle({
       </div>
 
       <div>
-        <h3 className="text-xl font-black tracking-[-0.03em]">{title}</h3>
-        <p className="mt-1 text-sm leading-6 text-muted">{text}</p>
+        <h3 className="text-xl font-black tracking-[-0.03em] text-[var(--foreground)]">
+          {title}
+        </h3>
+
+        <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+          {text}
+        </p>
       </div>
     </div>
   );
@@ -629,7 +641,7 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="text-sm font-black">
+      <label htmlFor={htmlFor} className="text-sm font-bold text-[var(--foreground)]">
         {label}
       </label>
 
@@ -716,11 +728,11 @@ function formatExpertSetupError(error: string) {
   }
 
   if (error === "profile-already-exists") {
-    return "You already have an expert profile.";
+    return "You already have a helper profile.";
   }
 
   if (error === "not-signed-in") {
-    return "Please sign in before creating a provider profile.";
+    return "Please sign in before creating a helper profile.";
   }
 
   return error;

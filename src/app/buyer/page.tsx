@@ -38,7 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UnreadNotificationsCard } from "@/components/notifications/unread-notifications-card";
-import { truncate } from "node:fs/promises";
+
 
 const problemCards = [
   {
@@ -222,6 +222,9 @@ export default async function BuyerDashboardPage() {
       stripeAccountId: {
         not: null,
       },
+      stripeChargesEnabled: true,
+      stripePayoutsEnabled: true,
+      stripeDetailsSubmitted: true,
       services: {
         some: {
           isActive: true,
@@ -301,26 +304,26 @@ export default async function BuyerDashboardPage() {
                 What do you need help with today, {buyer.name ?? "friend"}?
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Search for a problem, find the right helper, book a short 1:1
                 call and keep your bookings, saved helpers and reviews in one
                 place.
               </p>
 
               <form action="/experts" className="mt-7 max-w-3xl">
-                <div className="rounded-[28px] border border-[var(--border)] bg-white/78 p-3 shadow-[var(--shadow-sm)] backdrop-blur">
+                <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-sm)] backdrop-blur">
                   <div className="flex flex-col gap-3 md:flex-row">
                     <div className="relative flex-1">
                       <Search
                         size={18}
-                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted"
+                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
                       />
 
                       <input
                         name="q"
                         type="search"
                         placeholder="Try “CV review”, “visa documents”, “coding help”, “language practice”..."
-                        className="input min-h-[54px] border-transparent bg-white pl-12 shadow-none"
+                        className="input min-h-[54px] border-transparent bg-[var(--background-soft)] pl-12 shadow-none"
                       />
                     </div>
 
@@ -413,16 +416,16 @@ export default async function BuyerDashboardPage() {
 
               <div className="mt-5 flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-5xl font-black tracking-[-0.06em]">
+                  <p className="text-5xl font-bold tracking-[-0.06em]">
                     {buyerReadiness}%
                   </p>
 
-                  <p className="mt-2 text-sm font-semibold text-muted">
+                  <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
                     Ready to use
                   </p>
                 </div>
 
-                <p className="text-sm font-black text-[var(--primary-dark)]">
+                <p className="text-sm font-bold text-[var(--primary-dark)]">
                   {buyerReadiness >= 70 ? "Good" : "Getting started"}
                 </p>
               </div>
@@ -468,7 +471,7 @@ export default async function BuyerDashboardPage() {
                       size={18}
                       className="mt-0.5 shrink-0 text-[var(--accent)]"
                     />
-                    <p className="text-sm font-bold leading-6 text-muted">
+                    <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                       You have completed calls waiting for review. Leaving a
                       review helps keep the marketplace trustworthy.
                     </p>
@@ -490,7 +493,7 @@ export default async function BuyerDashboardPage() {
                   Start with what you need.
                 </h2>
 
-                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted">
+                <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   Choose a common problem or search with your own words. SkillDrop
                   will match you with helpers by title, description, skills,
                   tags, languages and services.
@@ -509,16 +512,16 @@ export default async function BuyerDashboardPage() {
 
                 return (
                   <Link key={category.title} href={category.href} className="group">
-                    <div className="h-full rounded-[22px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+                    <div className="h-full rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
                       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
                         <Icon size={18} />
                       </div>
 
-                      <h3 className="mt-4 font-black tracking-[-0.02em]">
+                      <h3 className="mt-4 font-bold tracking-[-0.02em]">
                         {category.title}
                       </h3>
 
-                      <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                      <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                         {category.text}
                       </p>
                     </div>
@@ -541,7 +544,7 @@ export default async function BuyerDashboardPage() {
                     Confirm your reserved slots.
                   </h2>
 
-                  <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                  <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                     These calls are not confirmed yet. Complete payment before
                     the reservation expires.
                   </p>
@@ -565,7 +568,7 @@ export default async function BuyerDashboardPage() {
                     Share feedback after your calls.
                   </h2>
 
-                  <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                  <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                     Your feedback helps good helpers grow and helps other users
                     choose safely.
                   </p>
@@ -590,7 +593,7 @@ export default async function BuyerDashboardPage() {
                       Your schedule
                     </h2>
 
-                    <p className="mt-2 text-sm leading-6 text-muted">
+                    <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                       Your next calls and reservations appear here.
                     </p>
                   </div>
@@ -626,7 +629,7 @@ export default async function BuyerDashboardPage() {
                       Come back later
                     </h2>
 
-                    <p className="mt-2 text-sm leading-6 text-muted">
+                    <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                       Helpers you saved for future calls.
                     </p>
                   </div>
@@ -666,7 +669,7 @@ export default async function BuyerDashboardPage() {
                   })}
                 </h2>
 
-                <p className="mt-3 text-sm font-bold leading-6 text-muted">
+                <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   {getSmartTipText({
                     hasPendingPayment: pendingPaymentBookings.length > 0,
                     hasUpcoming: upcomingBookings.length > 0,
@@ -691,7 +694,7 @@ export default async function BuyerDashboardPage() {
                       Available now
                     </h2>
 
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
                       Helpers with active offers, open time slots and payout
                       setup ready.
                     </p>
@@ -887,18 +890,18 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
           {title}
         </h2>
 
-        <p className="mt-3 leading-7 text-muted">{description}</p>
+        <p className="mt-3 leading-7 text-[var(--muted-foreground)]">{description}</p>
 
         {bookingNote ? (
           <BookingNote note={bookingNote} className="mt-5" />
         ) : booking.status === "CONFIRMED" ? (
-          <div className="mt-5 rounded-2xl border border-dashed border-[var(--border-strong)] bg-white/55 p-4">
+          <div className="mt-5 rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-4">
             <div className="flex gap-3">
               <MessageCircle
                 size={18}
                 className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
               />
-              <p className="text-sm font-bold leading-6 text-muted">
+              <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 No note was added for this booking. Prepare one clear question
                 before joining.
               </p>
@@ -939,19 +942,19 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
         </div>
       </div>
 
-      <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-5">
+      <div className="rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
         <Badge variant="accent">
           <Clock3 size={14} />
           {formatStatus(booking.status)}
         </Badge>
 
-        <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+        <h3 className="mt-4 text-2xl font-bold tracking-[-0.04em]">
           {booking.service?.title ?? "Booked call"}
         </h3>
 
-        <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+        <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
           With{" "}
-          <span className="font-black text-[var(--foreground)]">
+          <span className="font-bold text-[var(--foreground)]">
             {helperName}
           </span>
         </p>
@@ -990,7 +993,7 @@ function StartPanel() {
           Find someone who can help.
         </h2>
 
-        <p className="mt-3 max-w-xl leading-7 text-muted">
+        <p className="mt-3 max-w-xl leading-7 text-[var(--muted-foreground)]">
           Search with your own words, compare helpers and book a short call when
           you find the right person.
         </p>
@@ -1008,7 +1011,7 @@ function StartPanel() {
         </div>
       </div>
 
-      <div className="rounded-[26px] border border-[var(--border)] bg-white/55 p-5">
+      <div className="rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
         <Badge variant="primary">
           <Sparkles size={14} />
           How to begin
@@ -1045,7 +1048,7 @@ function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
   const bookingNote = booking.note?.trim() ?? "";
 
   return (
-    <div className="rounded-[26px] border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
@@ -1073,13 +1076,13 @@ function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
             ) : null}
           </div>
 
-          <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+          <h3 className="mt-4 text-2xl font-bold tracking-[-0.04em]">
             {booking.service?.title ?? "Booked call"}
           </h3>
 
-          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             With{" "}
-            <span className="font-black text-[var(--foreground)]">
+            <span className="font-bold text-[var(--foreground)]">
               {booking.expert.user.name ?? booking.expert.user.email}
             </span>
           </p>
@@ -1150,7 +1153,7 @@ function BookingNote({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-[var(--border)] bg-white/64 p-4 ${className}`}
+      className={`rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 ${className}`}
     >
       <div className="flex gap-3">
         <MessageCircle
@@ -1159,12 +1162,15 @@ function BookingNote({
         />
 
         <div>
-          <p className="text-sm font-black">Your note</p>
+          <p className="text-sm font-bold text-[var(--foreground)]">
+            Your note
+          </p>
+
           <p
             className={
               compact
-                ? "mt-1 line-clamp-3 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted"
-                : "mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted"
+                ? "mt-1 line-clamp-3 whitespace-pre-wrap text-sm font-medium leading-6 text-[var(--muted-foreground)]"
+                : "mt-1 whitespace-pre-wrap text-sm font-medium leading-6 text-[var(--muted-foreground)]"
             }
           >
             {note}
@@ -1210,9 +1216,9 @@ function SavedExpertPreview({
 
   return (
     <Link href={`/experts/${expert.id}`} className="group">
-      <div className="rounded-[24px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+      <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-lg font-black text-white">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-lg font-bold text-white">
             {expert.user.name?.charAt(0).toUpperCase() ?? "H"}
           </div>
 
@@ -1234,16 +1240,16 @@ function SavedExpertPreview({
               ) : null}
             </div>
 
-            <h3 className="mt-3 font-black tracking-[-0.02em]">
+            <h3 className="mt-3 font-bold tracking-[-0.02em] text-[var(--foreground)]">
               {expert.user.name ?? expert.user.email}
             </h3>
 
-            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+            <p className="mt-1 line-clamp-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               {expert.headline}
             </p>
 
             {nextSlot ? (
-              <p className="mt-3 text-xs font-black text-[var(--primary-dark)]">
+              <p className="mt-3 text-xs font-bold text-[var(--primary-dark)]">
                 Next slot: {formatDateTime(nextSlot.startTime)}
               </p>
             ) : null}
@@ -1286,9 +1292,9 @@ function ExpertCard({
 
   return (
     <Link href={`/experts/${expert.id}`} className="group">
-      <div className="h-full rounded-[26px] border border-[var(--border)] bg-white/64 p-4 transition group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+      <div className="h-full rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-black text-white">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-bold text-white">
             {expert.user.name?.charAt(0).toUpperCase() ?? "H"}
           </div>
 
@@ -1310,11 +1316,11 @@ function ExpertCard({
               ) : null}
             </div>
 
-            <h3 className="mt-3 font-black tracking-[-0.02em]">
+            <h3 className="mt-3 font-bold tracking-[-0.02em]">
               {expert.user.name ?? expert.user.email}
             </h3>
 
-            <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+            <p className="mt-1 line-clamp-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               {expert.headline}
             </p>
           </div>
@@ -1324,7 +1330,7 @@ function ExpertCard({
           {expert.skills.slice(0, 3).map((skill) => (
             <span
               key={skill}
-              className="rounded-full border border-[var(--border)] bg-white/64 px-3 py-1 text-xs font-black text-[var(--muted-foreground)]"
+              className="rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-1 text-xs font-bold text-[var(--muted-foreground)]"
             >
               #{skill}
             </span>
@@ -1332,7 +1338,7 @@ function ExpertCard({
         </div>
 
         {nextSlot ? (
-          <p className="mt-4 text-xs font-black text-[var(--primary-dark)]">
+          <p className="mt-4 text-xs font-bold text-[var(--primary-dark)]">
             Next slot: {formatDateTime(nextSlot.startTime)}
           </p>
         ) : null}
@@ -1346,7 +1352,7 @@ function ActivityRow({ booking }: { booking: DashboardBooking }) {
 
   return (
     <Link href="/buyer/bookings" className="group">
-      <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition group-hover:bg-white group-hover:shadow-[var(--shadow-sm)]">
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={booking.status} />
@@ -1359,21 +1365,21 @@ function ActivityRow({ booking }: { booking: DashboardBooking }) {
             ) : null}
           </div>
 
-          <p className="text-xs font-bold text-muted">
+          <p className="text-xs font-medium text-[var(--muted-foreground)]">
             {formatDateTime(booking.startTime)}
           </p>
         </div>
 
-        <p className="mt-3 font-black tracking-[-0.02em]">
+        <p className="mt-3 font-bold tracking-[-0.02em] text-[var(--foreground)]">
           {booking.service?.title ?? "Booked call"}
         </p>
 
-        <p className="mt-1 text-sm font-semibold text-muted">
+        <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
           With {booking.expert.user.name ?? booking.expert.user.email}
         </p>
 
         {bookingNote ? (
-          <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-muted">
+          <p className="mt-2 line-clamp-2 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
             {bookingNote}
           </p>
         ) : null}
@@ -1399,13 +1405,17 @@ function MetricCard({
         <Icon size={20} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-2 text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </Card>
   );
 }
@@ -1428,11 +1438,11 @@ function QuickAction({
           <Icon size={21} />
         </div>
 
-        <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
+        <h3 className="mt-5 text-xl font-bold tracking-[-0.03em] text-[var(--foreground)]">{title}</h3>
 
-        <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
+        <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">{text}</p>
 
-        <div className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]">
+        <div className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]">
           Open
           <ArrowRight size={16} />
         </div>
@@ -1447,7 +1457,7 @@ function StatusBadge({ status }: { status: string }) {
   }
 
   if (status === "PAID") {
-    return <Badge variant="primary">Paid</Badge>;
+    return <Badge variant="primary">Confirming</Badge>;
   }
 
   if (status === "CONFIRMED") {
@@ -1475,16 +1485,21 @@ function StatusBadge({ status }: { status: string }) {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-black">{value}</p>
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-right text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
 
 function MiniCheck({ done, text }: { done: boolean; text: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-3">
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
       <div
         className={
           done
@@ -1495,7 +1510,9 @@ function MiniCheck({ done, text }: { done: boolean; text: string }) {
         {done ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}
       </div>
 
-      <p className="text-sm font-bold text-muted">{text}</p>
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
@@ -1508,7 +1525,7 @@ function SmallPill({
   text: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white/64 px-3 py-1.5 text-xs font-black text-[var(--muted-foreground)]">
+    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1.5 text-xs font-bold text-[var(--muted-foreground)]">
       <Icon size={13} />
       {text}
     </span>
@@ -1525,14 +1542,19 @@ function OnboardingStep({
   text: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-black text-[var(--primary-dark)]">
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-bold text-[var(--primary-dark)]">
         {number}
       </div>
 
       <div>
-        <p className="font-black tracking-[-0.02em]">{title}</p>
-        <p className="mt-1 text-sm font-semibold leading-6 text-muted">{text}</p>
+        <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+          {title}
+        </p>
+
+        <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+          {text}
+        </p>
       </div>
     </div>
   );
@@ -1540,10 +1562,12 @@ function OnboardingStep({
 
 function EmptyState({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center md:col-span-2">
-      <h3 className="text-2xl font-black tracking-[-0.04em]">{title}</h3>
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-7 text-center md:col-span-2">
+      <h3 className="text-2xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+      <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         {text}
       </p>
     </div>
@@ -1715,7 +1739,7 @@ function formatStatus(status: string) {
   }
 
   if (status === "PAID") {
-    return "Paid";
+    return "Confirming";
   }
 
   if (status === "CONFIRMED") {
