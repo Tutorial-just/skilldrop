@@ -190,16 +190,15 @@ export default function HomePage() {
               <div className="rounded-[30px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-md)] backdrop-blur">
                 <div className="flex flex-col gap-3 md:flex-row">
                   <div className="relative flex-1">
-                    <Search
-                      size={19}
-                      className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-                    />
-
                     <input
                       name="q"
                       type="search"
                       placeholder="What do you need help with?"
                       className="input min-h-[56px] border-transparent bg-[var(--background-soft)] pl-12 shadow-none"
+                    />
+                    <Search
+                      size={19}
+                      className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
                     />
                   </div>
 
@@ -590,13 +589,13 @@ export default function HomePage() {
 function HeroMarketplacePreview() {
   const seoKeywords = [
     "CV help",
-    "Interview preparation",
-    "Document help",
+    "Interview",
+    "Documents",
     "Translation",
-    "Language practice",
-    "Tech support",
-    "Relocation advice",
-    "Study application",
+    "Language",
+    "Tech help",
+    "Relocation",
+    "Study",
   ];
 
   return (
@@ -612,8 +611,7 @@ function HeroMarketplacePreview() {
             className="object-cover"
           />
 
-          <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/65 via-[#171124]/10 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#171124]/15 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/75 via-[#171124]/10 to-transparent" />
 
           <div className="absolute left-5 right-5 top-5 flex items-center justify-between gap-4">
             <Badge variant="primary">
@@ -626,13 +624,13 @@ function HeroMarketplacePreview() {
             </div>
           </div>
 
-          <div className="absolute bottom-5 left-5 right-5">
-            <div className="max-w-lg rounded-[28px] border border-white/15 bg-[#171124]/55 p-5 text-white shadow-[var(--shadow-md)] backdrop-blur-xl">
+          <div className="absolute bottom-0 left-0 right-0">
+            <div className="rounded-t-[34px] border-t border-white/15 bg-[#171124]/72 p-6 text-white shadow-[var(--shadow-md)] backdrop-blur-xl">
               <p className="text-sm font-bold text-white/70">
                 Find practical help online
               </p>
 
-              <h2 className="mt-2 text-3xl font-black leading-tight tracking-[-0.055em]">
+              <h2 className="mt-2 max-w-xl text-3xl font-black leading-tight tracking-[-0.055em]">
                 Book short video calls with people who can help you move forward.
               </h2>
 
