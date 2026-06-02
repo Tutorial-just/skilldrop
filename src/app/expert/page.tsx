@@ -300,16 +300,6 @@ export default async function ExpertDashboardPage({
     0,
   );
 
-  const profileScore = calculateProfileScore({
-    hasHeadline: Boolean(expert.headline?.trim()),
-    hasBio: bio.trim().length >= 120,
-    hasSkills: expert.skills.length >= 3,
-    hasLanguages: expert.languages.length > 0,
-    hasServices: activeServices.length > 0,
-    hasAvailability: openSlots.length > 0,
-    hasStripePayouts,
-    isVerified: expert.isVerified,
-  });
 
 
   const checklist = [
@@ -356,9 +346,7 @@ export default async function ExpertDashboardPage({
   ];
 
   const completedChecklist = checklist.filter((item) => item.done).length;
-  const checklistProgress = Math.round(
-    (completedChecklist / checklist.length) * 100,
-  );
+ 
 
   const avatarLetter = (
     helperName.charAt(0) ||
@@ -703,27 +691,14 @@ export default async function ExpertDashboardPage({
                 Setup checklist
               </Badge>
 
-              <div className="mt-5 flex items-end justify-between gap-4">
-                <div>
-                  <h2 className="text-3xl font-black tracking-[-0.05em]">
-                    {checklistProgress}% complete
-                  </h2>
+              <div className="mt-5">
+                <h2 className="text-3xl font-black tracking-[-0.05em]">
+                  Setup checklist
+                </h2>
 
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    {completedChecklist} of {checklist.length} tasks done.
-                  </p>
-                </div>
-
-                <p className="text-sm font-bold text-[var(--primary-dark)]">
-                  {checklistProgress >= 80 ? "Strong" : "Keep going"}
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {completedChecklist} of {checklist.length} tasks done.
                 </p>
-              </div>
-
-              <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
-                  style={{ width: `${checklistProgress}%` }}
-                />
               </div>
 
               <div className="mt-5 grid gap-2">
@@ -828,43 +803,6 @@ export default async function ExpertDashboardPage({
                 ) : null}
               </Card>
 
-              <Card className="p-5 md:p-6">
-                <Badge variant="primary">
-                  <UserRound size={14} />
-                  Profile readiness
-                </Badge>
-
-                <div className="mt-5 flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-5xl font-bold tracking-[-0.06em]">
-                      {profileScore}%
-                    </p>
-
-                    <p className="mt-2 text-sm font-semibold text-muted">
-                      Public profile strength
-                    </p>
-                  </div>
-
-                  <ButtonLink href="/expert/profile" variant="secondary">
-                    Edit
-                  </ButtonLink>
-                </div>
-
-                <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
-                    style={{ width: `${profileScore}%` }}
-                  />
-                </div>
-
-                <div className="mt-5 grid gap-2">
-                  <MiniCheck done={Boolean(expert.headline?.trim())} text="Headline added" />
-                  <MiniCheck done={bio.trim().length >= 120} text="Strong biography" />
-                  <MiniCheck done={expert.skills.length >= 3} text="Searchable skills" />
-                  <MiniCheck done={expert.languages.length > 0} text="Languages added" />
-                  <MiniCheck done={hasStripePayouts} text="Stripe payouts connected" />
-                </div>
-              </Card>
 
               
             </div>
@@ -1215,23 +1153,6 @@ function ChecklistRow({
   );
 }
 
-function MiniCheck({ done, text }: { done: boolean; text: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
-      <div
-        className={
-          done
-            ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--success-soft)] text-[var(--success)]"
-            : "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]"
-        }
-      >
-        {done ? <BadgeCheck size={15} /> : <ShieldCheck size={15} />}
-      </div>
-
-      <p className="text-sm font-bold text-muted">{text}</p>
-    </div>
-  );
-}
 
 
 function MoneyRow({ label, value }: { label: string; value: string }) {
@@ -1272,59 +1193,6 @@ function canJoinBooking(booking: {
   );
 }
 
-function calculateProfileScore({
-  hasHeadline,
-  hasBio,
-  hasSkills,
-  hasLanguages,
-  hasServices,
-  hasAvailability,
-  hasStripePayouts,
-  isVerified,
-}: {
-  hasHeadline: boolean;
-  hasBio: boolean;
-  hasSkills: boolean;
-  hasLanguages: boolean;
-  hasServices: boolean;
-  hasAvailability: boolean;
-  hasStripePayouts: boolean;
-  isVerified: boolean;
-}) {
-  const checks = [
-    hasHeadline,
-    hasBio,
-    hasSkills,
-    hasLanguages,
-    hasServices,
-    hasAvailability,
-    hasStripePayouts,
-    isVerified,
-  ];
-
-  const completed = checks.filter(Boolean).length;
-
-  return Math.round((completed / checks.length) * 100);
-}
-
-function calculateVerificationProgress({
-  totalSessions,
-  rating,
-  isVerified,
-}: {
-  totalSessions: number;
-  rating: number;
-  isVerified: boolean;
-}) {
-  if (isVerified) {
-    return 100;
-  }
-
-  const callProgress = Math.min(totalSessions / 3, 1) * 60;
-  const ratingProgress = rating >= 3.8 ? 40 : rating > 0 ? 20 : 0;
-
-  return Math.round(callProgress + ratingProgress);
-}
 
 function getProviderNetCents(booking: {
   priceCents: number;

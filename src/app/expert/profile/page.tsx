@@ -364,10 +364,7 @@ export default async function ExpertProfilePage({
                   )}
                 </Badge>
 
-                <Badge variant={profileStrength >= 75 ? "success" : "accent"}>
-                  <Sparkles size={14} />
-                  {profileStrength}% complete
-                </Badge>
+               
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
@@ -474,29 +471,6 @@ export default async function ExpertProfilePage({
 
                     <Badge>{expert.totalSessions} sessions</Badge>
                   </div>
-                </div>
-              </div>
-
-              <div className="mt-6 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-4xl font-black tracking-[-0.06em]">
-                      {profileStrength}%
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-muted">
-                      Profile strength
-                    </p>
-                  </div>
-
-                  <p className="text-sm font-black">{profileTone}</p>
-                </div>
-
-                <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
-                    style={{ width: `${profileStrength}%` }}
-                  />
                 </div>
               </div>
 
