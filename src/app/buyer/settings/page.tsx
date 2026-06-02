@@ -152,14 +152,14 @@ export default async function BuyerSettingsPage({
             <div>
               <Link
                 href="/buyer"
-                className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+                className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
               >
                 <ArrowLeft size={16} />
                 Back to dashboard
               </Link>
 
               {resolvedSearchParams.saved ? (
-                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
                   Settings saved.
                 </div>
               ) : null}
@@ -175,7 +175,7 @@ export default async function BuyerSettingsPage({
                 Control your SkillDrop workspace.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Manage appearance, account visibility, reminders, activity,
                 privacy and support tools from one clean place.
               </p>
@@ -210,7 +210,7 @@ export default async function BuyerSettingsPage({
               icon={Bookmark}
               label="Saved"
               value={String(buyer.savedExperts.length)}
-              text="Saved providers"
+              text="Saved helpers"
             />
 
             <MiniStat
@@ -241,11 +241,11 @@ export default async function BuyerSettingsPage({
 
               <div className="mt-5 flex flex-col justify-between gap-5 md:flex-row md:items-start">
                 <div>
-                  <h2 className="text-3xl font-black tracking-[-0.05em]">
+                  <h2 className="text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                     Your account
                   </h2>
 
-                  <p className="mt-3 text-sm leading-6 text-muted">
+                  <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
                     Basic account details. Profile preferences like languages,
                     topics, budget and timezone are managed from your buyer
                     profile.
@@ -303,12 +303,12 @@ export default async function BuyerSettingsPage({
                 Appearance
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Workspace theme
               </h2>
 
-              <p className="mt-3 leading-7 text-muted">
-                Choose how SkillDrop looks while you browse providers, save
+              <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
+                Choose how SkillDrop looks while you browse helpers, save
                 profiles, book calls and manage your activity.
               </p>
 
@@ -329,7 +329,7 @@ export default async function BuyerSettingsPage({
 
             <QuickActionCard
               icon={Bookmark}
-              title="Saved providers"
+              title="Saved helpers"
               text="Return quickly to people you saved for later."
               href="/buyer/saved"
               action="Open saved"
@@ -370,12 +370,12 @@ export default async function BuyerSettingsPage({
               icon={Lock}
               badge="Privacy"
               title="Visibility and contact"
-              text="Control what providers can see and how communication should happen."
+              text="Control what helpers can see and how communication should happen."
               rows={[
                 ["Email visibility", hideEmail ? "Hidden" : "Visible"],
                 ["Platform contact", "Enabled"],
-                ["Saved providers", "Private"],
-                ["Blocked providers", "Soon"],
+                ["Saved helpers", "Private"],
+                ["Blocked helpers", "Soon"],
               ]}
             />
 
@@ -383,7 +383,7 @@ export default async function BuyerSettingsPage({
               icon={ShieldCheck}
               badge="Security"
               title="Account protection"
-              text="Security tools for your client account and booking history."
+              text="Security tools for your buyer account and booking history."
               rows={[
                 ["Authentication", "Supabase"],
                 ["Session status", "Active"],
@@ -402,13 +402,13 @@ export default async function BuyerSettingsPage({
 
               <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
                 <div>
-                  <h2 className="text-3xl font-black tracking-[-0.05em]">
+                  <h2 className="text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                     Personalization lives in Profile.
                   </h2>
 
-                  <p className="mt-3 max-w-2xl leading-7 text-muted">
+                  <p className="mt-3 max-w-2xl leading-7 text-[var(--muted-foreground)]">
                     Languages, topics, budget, timezone and reminder defaults
-                    help SkillDrop show better providers and keep the settings
+                    help SkillDrop show better helpers and keep the settings
                     page simple.
                   </p>
                 </div>
@@ -452,11 +452,11 @@ export default async function BuyerSettingsPage({
                 Activity
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Account usage
               </h2>
 
-              <p className="mt-3 text-sm leading-6 text-muted">
+              <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
                 Quick view of your activity across the platform.
               </p>
 
@@ -507,11 +507,11 @@ export default async function BuyerSettingsPage({
                 Data tools
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Data and exports
               </h2>
 
-              <p className="mt-3 leading-7 text-muted">
+              <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
                 These tools are useful for a professional platform, but they can
                 be built after the main booking, payment and support flow is
                 stable.
@@ -531,11 +531,11 @@ export default async function BuyerSettingsPage({
                 Support and safety
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Need help?
               </h2>
 
-              <p className="mt-3 leading-7 text-muted">
+              <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
                 Later this area can include support tickets, booking disputes,
                 refunds and safety reports.
               </p>
@@ -569,18 +569,18 @@ export default async function BuyerSettingsPage({
                   Danger zone
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   Sensitive account actions
                 </h2>
 
-                <p className="mt-3 max-w-3xl leading-7 text-muted">
+                <p className="mt-3 max-w-3xl leading-7 text-[var(--muted-foreground)]">
                   Account deletion, full data export and account pause should be
                   added later with confirmation screens, identity checks and
                   admin-safe audit logs.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-[var(--danger)]/20 bg-white/64 p-4 text-sm font-black text-[var(--danger)]">
+              <div className="rounded-2xl border border-[var(--danger)]/20 bg-[var(--background-soft)] p-4 text-sm font-bold text-[var(--danger)]">
                 Protected
               </div>
             </div>
@@ -601,17 +601,19 @@ function SettingRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <Icon size={18} />
       </div>
 
       <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
           {label}
         </p>
 
-        <p className="mt-1 truncate font-black">{value}</p>
+        <p className="mt-1 truncate font-bold text-[var(--foreground)]">
+          {value}
+        </p>
       </div>
     </div>
   );
@@ -634,13 +636,17 @@ function MiniStat({
         <Icon size={20} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p>
+      <p className="mt-2 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-sm font-semibold text-muted">{text}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </Card>
   );
 }
@@ -665,13 +671,15 @@ function QuickActionCard({
           <Icon size={20} />
         </div>
 
-        <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
+        <h3 className="mt-5 text-xl font-black tracking-[-0.03em] text-[var(--foreground)]">
+          {title}
+        </h3>
 
-        <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+        <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
           {text}
         </p>
 
-        <p className="mt-5 text-sm font-black text-[var(--primary-dark)]">
+        <p className="mt-5 text-sm font-bold text-[var(--primary-dark)]">
           {action} →
         </p>
       </Card>
@@ -699,19 +707,25 @@ function SystemPanel({
         {badge}
       </Badge>
 
-      <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">{title}</h2>
+      <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {title}
+      </h2>
 
-      <p className="mt-3 text-sm leading-6 text-muted">{text}</p>
+      <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
 
       <div className="mt-5 grid gap-2">
         {rows.map(([label, value]) => (
           <div
             key={label}
-            className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-3"
+            className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3"
           >
-            <p className="text-sm font-bold text-muted">{label}</p>
+            <p className="text-sm font-medium text-[var(--muted-foreground)]">
+              {label}
+            </p>
 
-            <span className="rounded-full bg-[var(--primary-soft)] px-3 py-1 text-xs font-black text-[var(--primary-dark)]">
+            <span className="rounded-full bg-[var(--primary-soft)] px-3 py-1 text-xs font-bold text-[var(--primary-dark)]">
               {value}
             </span>
           </div>
@@ -723,28 +737,32 @@ function SystemPanel({
 
 function PreferencePreview({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-sm font-black leading-6">{value}</p>
+      <p className="mt-2 text-sm font-bold leading-6 text-[var(--foreground)]">
+        {value}
+      </p>
     </div>
   );
 }
 
 function DisabledTool({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
           <Icon size={16} />
         </div>
 
-        <p className="text-sm font-bold text-muted">{label}</p>
+        <p className="text-sm font-medium text-[var(--muted-foreground)]">
+          {label}
+        </p>
       </div>
 
-      <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-black text-[var(--accent)]">
+      <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-bold text-[var(--accent)]">
         Soon
       </span>
     </div>
@@ -763,17 +781,19 @@ function SupportLink({
   return (
     <Link
       href={href}
-      className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-white/64 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--shadow-sm)]"
+      className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]"
     >
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
           <Icon size={16} />
         </div>
 
-        <p className="text-sm font-bold text-muted">{label}</p>
+        <p className="text-sm font-medium text-[var(--muted-foreground)]">
+          {label}
+        </p>
       </div>
 
-      <span className="text-sm font-black text-[var(--primary-dark)]">Open</span>
+      <span className="text-sm font-bold text-[var(--primary-dark)]">Open</span>
     </Link>
   );
 }
@@ -841,15 +861,17 @@ function formatMoney(cents: number) {
 }
 
 function formatRole(role: string) {
-  if (role === "admin") {
+  const normalizedRole = role.toLowerCase();
+
+  if (normalizedRole === "admin") {
     return "Admin";
   }
 
-  if (role === "buyer") {
+  if (normalizedRole === "buyer") {
     return "Buyer";
   }
 
-  if (role === "expert") {
+  if (normalizedRole === "expert") {
     return "Expert";
   }
 

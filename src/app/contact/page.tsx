@@ -29,12 +29,12 @@ const contactTopics = [
   {
     icon: RefreshCcw,
     title: "Refund request",
-    text: "Use this if a call did not happen, the provider did not join, or you need help with a refund review.",
+    text: "Use this if a call did not happen, the helper did not join, or you need help with a refund review.",
   },
   {
     icon: ShieldAlert,
     title: "Dispute or safety issue",
-    text: "Use this for abuse, misleading services, no-show problems, fraud concerns or unsafe behavior.",
+    text: "Use this for abuse, misleading offers, no-show problems, fraud concerns or unsafe behavior.",
   },
   {
     icon: UserRound,
@@ -56,7 +56,7 @@ const contactTopics = [
 const emailChecklist = [
   "Your SkillDrop account email",
   "Booking ID if the issue is about a booking",
-  "Provider or buyer name if relevant",
+  "Helper or buyer name if relevant",
   "A short description of what happened",
   "Screenshots if they help explain the issue",
 ];
@@ -70,7 +70,7 @@ export default function ContactPage() {
     <main className="container-page py-10 md:py-14">
       <Link
         href="/"
-        className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+        className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
       >
         <ArrowLeft size={16} />
         Back home
@@ -88,7 +88,7 @@ export default function ContactPage() {
               Need help with SkillDrop?
             </h1>
 
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
               Contact SkillDrop support for payment problems, refunds, disputes,
               account issues, booking problems or general product questions.
             </p>
@@ -115,11 +115,11 @@ export default function ContactPage() {
               Support email
             </Badge>
 
-            <p className="mt-4 break-all text-2xl font-black tracking-[-0.04em]">
+            <p className="mt-4 break-all text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
               {supportEmail}
             </p>
 
-            <p className="mt-3 text-sm font-bold leading-6 text-muted">
+            <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               Send a clear message with your account email and booking ID if the
               issue is related to a booking.
             </p>
@@ -140,11 +140,11 @@ export default function ContactPage() {
             What to include
           </Badge>
 
-          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
             Help us solve it faster
           </h2>
 
-          <p className="mt-3 text-sm font-bold leading-6 text-muted">
+          <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             When you contact support, include the details below so the issue can
             be understood quickly.
           </p>
@@ -162,12 +162,12 @@ export default function ContactPage() {
             Email template
           </Badge>
 
-          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
             Copy this message
           </h2>
 
-          <div className="mt-6 rounded-[24px] border border-[var(--border)] bg-white/64 p-5">
-            <p className="text-sm font-bold leading-7 text-muted">
+          <div className="mt-6 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
+            <p className="text-sm font-medium leading-7 text-[var(--muted-foreground)]">
               Hello SkillDrop support,
               <br />
               <br />
@@ -207,7 +207,7 @@ export default function ContactPage() {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <InfoBox
               title="Check your bookings"
-              text="If your issue is about a call, first check your buyer or expert bookings page to see the latest booking status."
+              text="If your issue is about a call, first check your buyer or helper bookings page to see the latest booking status."
               href="/buyer/bookings"
               hrefText="Buyer bookings"
             />
@@ -221,14 +221,14 @@ export default function ContactPage() {
 
             <InfoBox
               title="Review safety rules"
-              text="If the issue is about abuse, misleading services, no-show or unsafe behavior, read the safety page and contact support."
+              text="If the issue is about abuse, misleading offers, no-show or unsafe behavior, read the safety page and contact support."
               href="/legal/safety"
               hrefText="Safety page"
             />
 
             <InfoBox
               title="Use the help center"
-              text="For general questions about how SkillDrop works, the help center explains buyer and provider workflows."
+              text="For general questions about how SkillDrop works, the help center explains buyer and helper workflows."
               href="/help"
               hrefText="Help center"
             />
@@ -245,11 +245,11 @@ export default function ContactPage() {
                 Support
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Contact us by email
               </h2>
 
-              <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-muted">
+              <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                 During the early launch, support is handled manually by email.
               </p>
             </div>
@@ -282,11 +282,11 @@ function ContactTopicCard({
         <Icon size={22} />
       </div>
 
-      <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+      <h2 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
         {topic.title}
       </h2>
 
-      <p className="mt-3 text-sm font-bold leading-7 text-muted">
+      <p className="mt-3 text-sm font-medium leading-7 text-[var(--muted-foreground)]">
         {topic.text}
       </p>
     </Card>
@@ -295,9 +295,12 @@ function ContactTopicCard({
 
 function ChecklistRow({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <BadgeCheck size={18} className="shrink-0 text-[var(--success)]" />
-      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+
+      <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
@@ -314,14 +317,18 @@ function InfoBox({
   hrefText: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <h3 className="font-black tracking-[-0.02em]">{title}</h3>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <h3 className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mt-2 text-sm font-bold leading-6 text-muted">{text}</p>
+      <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
 
       <Link
         href={href}
-        className="mt-4 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+        className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
       >
         {hrefText}
         <ArrowRight size={15} />

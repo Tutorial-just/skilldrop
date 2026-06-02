@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -181,8 +182,8 @@ export default function HomePage() {
 
             <p className="mt-7 max-w-2xl text-xl leading-8 text-[var(--muted-foreground)]">
               SkillDrop helps you find real people who can help with documents,
-              career, languages, tech, relocation, studies and everyday decisions —
-              in focused 15–60 minute calls.
+              career, languages, tech, relocation, studies and everyday
+              decisions — in focused 15–60 minute calls.
             </p>
 
             <form action="/experts" className="mt-8 max-w-2xl">
@@ -539,8 +540,8 @@ export default function HomePage() {
               </div>
 
               <p className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-                This is a pricing example. The final total is always shown clearly
-                before payment.
+                This is a pricing example. The final total is always shown
+                clearly before payment.
               </p>
             </Card>
           </div>
@@ -612,32 +613,64 @@ export default function HomePage() {
 function HeroMarketplacePreview() {
   return (
     <div className="relative">
-      <Card className="relative overflow-hidden p-5 shadow-[var(--shadow-lg)]">
-        <div className="rounded-[28px] bg-gradient-to-br from-[#31265f] via-[#2b275f] to-[#1f2937] p-5 text-white">
-          <div className="flex items-center justify-between gap-4">
-            <Badge variant="primary">Example request</Badge>
+      <div className="absolute -left-6 top-10 hidden rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-md)] backdrop-blur-xl lg:block">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
+            <Video size={20} />
+          </div>
 
-            <div className="flex -space-x-2">
-              <Avatar label="A" />
-              <Avatar label="M" />
-              <Avatar label="D" />
+          <div>
+            <p className="text-sm font-black text-[var(--foreground)]">
+              1:1 video calls
+            </p>
+            <p className="text-xs font-semibold text-[var(--muted-foreground)]">
+              Short, focused and practical
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Card className="relative overflow-hidden p-4 shadow-[var(--shadow-lg)]">
+        <div className="relative min-h-[520px] overflow-hidden rounded-[34px] bg-[#211a42]">
+          <Image
+            src="/images/home-hero.png"
+            alt="Person getting practical help online"
+            fill
+            priority
+            sizes="(min-width: 1024px) 44vw, 100vw"
+            className="object-cover opacity-90"
+          />
+
+          <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/90 via-[#171124]/35 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#171124]/45 via-transparent to-transparent" />
+
+          <div className="absolute left-5 right-5 top-5 flex items-center justify-between gap-4">
+            <Badge variant="primary">
+              <Sparkles size={14} />
+              SkillDrop
+            </Badge>
+
+            <div className="rounded-full bg-white/15 px-4 py-2 text-xs font-black text-white backdrop-blur-xl">
+              Global helpers
             </div>
           </div>
 
-          <div className="mt-8">
-            <p className="text-sm font-bold text-white/50">
-              What do you need help with?
-            </p>
+          <div className="absolute bottom-5 left-5 right-5">
+            <div className="max-w-md rounded-[28px] border border-white/15 bg-white/14 p-5 text-white shadow-[var(--shadow-md)] backdrop-blur-xl">
+              <p className="text-sm font-bold text-white/65">
+                Example request
+              </p>
 
-            <h2 className="mt-2 text-4xl font-black leading-none tracking-[-0.055em]">
-              I need help understanding documents before moving abroad
-            </h2>
-          </div>
+              <h2 className="mt-2 text-3xl font-black leading-tight tracking-[-0.055em]">
+                “I need help preparing my CV before sending applications.”
+              </h2>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <MiniPanel label="Format" value="1:1 call" />
-            <MiniPanel label="Duration" value="15–60 min" />
-            <MiniPanel label="Result" value="Next steps" />
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <MiniPanel label="Format" value="1:1 call" />
+                <MiniPanel label="Duration" value="30 min" />
+                <MiniPanel label="Result" value="Next steps" />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -979,14 +1012,6 @@ function MiniPanel({ label, value }: { label: string; value: string }) {
       </p>
 
       <p className="mt-1 text-sm font-black">{value}</p>
-    </div>
-  );
-}
-
-function Avatar({ label }: { label: string }) {
-  return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#2b275f] bg-white text-xs font-black text-[#2b275f]">
-      {label}
     </div>
   );
 }

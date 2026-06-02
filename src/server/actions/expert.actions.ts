@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth/get-current-user";
 import {
@@ -863,4 +863,107 @@ export async function deleteProviderServiceAction(formData: FormData) {
   revalidateExpertPaths(expert.id);
 
   redirect("/expert/services?deleted=1");
+}
+
+const MAX_EXPERT_DOCUMENT_SIZE_BYTES = 5 * 1024 * 1024;
+
+const ALLOWED_EXPERT_DOCUMENT_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+];
+
+function getSafeFileExtension(fileName: string, mimeType: string) {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+
+  if (extension && /^[a-z0-9]+$/.test(extension)) {
+    return extension;
+  }
+
+  if (mimeType === "application/pdf") {
+    return "pdf";
+  }
+
+  if (mimeType === "image/jpeg") {
+    return "jpg";
+  }
+
+  if (mimeType === "image/png") {
+    return "png";
+  }
+
+  if (mimeType === "image/webp") {
+    return "webp";
+  }
+
+  return "file";
+}
+
+export async function uploadExpertDocumentAction(formData: FormData) {
+  const expert = await getCurrentExpertProfile();
+
+  await assertExpertRateLimit(expert.userId, "upload-document");
+
+  const type = getStringValue(formData, "type");
+  const title = cleanText(getStringValue(formData, "title"), 80);
+  const file = formData.get("file");
+
+  if (type !== "CV" && type !== "PORTFOLIO") {
+    redirectWithError("/expert/profile", "invalid-document-type");
+  }
+
+  if (!title) {
+    redirectWithError("/expert/profile", "missing-document-title");
+  }
+
+  if (!(file instanceof File) || file.size === 0) {
+    redirectWithError("/expert/profile", "missing-document-file");
+  }
+
+  if (file.size > MAX_EXPERT_DOCUMENT_SIZE_BYTES) {
+    redirectWithError("/expert/profile", "document-too-large");
+  }
+
+  if (!ALLOWED_EXPERT_DOCUMENT_TYPES.includes(file.type)) {
+    redirectWithError("/expert/profile", "invalid-document-file");
+  }
+
+  const extension = getSafeFileExtension(file.name, file.type);
+
+  const storagePath = `${expert.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from("expert-documents")
+    .upload(storagePath, buffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    redirectWithError("/expert/profile", "document-upload-failed");
+  }
+
+  const { data } = supabaseAdmin.storage
+    .from("expert-documents")
+    .getPublicUrl(storagePath);
+
+  await prisma.expertDocument.create({
+    data: {
+      expertId: expert.id,
+      type,
+      title,
+      fileUrl: data.publicUrl,
+      fileName: file.name,
+      mimeType: file.type,
+      sizeBytes: file.size,
+    },
+  });
+
+  revalidateExpertPaths(expert.id);
+
+  redirect("/expert/profile?saved=1");
 }

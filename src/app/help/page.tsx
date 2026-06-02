@@ -24,13 +24,13 @@ import { Card } from "@/components/ui/card";
 const buyerSteps = [
   {
     icon: Search,
-    title: "Find a provider",
+    title: "Find a helper",
     text: "Search by topic, language, category or practical problem.",
   },
   {
     icon: UserRound,
     title: "Open a profile",
-    text: "Check services, prices, reviews, languages and availability.",
+    text: "Check offers, prices, reviews, languages and availability.",
   },
   {
     icon: CalendarDays,
@@ -54,7 +54,7 @@ const buyerSteps = [
   },
 ];
 
-const providerSteps = [
+const helperSteps = [
   {
     icon: UserRound,
     title: "Create your profile",
@@ -62,7 +62,7 @@ const providerSteps = [
   },
   {
     icon: WalletCards,
-    title: "Create services",
+    title: "Create offers",
     text: "Add clear offers with title, description, duration and price.",
   },
   {
@@ -101,12 +101,12 @@ const faqs = [
   {
     question: "Can I book without an account?",
     answer:
-      "You can browse providers, but you need an account to save providers, create bookings and complete payment.",
+      "You can browse helpers, but you need an account to save helpers, create bookings and complete payment.",
   },
   {
-    question: "Can providers set their own prices?",
+    question: "Can helpers set their own prices?",
     answer:
-      "Yes. Providers create their own services, durations, prices and availability.",
+      "Yes. Helpers create their own offers, durations, prices and availability.",
   },
   {
     question: "How does verification work?",
@@ -125,7 +125,7 @@ export default function HelpPage() {
     <main className="container-page py-10 md:py-14">
       <Link
         href="/"
-        className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+        className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
       >
         <ArrowLeft size={16} />
         Back home
@@ -143,7 +143,7 @@ export default function HelpPage() {
               How to use SkillDrop
             </h1>
 
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
               Learn how to find help, book short calls, offer services, manage
               bookings and stay safe on the marketplace.
             </p>
@@ -155,9 +155,9 @@ export default function HelpPage() {
               Quick start
             </Badge>
 
-            <p className="mt-4 text-sm font-bold leading-6 text-muted">
-              Start with one clear problem. Search for a provider, choose a
-              service, pick a time and complete payment to confirm the call.
+            <p className="mt-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+              Start with one clear problem. Search for a helper, choose an
+              offer, pick a time and complete payment to confirm the call.
             </p>
           </Card>
         </div>
@@ -182,12 +182,12 @@ export default function HelpPage() {
         <TopCard
           icon={Search}
           title="For buyers"
-          text="Find the right person, choose a service and book a practical call."
+          text="Find the right person, choose an offer and book a practical call."
         />
 
         <TopCard
           icon={WalletCards}
-          title="For providers"
+          title="For helpers"
           text="Create offers, set availability and earn from short useful calls."
         />
 
@@ -205,11 +205,11 @@ export default function HelpPage() {
             Buyer guide
           </Badge>
 
-          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
             I need help
           </h2>
 
-          <p className="mt-3 text-sm font-bold leading-6 text-muted">
+          <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             Follow these steps to book a useful short call.
           </p>
 
@@ -223,19 +223,19 @@ export default function HelpPage() {
         <Card className="p-6 md:p-8">
           <Badge variant="accent">
             <WalletCards size={14} />
-            Provider guide
+            Helper guide
           </Badge>
 
-          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
             I want to offer help
           </h2>
 
-          <p className="mt-3 text-sm font-bold leading-6 text-muted">
+          <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             Follow these steps to make your profile bookable.
           </p>
 
           <div className="mt-6 grid gap-4">
-            {providerSteps.map((step, index) => (
+            {helperSteps.map((step, index) => (
               <GuideStep key={step.title} step={step} number={index + 1} />
             ))}
           </div>
@@ -256,8 +256,8 @@ export default function HelpPage() {
             />
 
             <Practice
-              title="Keep services specific"
-              text="Providers should explain exactly what the buyer gets from the call."
+              title="Keep offers specific"
+              text="Helpers should explain exactly what the buyer gets from the call."
             />
 
             <Practice
@@ -267,7 +267,7 @@ export default function HelpPage() {
 
             <Practice
               title="Leave honest feedback"
-              text="Reviews help good providers grow and help buyers choose safely."
+              text="Reviews help good helpers grow and help buyers choose safely."
             />
 
             <Practice
@@ -277,7 +277,7 @@ export default function HelpPage() {
 
             <Practice
               title="Report serious problems"
-              text="No-shows, abuse, fraud or misleading services should be reviewed by admins."
+              text="No-shows, abuse, fraud or misleading offers should be reviewed by admins."
             />
           </div>
         </Card>
@@ -315,12 +315,12 @@ export default function HelpPage() {
                 Start now
               </Badge>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                 Ready to use SkillDrop?
               </h2>
 
-              <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-muted">
-                Browse providers or create your account to offer practical help.
+              <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+                Browse helpers or create your account to offer practical help.
               </p>
             </div>
 
@@ -356,9 +356,13 @@ function TopCard({
         <Icon size={22} />
       </div>
 
-      <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">{title}</h2>
+      <h2 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {title}
+      </h2>
 
-      <p className="mt-3 text-sm font-bold leading-7 text-muted">{text}</p>
+      <p className="mt-3 text-sm font-medium leading-7 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </Card>
   );
 }
@@ -377,9 +381,9 @@ function GuideStep({
   const Icon = step.icon;
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <div className="flex gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-black text-[var(--primary-dark)]">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-sm font-bold text-[var(--primary-dark)]">
           {number}
         </div>
 
@@ -387,10 +391,12 @@ function GuideStep({
           <div className="flex items-center gap-2">
             <Icon size={16} className="text-[var(--primary-dark)]" />
 
-            <h3 className="font-black tracking-[-0.02em]">{step.title}</h3>
+            <h3 className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+              {step.title}
+            </h3>
           </div>
 
-          <p className="mt-2 text-sm font-bold leading-6 text-muted">
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             {step.text}
           </p>
         </div>
@@ -401,9 +407,14 @@ function GuideStep({
 
 function Practice({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-      <h3 className="font-black tracking-[-0.02em]">{title}</h3>
-      <p className="mt-2 text-sm font-bold leading-6 text-muted">{text}</p>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <h3 className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
+        {title}
+      </h3>
+
+      <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
@@ -418,11 +429,11 @@ function FaqCard({
 }) {
   return (
     <Card className="p-5 hover-lift">
-      <h3 className="text-xl font-black tracking-[-0.03em]">
+      <h3 className="text-xl font-black tracking-[-0.03em] text-[var(--foreground)]">
         {faq.question}
       </h3>
 
-      <p className="mt-3 text-sm font-bold leading-7 text-muted">
+      <p className="mt-3 text-sm font-medium leading-7 text-[var(--muted-foreground)]">
         {faq.answer}
       </p>
     </Card>

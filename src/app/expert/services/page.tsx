@@ -360,7 +360,7 @@ export default async function ExpertServicesPage({
                       ? "#add-offer"
                       : expert.availability.length === 0
                         ? "/expert/availability"
-                        : "/expert/settings"
+                        : "/expert/earnings"
                   }
                 >
                   Continue setup
@@ -539,7 +539,7 @@ export default async function ExpertServicesPage({
                     </div>
 
                     <div>
-                      <p className="font-bold tracking-[-0.02em]">
+                      <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
                         Add new offer
                       </p>
                       <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">

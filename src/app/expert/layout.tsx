@@ -143,15 +143,7 @@ export default async function ExpertLayout({
       booking.endTime < now && booking.status === BookingStatus.CONFIRMED,
   );
 
-  const profileScore = calculateExpertProfileScore({
-    hasHeadline: Boolean(expert.headline?.trim()),
-    hasBio: (expert.bio ?? "").trim().length >= 120,
-    hasSkills: expert.skills.length >= 3,
-    hasLanguages: expert.languages.length > 0,
-    hasServices: activeServices.length > 0,
-    hasAvailability: openWindows.length > 0,
-    isVerified: expert.isVerified,
-  });
+  
 
   const displayName = expert.user.name || "Helper";
   const displayEmail = expert.user.email || email;
@@ -179,29 +171,7 @@ export default async function ExpertLayout({
                 </div>
               </div>
 
-              <div className="mt-4 rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/56">
-                    Helper profile
-                  </p>
-
-                  <p className="text-sm font-bold text-white">
-                    {profileScore}%
-                  </p>
-                </div>
-
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/14">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-violet-300 to-white"
-                    style={{ width: `${profileScore}%` }}
-                  />
-                </div>
-
-                <p className="mt-2 text-xs font-medium leading-5 text-white/66">
-                  Complete your profile to look more trustworthy and get more bookings.
-                </p>
-              </div>
-
+            
               {needsCompletionBookings.length > 0 ? (
                 <Link
                   href="/expert/bookings"
@@ -343,35 +313,7 @@ function getInitials(value: string) {
   return `${first}${second}`.toUpperCase();
 }
 
-function calculateExpertProfileScore({
-  hasHeadline,
-  hasBio,
-  hasSkills,
-  hasLanguages,
-  hasServices,
-  hasAvailability,
-  isVerified,
-}: {
-  hasHeadline: boolean;
-  hasBio: boolean;
-  hasSkills: boolean;
-  hasLanguages: boolean;
-  hasServices: boolean;
-  hasAvailability: boolean;
-  isVerified: boolean;
-}) {
-  const checks = [
-    hasHeadline,
-    hasBio,
-    hasSkills,
-    hasLanguages,
-    hasServices,
-    hasAvailability,
-    isVerified,
-  ];
 
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-}
 
 function getWindowFreeMinutes(window: {
   startTime: Date;

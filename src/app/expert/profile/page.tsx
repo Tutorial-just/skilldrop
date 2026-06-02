@@ -9,25 +9,31 @@ import {
   CheckCircle2,
   Clock3,
   Eye,
+  FileText,
   Globe2,
   Languages,
   Lightbulb,
   ListChecks,
   MapPin,
   MessageCircle,
+  Paperclip,
   Save,
   ShieldCheck,
   Sparkles,
   Star,
+  UploadCloud,
   UserRound,
   WalletCards,
 } from "lucide-react";
-
+import { getProfileCompleteness } from "@/lib/expert-quality";
 import { AvatarUpload } from "@/components/expert/avatar-upload";
 import { TagInput } from "@/components/expert/tag-input";
 import { FormDraft } from "@/components/forms/form-draft";
 import { TextareaWithCounter } from "@/components/forms/textarea-with-counter";
-import { updateProviderProfileAction } from "@/server/actions/expert.actions";
+import {
+  updateProviderProfileAction,
+  uploadExpertDocumentAction,
+} from "@/server/actions/expert.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
@@ -214,6 +220,11 @@ export default async function ExpertProfilePage({
         },
         take: 3,
       },
+      documents: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
     },
   });
 
@@ -248,31 +259,22 @@ export default async function ExpertProfilePage({
     fallbackTagSuggestions,
   );
 
-  const profileStrength = calculateProfileStrength({
+  const profileCompleteness = getProfileCompleteness({
+    avatarUrl: expert.user.avatarUrl,
     headline: expert.headline,
     bio: expert.bio,
+    country: expert.country,
+    timezone: expert.timezone,
     languages: expert.languages,
     skills: expert.skills,
     tags: expert.tags,
     servicesCount: expert.services.length,
-    openSlotsCount: expert.availability.length,
-    hasAvatar: Boolean(expert.user.avatarUrl),
-    hasCountry: Boolean(expert.country),
-    hasTimezone: Boolean(expert.timezone),
+    activeServicesCount: expert.services.length,
+    availabilityCount: expert.availability.length,
   });
 
-  const missingItems = getMissingProfileItems({
-    headline: expert.headline,
-    bio: expert.bio,
-    languages: expert.languages,
-    skills: expert.skills,
-    tags: expert.tags,
-    servicesCount: expert.services.length,
-    openSlotsCount: expert.availability.length,
-    hasAvatar: Boolean(expert.user.avatarUrl),
-    hasCountry: Boolean(expert.country),
-    hasTimezone: Boolean(expert.timezone),
-  });
+  const profileStrength = profileCompleteness.score;
+  const missingItems = profileCompleteness.missingItems;
 
   const helperName = expert.user.name ?? "Helper";
   const avatarLetter = (
@@ -303,6 +305,14 @@ export default async function ExpertProfilePage({
       : missingItems.some((item) => item.includes("availability"))
         ? "Add availability"
         : "View public profile";
+
+  const cvDocuments = expert.documents.filter(
+    (document) => document.type === "CV",
+  );
+
+  const portfolioDocuments = expert.documents.filter(
+    (document) => document.type === "PORTFOLIO",
+  );
 
   return (
     <main>
@@ -508,7 +518,10 @@ export default async function ExpertProfilePage({
                       </p>
 
                       <div className="mt-4">
-                        <ButtonLink href={nextRecommendedHref} variant="secondary">
+                        <ButtonLink
+                          href={nextRecommendedHref}
+                          variant="secondary"
+                        >
                           {nextRecommendedText}
                         </ButtonLink>
                       </div>
@@ -539,15 +552,175 @@ export default async function ExpertProfilePage({
               </Badge>
 
               <div className="mt-5 grid gap-2">
-                <CheckRow done={Boolean(expert.user.avatarUrl)} text="Photo added" />
-                <CheckRow done={expert.headline.length >= 8} text="Clear headline" />
-                <CheckRow done={expert.bio.length >= 120} text="Strong biography" />
-                <CheckRow done={expert.languages.length > 0} text="Languages added" />
-                <CheckRow done={expert.skills.length >= 3} text="At least 3 skills" />
-                <CheckRow done={expert.tags.length >= 3} text="Search tags added" />
-                <CheckRow done={expert.services.length > 0} text="Active offer created" />
-                <CheckRow done={expert.availability.length > 0} text="Availability open" />
+                <CheckRow
+                  done={Boolean(expert.user.avatarUrl)}
+                  text="Photo added"
+                />
+                <CheckRow
+                  done={(expert.headline?.length ?? 0) >= 8}
+                  text="Clear headline"
+                />
+                <CheckRow
+                  done={(expert.bio?.length ?? 0) >= 120}
+                  text="Strong biography"
+                />
+                <CheckRow
+                  done={expert.languages.length > 0}
+                  text="Languages added"
+                />
+                <CheckRow
+                  done={expert.skills.length >= 3}
+                  text="At least 3 skills"
+                />
+                <CheckRow
+                  done={expert.tags.length >= 3}
+                  text="Search tags added"
+                />
+                <CheckRow
+                  done={expert.services.length > 0}
+                  text="Active offer created"
+                />
+                <CheckRow
+                  done={expert.availability.length > 0}
+                  text="Availability open"
+                />
+                <CheckRow
+                  done={cvDocuments.length > 0}
+                  text="CV uploaded"
+                />
+                <CheckRow
+                  done={portfolioDocuments.length > 0}
+                  text="Portfolio added"
+                />
               </div>
+            </Card>
+
+            <Card className="p-6">
+              <Badge variant="primary">
+                <UploadCloud size={14} />
+                CV & portfolio
+              </Badge>
+
+              <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+                Add trust documents
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+                Add your CV, certificates, work examples or portfolio images.
+                This helps buyers trust you faster.
+              </p>
+
+              <form
+                action={uploadExpertDocumentAction}
+                className="mt-6 grid gap-4"
+              >
+                <div>
+                  <label className="text-sm font-black" htmlFor="documentType">
+                    Document type
+                  </label>
+
+                  <select
+                    id="documentType"
+                    name="type"
+                    defaultValue="CV"
+                    className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
+                  >
+                    <option value="CV">CV</option>
+                    <option value="PORTFOLIO">Portfolio</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-black" htmlFor="documentTitle">
+                    Title
+                  </label>
+
+                  <input
+                    id="documentTitle"
+                    name="title"
+                    type="text"
+                    required
+                    maxLength={80}
+                    placeholder="My CV, Portfolio, Certificate..."
+                    className="input mt-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-black" htmlFor="documentFile">
+                    File
+                  </label>
+
+                  <input
+                    id="documentFile"
+                    name="file"
+                    type="file"
+                    required
+                    accept="application/pdf,image/png,image/jpeg,image/webp"
+                    className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold"
+                  />
+
+                  <p className="mt-2 text-xs font-semibold text-muted">
+                    PDF, JPG, PNG or WEBP. Max 5MB.
+                  </p>
+                </div>
+
+                <button type="submit" className="btn btn-primary">
+                  Upload document
+                  <UploadCloud size={18} />
+                </button>
+              </form>
+
+              {expert.documents.length > 0 ? (
+                <div className="mt-6 grid gap-3">
+                  {expert.documents.map((expertDocument) => (
+                    <a
+                      key={expertDocument.id}
+                      href={expertDocument.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:bg-white"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                          <FileText size={18} />
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black">
+                            {expertDocument.title}
+                          </p>
+
+                          <p className="mt-1 text-xs font-bold text-muted">
+                            {expertDocument.type === "CV" ? "CV" : "Portfolio"}
+                            {expertDocument.fileName
+                              ? ` · ${expertDocument.fileName}`
+                              : ""}
+                          </p>
+
+                          <p className="mt-1 text-xs font-semibold text-muted">
+                            {formatFileSize(expertDocument.sizeBytes)}
+                          </p>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-6 rounded-2xl border border-dashed border-[var(--border)] bg-white/55 p-4">
+                  <div className="flex gap-3">
+                    <Paperclip
+                      size={18}
+                      className="mt-0.5 shrink-0 text-muted"
+                    />
+
+                    <p className="text-sm font-bold leading-6 text-muted">
+                      No document uploaded yet. Add a CV or portfolio to make
+                      your profile more credible.
+                    </p>
+                  </div>
+                </div>
+              )}
             </Card>
 
             <Card className="p-6">
@@ -722,7 +895,7 @@ export default async function ExpertProfilePage({
                     required
                     minLength={8}
                     maxLength={120}
-                    defaultValue={expert.headline}
+                    defaultValue={expert.headline ?? ""}
                     className="input mt-2"
                     placeholder="I help people prepare for job interviews"
                   />
@@ -741,7 +914,7 @@ export default async function ExpertProfilePage({
                   rows={8}
                   minLength={80}
                   maxLength={1600}
-                  defaultValue={expert.bio}
+                  defaultValue={expert.bio ?? ""}
                   placeholder="Tell people who you are, what experience you have, who you can help and what they can expect after a call."
                   helperText="Write like you are speaking to a real person. Clear profiles get more bookings."
                 />
@@ -799,7 +972,7 @@ export default async function ExpertProfilePage({
                       type="text"
                       required
                       maxLength={80}
-                      defaultValue={expert.timezone}
+                      defaultValue={expert.timezone ?? ""}
                       className="input mt-2"
                       placeholder="Europe/Paris, America/New_York, Asia/Dubai..."
                     />
@@ -1108,117 +1281,6 @@ function TrustBox({
   );
 }
 
-function calculateProfileStrength({
-  headline,
-  bio,
-  languages,
-  skills,
-  tags,
-  servicesCount,
-  openSlotsCount,
-  hasAvatar,
-  hasCountry,
-  hasTimezone,
-}: {
-  headline: string;
-  bio: string;
-  languages: string[];
-  skills: string[];
-  tags: string[];
-  servicesCount: number;
-  openSlotsCount: number;
-  hasAvatar: boolean;
-  hasCountry: boolean;
-  hasTimezone: boolean;
-}) {
-  const checks = [
-    hasAvatar,
-    headline.length >= 8,
-    bio.length >= 120,
-    languages.length > 0,
-    skills.length >= 3,
-    tags.length >= 3,
-    servicesCount > 0,
-    openSlotsCount > 0,
-    hasCountry,
-    hasTimezone,
-  ];
-
-  const completed = checks.filter(Boolean).length;
-
-  return Math.round((completed / checks.length) * 100);
-}
-
-function getMissingProfileItems({
-  headline,
-  bio,
-  languages,
-  skills,
-  tags,
-  servicesCount,
-  openSlotsCount,
-  hasAvatar,
-  hasCountry,
-  hasTimezone,
-}: {
-  headline: string;
-  bio: string;
-  languages: string[];
-  skills: string[];
-  tags: string[];
-  servicesCount: number;
-  openSlotsCount: number;
-  hasAvatar: boolean;
-  hasCountry: boolean;
-  hasTimezone: boolean;
-}) {
-  const items: string[] = [];
-
-  if (!hasAvatar) {
-    items.push("Add a profile photo so buyers trust you faster.");
-  }
-
-  if (headline.length < 8) {
-    items.push("Write a clear headline that explains who you help.");
-  }
-
-  if (bio.length < 120) {
-    items.push(
-      "Write a stronger biography with your experience and what buyers get.",
-    );
-  }
-
-  if (languages.length === 0) {
-    items.push("Add at least one language.");
-  }
-
-  if (skills.length < 3) {
-    items.push("Add at least 3 searchable skills or topics.");
-  }
-
-  if (tags.length < 3) {
-    items.push("Add a few tags to improve search discovery.");
-  }
-
-  if (!hasCountry) {
-    items.push("Add your country or region.");
-  }
-
-  if (!hasTimezone) {
-    items.push("Add your timezone so booking times are clearer.");
-  }
-
-  if (servicesCount === 0) {
-    items.push("Create at least one active offer so buyers can book you.");
-  }
-
-  if (openSlotsCount === 0) {
-    items.push("Add availability so buyers can choose a time.");
-  }
-
-  return items;
-}
-
 function getPopularItems(items: string[]) {
   const counts = new Map<
     string,
@@ -1283,6 +1345,22 @@ function mergeSuggestions(primary: string[], fallback: string[]) {
   return merged.slice(0, 60);
 }
 
+function formatFileSize(sizeBytes: number | null) {
+  if (!sizeBytes || sizeBytes <= 0) {
+    return "Size unknown";
+  }
+
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${Math.round(sizeBytes / 1024)} KB`;
+  }
+
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function formatProfileError(error: string) {
   if (error === "missing-required-fields") {
     return "Please fill in all required fields.";
@@ -1310,6 +1388,30 @@ function formatProfileError(error: string) {
 
   if (error === "avatar-too-large") {
     return "Profile photo is too large. Please upload an image under 1MB.";
+  }
+
+  if (error === "invalid-document-type") {
+    return "Invalid document type.";
+  }
+
+  if (error === "missing-document-title") {
+    return "Please add a document title.";
+  }
+
+  if (error === "missing-document-file") {
+    return "Please choose a file.";
+  }
+
+  if (error === "document-too-large") {
+    return "File is too large. Max size is 5MB.";
+  }
+
+  if (error === "invalid-document-file") {
+    return "Only PDF, JPG, PNG and WEBP files are accepted.";
+  }
+
+  if (error === "document-upload-failed") {
+    return "Document upload failed. Please try again.";
   }
 
   if (error === "not-signed-in") {

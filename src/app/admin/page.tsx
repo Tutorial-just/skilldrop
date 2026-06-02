@@ -643,7 +643,7 @@ export default async function AdminPage() {
                 <AdminLink
                   href="/admin/audit"
                   title="Audit log"
-                  text="Review sensitive admin actions and changes."
+                  text="Review sensitive admin actions, dispute decisions, refunds and moderation history."
                 />
 
                 <AdminLink

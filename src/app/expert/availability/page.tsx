@@ -414,13 +414,11 @@ export default async function ExpertAvailabilityPage({
             </Badge>
 
             <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-              Your windows should work for buyers in different timezones.
+              Your times are automatically adapted for each buyer.
             </h2>
 
             <p className="mt-2 text-sm font-bold leading-6 text-[var(--primary-dark)]/80">
-              Add availability in your local time. The platform stores dates as
-              DateTime and should display equivalent local times to buyer and
-              helper during booking.
+              Add availability in your local time. SkillDrop stores the time safely and shows each buyer the equivalent time in their own timezone.
             </p>
           </Card>
 
@@ -593,7 +591,7 @@ export default async function ExpertAvailabilityPage({
                       {weekdays.map((day) => (
                         <label
                           key={day.value}
-                          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2 text-sm font-bold text-[var(--muted-foreground)] transition hover:bg-[var(--background-soft)] hover:text-[var(--primary-dark)]"
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2 text-sm font-bold text-[var(--muted-foreground)] transition hover:border-[var(--border-strong)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
                         >
                           <input
                             type="checkbox"

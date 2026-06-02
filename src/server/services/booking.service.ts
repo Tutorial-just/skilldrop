@@ -3,7 +3,7 @@ import {
   CallRoomStatus,
   Prisma,
 } from "@prisma/client";
-
+import { createDailyRoom } from "@/lib/daily";
 import { prisma } from "@/lib/prisma";
 
 const JOIN_BEFORE_MINUTES = 10;
@@ -15,19 +15,36 @@ export function createSafeRoomName(bookingId: string) {
     .toLowerCase();
 }
 
-export function createCallRoomData(bookingId: string) {
-  const roomName = createSafeRoomName(bookingId);
+export async function createCallRoomData(booking: {
+  id: string;
+  startTime: Date;
+  endTime: Date;
+}) {
+  const roomName = createSafeRoomName(booking.id);
+  const provider = process.env.VIDEO_PROVIDER || "daily";
 
-  const baseUrl =
-    process.env.JITSI_BASE_URL || "https://meet.jit.si";
+  if (provider === "daily") {
+    const dailyRoom = await createDailyRoom({
+      roomName,
+      startsAt: booking.startTime,
+      endsAt: booking.endTime,
+    });
+
+    return {
+      provider: "DAILY",
+      roomName,
+      roomUrl: dailyRoom.url,
+    };
+  }
+
+  const baseUrl = process.env.JITSI_BASE_URL || "https://meet.jit.si";
 
   return {
-    provider: process.env.VIDEO_PROVIDER || "JITSI",
+    provider: "JITSI",
     roomName,
     roomUrl: `${baseUrl}/${roomName}`,
   };
 }
-
 export async function createCallRoom(
   tx: Prisma.TransactionClient,
   booking: {
@@ -46,7 +63,7 @@ export async function createCallRoom(
     return existingRoom;
   }
 
-  const room = createCallRoomData(booking.id);
+  const room = await createCallRoomData(booking);
 
   return tx.callRoom.create({
     data: {

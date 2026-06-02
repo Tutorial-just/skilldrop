@@ -277,7 +277,7 @@ export default async function BookPage({
               <div className="mt-4 space-y-4 text-sm leading-6 text-white/60">
                 <Step number="01" text="We reserve the selected slot." />
                 <Step number="02" text="You continue to secure checkout." />
-                <Step number="03" text="Join the Jitsi video room from your booking." />
+                <Step number="03" text="Join the secure video room from your booking." />
               </div>
             </div>
 

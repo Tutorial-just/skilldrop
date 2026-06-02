@@ -76,7 +76,7 @@ export default async function BookingCallPage({ params }: CallPageProps) {
           </div>
 
           <span className="w-fit rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-black text-[#2563eb]">
-            Jitsi room
+            Video room
           </span>
         </div>
 

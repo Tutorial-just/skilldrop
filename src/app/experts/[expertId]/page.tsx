@@ -10,10 +10,11 @@ import {
   CheckCircle2,
   Clock3,
   Euro,
+  FileText,
   Globe2,
   Languages,
   MessageCircle,
-  ShieldAlert,
+  Paperclip,
   ShieldCheck,
   Sparkles,
   Star,
@@ -144,6 +145,11 @@ export default async function ExpertPublicPage({
         },
         take: 20,
       },
+      documents: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
     },
   });
 
@@ -248,18 +254,6 @@ export default async function ExpertPublicPage({
     reviews: expert.reviews,
   });
 
-  const helpfulnessAvg = averageNullable(
-    expert.reviews.map((review) => review.helpfulness),
-  );
-
-  const clarityAvg = averageNullable(
-    expert.reviews.map((review) => review.clarity),
-  );
-
-  const professionalismAvg = averageNullable(
-    expert.reviews.map((review) => review.professionalism),
-  );
-
   const recommendationReviews = expert.reviews.filter(
     (review) => review.wouldRecommend !== null,
   );
@@ -320,6 +314,14 @@ export default async function ExpertPublicPage({
   ).slice(0, 24);
 
   const mainHelpAreas = expert.services.slice(0, 3);
+
+  const cvDocuments = expert.documents.filter(
+    (document) => document.type === "CV",
+  );
+
+  const portfolioDocuments = expert.documents.filter(
+    (document) => document.type === "PORTFOLIO",
+  );
 
   return (
     <main>
@@ -435,12 +437,16 @@ export default async function ExpertPublicPage({
                     <Badge>
                       ⭐ {expert.rating ? expert.rating.toFixed(1) : "New"}
                     </Badge>
+
                     {problemSolvedRate !== null ? (
-                     <Badge variant={problemSolvedRate >= 70 ? "success" : "accent"}>
+                      <Badge
+                        variant={problemSolvedRate >= 70 ? "success" : "accent"}
+                      >
                         <Target size={14} />
                         {problemSolvedRate}% solved
-                     </Badge>
+                      </Badge>
                     ) : null}
+
                     <Badge>{expert.totalSessions} sessions</Badge>
 
                     {expert.languages.slice(0, 3).map((language) => (
@@ -500,8 +506,8 @@ export default async function ExpertPublicPage({
                     </p>
 
                     <p className="mt-2 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
-                      These tags and words help buyers find the right person when
-                      they search for a problem, topic, language or skill.
+                      These tags and words help buyers find the right person
+                      when they search for a problem, topic, language or skill.
                     </p>
 
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -840,8 +846,10 @@ export default async function ExpertPublicPage({
                         </label>
 
                         <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-                           Help the helper prepare before the call. Explain what problem you want to solve,
-                           what result you expect by the end of the call, and what you already tried if it is relevant.
+                          Help the helper prepare before the call. Explain what
+                          problem you want to solve, what result you expect by
+                          the end of the call, and what you already tried if it
+                          is relevant.
                         </p>
 
                         <div className="mt-3 rounded-2xl border border-[var(--primary)]/15 bg-[var(--primary-soft)] p-4">
@@ -850,9 +858,9 @@ export default async function ExpertPublicPage({
                           </p>
 
                           <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-[var(--primary-dark)]">
-                             {`Problem: I need help improving my CV for an alternance application.
-                              Desired result: I want clear advice and corrections before I send it.
-                              Already tried: I wrote a first version but I am not sure if it is professional enough.`}
+                            {`Problem: I need help improving my CV for an alternance application.
+Desired result: I want clear advice and corrections before I send it.
+Already tried: I wrote a first version but I am not sure if it is professional enough.`}
                           </p>
                         </div>
 
@@ -863,16 +871,16 @@ export default async function ExpertPublicPage({
                           rows={7}
                           placeholder={`Problem:
 
-                          Desired result:
+Desired result:
 
-                          Already tried:`}
-                            className="mt-2 min-h-44 resize-y rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-4 py-3 text-sm font-medium leading-6 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
+Already tried:`}
+                          className="mt-2 min-h-44 resize-y rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-4 py-3 text-sm font-medium leading-6 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
                         />
-                          
 
-                       <p className="text-xs font-bold text-[var(--muted-foreground)]">
-                          Optional, but recommended. Max {MAX_BOOKING_NOTE_LENGTH} characters.
-                       </p>
+                        <p className="text-xs font-bold text-[var(--muted-foreground)]">
+                          Optional, but recommended. Max{" "}
+                          {MAX_BOOKING_NOTE_LENGTH} characters.
+                        </p>
                       </div>
                     </div>
 
@@ -1019,56 +1027,119 @@ export default async function ExpertPublicPage({
                 <InfoBox
                   icon={Target}
                   label="Solved"
-                  value={problemSolvedRate !== null ? `${problemSolvedRate}%` : "No data yet"}
+                  value={
+                    problemSolvedRate !== null
+                      ? `${problemSolvedRate}%`
+                      : "No data yet"
+                  }
                 />
               </div>
             </Card>
 
-            <Card className="p-5 md:p-6">
-               <Badge variant="success">
-                 <Target size={14} />
-                 Problem outcomes
-               </Badge>      
+            {expert.documents.length > 0 ? (
+              <Card className="p-5 md:p-6">
+                <Badge variant="primary">
+                  <FileText size={14} />
+                  CV & portfolio
+                </Badge>
 
-               <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                 <div>
-                   <h2 className="text-3xl font-black tracking-[-0.05em]">
-                     {problemSolvedRate !== null
-                       ? `${problemSolvedRate}% problems solved`
-                       : "No outcome data yet"}
+                <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                  <div>
+                    <h2 className="text-3xl font-black tracking-[-0.05em]">
+                      Documents shared by this helper
                     </h2>
 
                     <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-[var(--muted-foreground)]">
-                      Buyers answer whether their problem was solved after the call. This is
-                      one of the strongest trust signals on SkillDrop.
+                      Review CV, portfolio files, certificates or work examples
+                      before booking a call.
                     </p>
-                  </div>    
-                  <Badge variant={problemOutcomeTotal > 0 ? "primary" : "accent"}>
-                    {problemOutcomeTotal} outcome{problemOutcomeTotal === 1 ? "" : "s"}
+                  </div>
+
+                  <Badge>
+                    {expert.documents.length} file
+                    {expert.documents.length === 1 ? "" : "s"}
                   </Badge>
-                </div>                           
-                <div className="mt-6 grid gap-3 md:grid-cols-3">
-                 <OutcomeBox
-                   icon={ThumbsUp}
-                   label="Solved"
-                   value={solvedReviews}
-                   variant="success"
-                 />
-
-                 <OutcomeBox
-                   icon={Target}
-                   label="Partially"
-                   value={partiallySolvedReviews}
-                   variant="accent"
-                 />
-
-                 <OutcomeBox
-                   icon={ThumbsDown}
-                   label="Not solved"
-                   value={notSolvedReviews}
-                   variant="danger"
-                 />
                 </div>
+
+                {cvDocuments.length > 0 ? (
+                  <div className="mt-6">
+                    <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                      CV
+                    </p>
+
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {cvDocuments.map((document) => (
+                        <DocumentCard key={document.id} document={document} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {portfolioDocuments.length > 0 ? (
+                  <div className="mt-6">
+                    <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                      Portfolio
+                    </p>
+
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {portfolioDocuments.map((document) => (
+                        <DocumentCard key={document.id} document={document} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </Card>
+            ) : null}
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="success">
+                <Target size={14} />
+                Problem outcomes
+              </Badge>
+
+              <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div>
+                  <h2 className="text-3xl font-black tracking-[-0.05em]">
+                    {problemSolvedRate !== null
+                      ? `${problemSolvedRate}% problems solved`
+                      : "No outcome data yet"}
+                  </h2>
+
+                  <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+                    Buyers answer whether their problem was solved after the
+                    call. This is one of the strongest trust signals on
+                    SkillDrop.
+                  </p>
+                </div>
+
+                <Badge variant={problemOutcomeTotal > 0 ? "primary" : "accent"}>
+                  {problemOutcomeTotal} outcome
+                  {problemOutcomeTotal === 1 ? "" : "s"}
+                </Badge>
+              </div>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-3">
+                <OutcomeBox
+                  icon={ThumbsUp}
+                  label="Solved"
+                  value={solvedReviews}
+                  variant="success"
+                />
+
+                <OutcomeBox
+                  icon={Target}
+                  label="Partially"
+                  value={partiallySolvedReviews}
+                  variant="accent"
+                />
+
+                <OutcomeBox
+                  icon={ThumbsDown}
+                  label="Not solved"
+                  value={notSolvedReviews}
+                  variant="danger"
+                />
+              </div>
             </Card>
 
             <Card className="p-5 md:p-6">
@@ -1104,7 +1175,11 @@ export default async function ExpertPublicPage({
                           <Badge variant="primary">Recommended</Badge>
                         ) : null}
 
-                        <Badge variant={getProblemSolvedBadgeVariant(review.problemSolved)}>
+                        <Badge
+                          variant={getProblemSolvedBadgeVariant(
+                            review.problemSolved,
+                          )}
+                        >
                           {formatProblemSolved(review.problemSolved)}
                         </Badge>
 
@@ -1127,7 +1202,8 @@ export default async function ExpertPublicPage({
 
                       {review.wouldRecommend !== null ? (
                         <p className="mt-3 text-xs font-black text-[var(--primary-dark)]">
-                          Would recommend: {review.wouldRecommend ? "Yes" : "No"}
+                          Would recommend:{" "}
+                          {review.wouldRecommend ? "Yes" : "No"}
                         </p>
                       ) : null}
 
@@ -1158,14 +1234,16 @@ export default async function ExpertPublicPage({
               </h2>
 
               <p className="mt-3 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
-                Review the helper’s services, languages, availability and past feedback
-                before booking a call.
+                Review the helper’s services, languages, availability and past
+                feedback before booking a call.
               </p>
 
               <div className="mt-5 grid gap-3">
                 <SideFact
                   label="Rating"
-                  value={expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"}
+                  value={
+                    expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"
+                  }
                 />
 
                 <SideFact
@@ -1183,13 +1261,9 @@ export default async function ExpertPublicPage({
                   value={problemSolvedRate !== null ? `${problemSolvedRate}%` : "—"}
                 />
 
-                <SideFact
-                  label="Open times"
-                  value={`${bookableTimes.length}`}
-                />
+                <SideFact label="Open times" value={`${bookableTimes.length}`} />
               </div>
             </Card>
-         
 
             <Card className="p-5">
               <Badge variant="primary">
@@ -1220,10 +1294,29 @@ export default async function ExpertPublicPage({
                     expert.rating ? `${expert.rating.toFixed(1)} / 5` : "New"
                   }
                 />
-
-                
               </div>
             </Card>
+
+            {expert.documents.length > 0 ? (
+              <Card className="p-5">
+                <Badge variant="primary">
+                  <FileText size={14} />
+                  Documents
+                </Badge>
+
+                <div className="mt-5 grid gap-3">
+                  <SideFact label="CV" value={`${cvDocuments.length}`} />
+                  <SideFact
+                    label="Portfolio"
+                    value={`${portfolioDocuments.length}`}
+                  />
+                  <SideFact
+                    label="Total files"
+                    value={`${expert.documents.length}`}
+                  />
+                </div>
+              </Card>
+            ) : null}
 
             <Card className="p-5">
               <Badge variant="success">
@@ -1268,6 +1361,71 @@ export default async function ExpertPublicPage({
   );
 }
 
+function DocumentCard({
+  document,
+}: {
+  document: {
+    id: string;
+    type: "CV" | "PORTFOLIO";
+    title: string;
+    fileUrl: string;
+    fileName: string | null;
+    mimeType: string | null;
+    sizeBytes: number | null;
+  };
+}) {
+  return (
+    <a
+      href={document.fileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="group rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:-translate-y-0.5 hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]"
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+          <FileText size={19} />
+        </div>
+
+        <div className="min-w-0">
+          <p className="truncate text-sm font-black text-[var(--foreground)]">
+            {document.title}
+          </p>
+
+          <p className="mt-1 text-xs font-bold text-[var(--muted-foreground)]">
+            {document.type === "CV" ? "CV" : "Portfolio"}
+            {document.fileName ? ` · ${document.fileName}` : ""}
+          </p>
+
+          <p className="mt-1 text-xs font-semibold text-[var(--muted-foreground)]">
+            {formatFileSize(document.sizeBytes)}
+          </p>
+        </div>
+
+        <Paperclip
+          size={17}
+          className="ml-auto shrink-0 text-[var(--muted-foreground)]"
+        />
+      </div>
+    </a>
+  );
+}
+
+function formatFileSize(sizeBytes: number | null) {
+  if (!sizeBytes || sizeBytes <= 0) {
+    return "Size unknown";
+  }
+
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${Math.round(sizeBytes / 1024)} KB`;
+  }
+
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function OutcomeBox({
   icon: Icon,
   label,
@@ -1310,6 +1468,14 @@ function OutcomeBox({
   );
 }
 
+/* garde tout le reste de tes fonctions en bas du fichier:
+AvatarPreview, HashTag, SummaryRow, InfoBox, SideFact, Step,
+EmptyState, ReviewScore, generateBookableTimes, groupTimesByDate,
+getBookingBlockedReason, calculateMatchScore, averageNullable, clamp,
+addMinutes, roundUpToStep, rangesOverlap, formatDateTime, formatShortDate,
+formatTime, formatError, formatProblemSolved, getProblemSolvedBadgeVariant,
+getPublicTrustLabel.
+*/
 function AvatarPreview({
   avatarUrl,
   name,

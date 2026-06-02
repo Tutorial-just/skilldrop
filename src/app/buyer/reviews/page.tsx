@@ -130,14 +130,14 @@ export default async function BuyerReviewsPage({
         <div className="container-page relative py-8 md:py-10 lg:py-12">
           <Link
             href="/buyer"
-            className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
           >
             <ArrowLeft size={16} />
             Back to dashboard
           </Link>
 
           {reviewedBookingId ? (
-            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+            <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
               {reviewedBooking?.review
                 ? `Review saved for “${
                     reviewedBooking.service?.title ?? "Booked call"
@@ -147,13 +147,13 @@ export default async function BuyerReviewsPage({
           ) : null}
 
           {resolvedSearchParams.error ? (
-            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
               {formatReviewError(resolvedSearchParams.error)}
             </div>
           ) : null}
 
           {selectedBookingId && !selectedBooking ? (
-            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-black text-[var(--danger)]">
+            <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
               This booking is not available for review.
             </div>
           ) : null}
@@ -169,9 +169,9 @@ export default async function BuyerReviewsPage({
                 Review your completed calls.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Your feedback helps strong helpers grow and helps other
-                buyers choose with confidence.
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+                Your feedback helps strong helpers grow and helps other buyers
+                choose with confidence.
               </p>
             </div>
 
@@ -236,11 +236,11 @@ export default async function BuyerReviewsPage({
                   Already reviewed
                 </Badge>
 
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                   You already reviewed this call.
                 </h2>
 
-                <p className="mt-2 text-sm font-bold leading-6 text-muted">
+                <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                   You can see your submitted feedback in the review history.
                 </p>
               </Card>
@@ -254,11 +254,11 @@ export default async function BuyerReviewsPage({
                     Waiting for review
                   </Badge>
 
-                  <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                  <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
                     Calls to review
                   </h2>
 
-                  <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                  <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
                     Rate completed calls and share what was helpful.
                   </p>
                 </div>
@@ -293,7 +293,7 @@ export default async function BuyerReviewsPage({
                 Why reviews matter
               </Badge>
 
-              <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                 Build trust on SkillDrop.
               </h2>
 
@@ -312,7 +312,7 @@ export default async function BuyerReviewsPage({
                     Your past reviews
                   </Badge>
 
-                  <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                  <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
                     Review history
                   </h2>
                 </div>
@@ -364,7 +364,7 @@ function ReviewFormCard({
   };
   highlighted: boolean;
 }) {
-  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const helperName = booking.expert.user.name ?? booking.expert.user.email;
   const serviceTitle = booking.service?.title ?? "Booked call";
 
   return (
@@ -372,7 +372,7 @@ function ReviewFormCard({
       className={
         highlighted
           ? "rounded-[26px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] p-4"
-          : "rounded-[26px] border border-[var(--border)] bg-white/64 p-4"
+          : "rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
       }
     >
       <div className="grid gap-5 lg:grid-cols-[1fr_430px] lg:items-start">
@@ -386,24 +386,24 @@ function ReviewFormCard({
             {highlighted ? <Badge variant="accent">Selected</Badge> : null}
           </div>
 
-          <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+          <h3 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
             {serviceTitle}
           </h3>
 
-          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             With{" "}
-            <span className="font-black text-[var(--foreground)]">
-              {providerName}
+            <span className="font-bold text-[var(--foreground)]">
+              {helperName}
             </span>
           </p>
 
-          <p className="mt-3 inline-flex items-center gap-2 text-sm font-black text-muted">
+          <p className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[var(--muted-foreground)]">
             <Clock3 size={14} />
             {formatDateTime(booking.startTime)}
           </p>
 
-          <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-            <p className="text-sm font-bold leading-6 text-muted">
+          <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-4">
+            <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               Be honest and practical. Mention what was useful, what could be
               better, and whether you would recommend this helper.
             </p>
@@ -424,50 +424,66 @@ function ReviewFormCard({
             />
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-4">
-           <p className="text-sm font-black">Was your problem solved?</p>
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-4">
+            <p className="text-sm font-bold text-[var(--foreground)]">
+              Was your problem solved?
+            </p>
 
-           <p className="mt-1 text-xs font-semibold leading-5 text-muted">
-             This helps SkillDrop understand whether the session really helped.
-           </p>
+            <p className="mt-1 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
+              This helps SkillDrop understand whether the session really helped.
+            </p>
 
-           <div className="mt-3 grid gap-2">
-             <label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/70 px-3 py-2 text-sm font-bold">
-               <input type="radio" name="problemSolved" value="YES" required />
-                 Yes, my problem was solved
-             </label>
+            <div className="mt-3 grid gap-2">
+              <RadioOption
+                name="problemSolved"
+                value="YES"
+                label="Yes, my problem was solved"
+              />
 
-             <label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/70 px-3 py-2 text-sm font-bold">
-               <input type="radio" name="problemSolved" value="PARTIALLY" required />
-                 Partially solved
-               </label>
+              <RadioOption
+                name="problemSolved"
+                value="PARTIALLY"
+                label="Partially solved"
+              />
 
-             <label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/70 px-3 py-2 text-sm font-bold">
-               <input type="radio" name="problemSolved" value="NO" required />
-                 No, my problem was not solved
-               </label>
+              <RadioOption
+                name="problemSolved"
+                value="NO"
+                label="No, my problem was not solved"
+              />
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-black">Would you recommend?</label>
+            <label className="text-sm font-bold text-[var(--foreground)]">
+              Would you recommend?
+            </label>
 
-            <select name="wouldRecommend" className="input mt-2" defaultValue="" required>
-              <option value="" disabled>Choose</option>
+            <select
+              name="wouldRecommend"
+              className="input mt-2"
+              defaultValue=""
+              required
+            >
+              <option value="" disabled>
+                Choose
+              </option>
               <option value="true">Yes</option>
               <option value="false">No</option>
             </select>
           </div>
 
           <div>
-            <label className="text-sm font-black">Comment</label>
+            <label className="text-sm font-bold text-[var(--foreground)]">
+              Comment
+            </label>
 
             <textarea
               name="comment"
               rows={4}
               maxLength={1500}
-              className="mt-2 w-full rounded-[22px] border border-[var(--border)] bg-white/88 p-4 text-sm font-semibold leading-6 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
-              placeholder="What was helpful? What should other clients know?"
+              className="mt-2 w-full rounded-[22px] border border-[var(--border)] bg-[var(--background-soft)] p-4 text-sm font-medium leading-6 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+              placeholder="What was helpful? What should other buyers know?"
             />
           </div>
 
@@ -478,6 +494,23 @@ function ReviewFormCard({
         </form>
       </div>
     </div>
+  );
+}
+
+function RadioOption({
+  name,
+  value,
+  label,
+}: {
+  name: string;
+  value: string;
+  label: string;
+}) {
+  return (
+    <label className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-sm font-medium text-[var(--foreground)]">
+      <input type="radio" name={name} value={value} required />
+      {label}
+    </label>
   );
 }
 
@@ -492,7 +525,9 @@ function ReviewSelect({
 }) {
   return (
     <div>
-      <label className="text-sm font-black">{label}</label>
+      <label className="text-sm font-bold text-[var(--foreground)]">
+        {label}
+      </label>
 
       <select
         name={name}
@@ -522,7 +557,9 @@ function ReviewScoreSelect({
 }) {
   return (
     <div>
-      <label className="text-xs font-black">{label}</label>
+      <label className="text-xs font-bold text-[var(--foreground)]">
+        {label}
+      </label>
 
       <select name={name} className="input mt-2" defaultValue="5" required>
         <option value="5">5</option>
@@ -568,7 +605,7 @@ function ReviewedCard({
     return null;
   }
 
-  const providerName = booking.expert.user.name ?? booking.expert.user.email;
+  const helperName = booking.expert.user.name ?? booking.expert.user.email;
   const serviceTitle = booking.service?.title ?? "Booked call";
 
   return (
@@ -576,7 +613,7 @@ function ReviewedCard({
       className={
         highlighted
           ? "rounded-[22px] border border-[var(--success)]/30 bg-[var(--success-soft)] p-4"
-          : "rounded-[22px] border border-[var(--border)] bg-white/64 p-4"
+          : "rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4"
       }
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -597,21 +634,23 @@ function ReviewedCard({
         ) : null}
 
         <Badge variant={getProblemSolvedBadgeVariant(booking.review.problemSolved)}>
-           {formatProblemSolved(booking.review.problemSolved)}
+          {formatProblemSolved(booking.review.problemSolved)}
         </Badge>
 
-        <p className="text-xs font-bold text-muted">
+        <p className="text-xs font-medium text-[var(--muted-foreground)]">
           {formatDateTime(booking.review.createdAt)}
         </p>
       </div>
 
-      <h3 className="mt-4 font-black tracking-[-0.02em]">{serviceTitle}</h3>
+      <h3 className="mt-4 font-bold tracking-[-0.02em] text-[var(--foreground)]">
+        {serviceTitle}
+      </h3>
 
-      <p className="mt-1 text-sm font-semibold text-muted">
-        Helper: {providerName}
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        Helper: {helperName}
       </p>
 
-      <p className="mt-1 inline-flex items-center gap-2 text-xs font-bold text-muted">
+      <p className="mt-1 inline-flex items-center gap-2 text-xs font-medium text-[var(--muted-foreground)]">
         <Clock3 size={13} />
         Call: {formatDateTime(booking.startTime)}
       </p>
@@ -625,7 +664,7 @@ function ReviewedCard({
         />
       </div>
 
-      <p className="mt-4 text-sm font-semibold leading-6 text-muted">
+      <p className="mt-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         {booking.review.comment || "No comment left."}
       </p>
     </div>
@@ -640,12 +679,14 @@ function ReviewMiniScore({
   value: number | null;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white/64 p-3">
-      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-1 text-sm font-black">{value ? `${value}/5` : "—"}</p>
+      <p className="mt-1 text-sm font-bold text-[var(--foreground)]">
+        {value ? `${value}/5` : "—"}
+      </p>
     </div>
   );
 }
@@ -667,22 +708,29 @@ function MetricCard({
         <Icon size={20} />
       </div>
 
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{value}</p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {value}
+      </p>
 
-      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+        {hint}
+      </p>
     </Card>
   );
 }
 
 function Tip({ text }: { text: string }) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4">
+    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
       <Star size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />
-      <p className="text-sm font-bold leading-6 text-muted">{text}</p>
+
+      <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+        {text}
+      </p>
     </div>
   );
 }
@@ -697,14 +745,16 @@ function EmptyState({
   text: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-7 text-center">
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-7 text-center">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
         <Icon size={24} />
       </div>
 
-      <h3 className="mt-5 text-2xl font-black tracking-[-0.04em]">{title}</h3>
+      <h3 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+        {title}
+      </h3>
 
-      <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+      <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-[var(--muted-foreground)]">
         {text}
       </p>
     </div>

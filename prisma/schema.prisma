@@ -75,6 +75,8 @@ model ExpertProfile {
   reviews      Review[]
   savedBy      SavedExpert[]
 
+  documents ExpertDocument[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -209,13 +211,13 @@ model Booking {
   clientServiceFeeCents Int?
   clientTotalCents      Int?
 
-  stripeCheckoutSessionId String? @unique
-  stripePaymentIntentId   String? @unique
+  stripeCheckoutSessionId String?         @unique
+  stripePaymentIntentId   String?         @unique
   stripeChargeId          String?
   stripeRefundId          String?
-  reports BookingReport[]
-  review   Review?
-  callRoom CallRoom?
+  reports                 BookingReport[]
+  review                  Review?
+  callRoom                CallRoom?
 
   note String?
 
@@ -432,14 +434,14 @@ model StripeEvent {
 }
 
 model BookingReport {
-  id        String   @id @default(cuid())
-  bookingId String
+  id         String   @id @default(cuid())
+  bookingId  String
   reporterId String
-  reason    String
-  message   String?
-  status    String   @default("OPEN")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  reason     String
+  message    String?
+  status     String   @default("OPEN")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   booking  Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   reporter User    @relation(fields: [reporterId], references: [id], onDelete: Cascade)
@@ -447,4 +449,29 @@ model BookingReport {
   @@index([bookingId])
   @@index([reporterId])
   @@index([status])
+}
+
+model ExpertDocument {
+  id String @id @default(cuid())
+
+  expertId String
+  expert   ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  type      ExpertDocumentType
+  title     String
+  fileUrl   String
+  fileName  String?
+  mimeType  String?
+  sizeBytes Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([expertId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum ExpertDocumentType {
+  CV
+  PORTFOLIO
 }

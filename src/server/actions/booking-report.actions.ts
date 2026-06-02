@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { BookingStatus, UserRole } from "@prisma/client";
-
+import { sendDisputeCreatedEmail } from "@/lib/booking-emails";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 
@@ -92,6 +92,13 @@ export async function reportBookingAction(
       },
     }),
   ]);
+
+  await sendDisputeCreatedEmail({
+    adminEmail: process.env.ADMIN_EMAIL,
+    bookingId: booking.id,
+    reason,
+    message: message.length > 0 ? message : null,
+  });
 
   revalidatePath("/buyer/bookings");
   revalidatePath("/expert/bookings");

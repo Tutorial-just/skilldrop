@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { BookingStatus, CallRoomStatus } from "@prisma/client";
-
+import { createCallRoomData } from "@/server/services/booking.service";
 import {
   cancelBooking,
   expireBooking,
@@ -80,20 +80,6 @@ function getPaymentIntentIdFromCharge(charge: Stripe.Charge) {
     : charge.payment_intent.id;
 }
 
-function createSafeRoomName(bookingId: string) {
-  return `skilldrop-${bookingId}`.replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
-}
-
-function createCallRoomData(bookingId: string) {
-  const roomName = createSafeRoomName(bookingId);
-  const baseUrl = process.env.JITSI_BASE_URL || "https://meet.jit.si";
-
-  return {
-    provider: process.env.VIDEO_PROVIDER || "JITSI",
-    roomName,
-    roomUrl: `${baseUrl}/${roomName}`,
-  };
-}
 
 function revalidateWebhookPaths(expertId: string, bookingId: string) {
   revalidatePath("/");
@@ -293,7 +279,11 @@ async function handleCheckoutSessionPaid({
         });
 
         if (!booking.callRoom) {
-          const room = createCallRoomData(booking.id);
+          const room = await createCallRoomData({
+            id: booking.id,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+          });
 
           await tx.callRoom.create({
             data: {
@@ -375,7 +365,11 @@ async function handleCheckoutSessionPaid({
       }
 
       if (!booking.callRoom) {
-        const room = createCallRoomData(booking.id);
+        const room = await createCallRoomData({
+          id: booking.id,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+        });
 
         await tx.callRoom.create({
           data: {

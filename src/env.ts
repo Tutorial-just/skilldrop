@@ -28,6 +28,8 @@ const serverEnvSchema = z.object({
 
   VIDEO_PROVIDER: z.enum(["jitsi", "daily", "livekit", "twilio"]).optional(),
   JITSI_BASE_URL: z.string().url().optional(),
+  DAILY_API_KEY: z.string().optional(),
+  DAILY_API_URL: z.string().url().optional(),
 });
 
 const clientEnvSchema = z.object({

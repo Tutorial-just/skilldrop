@@ -303,7 +303,7 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
             </h2>
 
             <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-              This button opens the external video room for this booking.
+              This button opens the secure video room for this booking.
             </p>
 
             <div className="mt-6 grid gap-3">
