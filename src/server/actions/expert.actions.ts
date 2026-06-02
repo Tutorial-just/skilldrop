@@ -133,7 +133,11 @@ async function assertExpertRateLimit(userId: string, action: string) {
  * This function currently validates avatar input but does not store base64
  * in the database, because base64 avatars can quickly bloat User rows.
  */
-async function validateAvatarFile(formData: FormData, errorPath: string) {
+async function uploadAvatarFile(
+  formData: FormData,
+  errorPath: string,
+  userId: string,
+) {
   const avatar = formData.get("avatar");
 
   if (!(avatar instanceof File)) {
@@ -152,7 +156,28 @@ async function validateAvatarFile(formData: FormData, errorPath: string) {
     redirectWithError(errorPath, "avatar-too-large");
   }
 
-  return null;
+  const extension = getSafeFileExtension(avatar.name, avatar.type);
+  const storagePath = `${userId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+
+  const arrayBuffer = await avatar.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from("avatars")
+    .upload(storagePath, buffer, {
+      contentType: avatar.type,
+      upsert: true,
+    });
+
+  if (uploadError) {
+    redirectWithError(errorPath, "avatar-upload-failed");
+  }
+
+  const { data } = supabaseAdmin.storage
+    .from("avatars")
+    .getPublicUrl(storagePath);
+
+  return data.publicUrl;
 }
 
 async function getCurrentExpertProfile() {
@@ -444,7 +469,11 @@ export async function createProviderProfileAction(formData: FormData) {
     redirectWithError("/become-expert", "profile-already-exists");
   }
 
-  await validateAvatarFile(formData, "/become-expert");
+  const uploadedAvatarUrl = await uploadAvatarFile(
+    formData,
+    "/become-expert",
+    existingUser.id,
+  );
 
   const displayName = cleanText(
     getStringValue(formData, "displayName") ||
@@ -501,6 +530,11 @@ export async function createProviderProfileAction(formData: FormData) {
       data: {
         name: displayName,
         role: "EXPERT",
+        ...(uploadedAvatarUrl
+          ? {
+              avatarUrl: uploadedAvatarUrl,
+            }
+          : {}),
       },
     });
 
@@ -571,8 +605,6 @@ export async function updateProviderProfileAction(formData: FormData) {
 
   await assertExpertRateLimit(user.id, "update-profile");
 
-  await validateAvatarFile(formData, "/expert/profile");
-
   const displayName = cleanText(getStringValue(formData, "displayName"), 80);
   const headline = cleanText(getStringValue(formData, "headline"), 120);
   const bio = getStringValue(formData, "bio").trim().slice(0, 1200);
@@ -610,6 +642,10 @@ export async function updateProviderProfileAction(formData: FormData) {
 
   const expertProfile = dbUser.expertProfile;
 
+  const uploadedAvatarUrl = removeAvatar
+    ? null
+    : await uploadAvatarFile(formData, "/expert/profile", dbUser.id);
+
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: {
@@ -621,7 +657,11 @@ export async function updateProviderProfileAction(formData: FormData) {
           ? {
               avatarUrl: null,
             }
-          : {}),
+          : uploadedAvatarUrl
+            ? {
+                avatarUrl: uploadedAvatarUrl,
+              }
+            : {}),
       },
     });
 
@@ -645,7 +685,6 @@ export async function updateProviderProfileAction(formData: FormData) {
 
   redirect("/expert/profile?saved=1");
 }
-
 export async function createProviderServiceAction(formData: FormData) {
   const expert = await getCurrentExpertProfile();
 
