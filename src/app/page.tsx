@@ -15,7 +15,6 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Star,
   UserRound,
   Video,
   WalletCards,
@@ -126,33 +125,6 @@ const steps = [
   },
 ];
 
-const helpers = [
-  {
-    name: "Anna Keller",
-    role: "CV & Interview Advisor",
-    canHelpWith: "CV review · LinkedIn · Interviews",
-    tag: "Career",
-    price: "€26.25",
-    rating: "4.9",
-  },
-  {
-    name: "Mira Ivanova",
-    role: "French/Russian Translator",
-    canHelpWith: "Translation · Messages · Documents",
-    tag: "Languages",
-    price: "€21",
-    rating: "4.8",
-  },
-  {
-    name: "Daniel Moreau",
-    role: "Relocation & Documents Helper",
-    canHelpWith: "Moving abroad · Admin steps · Forms",
-    tag: "Relocation",
-    price: "€18.90",
-    rating: "4.7",
-  },
-];
-
 const trustItems = [
   "Clear total price before checkout",
   "Short calls from 15 to 60 minutes",
@@ -194,11 +166,12 @@ export default function HomePage() {
                       name="q"
                       type="search"
                       placeholder="What do you need help with?"
-                      className="input min-h-[56px] border-transparent bg-[var(--background-soft)] pl-12 shadow-none"
+                      className="input min-h-[56px] border-transparent bg-[var(--background-soft)] pl-5 pr-12 shadow-none"
                     />
+
                     <Search
                       size={19}
-                      className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                      className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
                     />
                   </div>
 
@@ -345,7 +318,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="how-it-works" className="section-page bg-[var(--background-soft)]">
+      <section
+        id="how-it-works"
+        className="section-page bg-[var(--background-soft)]"
+      >
         <div className="container-page">
           <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
             <div>
@@ -547,8 +523,6 @@ export default function HomePage() {
         </div>
       </section>
 
-     
-
       <section className="section-page-sm">
         <div className="container-page">
           <Card className="relative overflow-hidden p-8 md:p-10 lg:p-12">
@@ -601,49 +575,58 @@ function HeroMarketplacePreview() {
   return (
     <div className="relative">
       <Card className="relative overflow-hidden p-4 shadow-[var(--shadow-lg)]">
-        <div className="relative min-h-[560px] overflow-hidden rounded-[34px] bg-[#211a42]">
-          <Image
-            src="/images/home-hero.png"
-            alt="Freelancer working on a laptop"
-            fill
-            priority
-            sizes="(min-width: 1024px) 44vw, 100vw"
-            className="object-cover"
-          />
+        <div className="relative overflow-hidden rounded-[34px] bg-[#211a42]">
+          <div className="relative h-[390px] overflow-hidden rounded-t-[34px] sm:h-[430px] lg:h-[460px]">
+            <Image
+              src="/images/home-hero.png"
+              alt="Freelancer working on a laptop"
+              fill
+              priority
+              sizes="(min-width: 1024px) 44vw, 100vw"
+              className="object-cover"
+            />
 
-          <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/75 via-[#171124]/10 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/20 via-transparent to-transparent" />
 
-          <div className="absolute left-5 right-5 top-5 flex items-center justify-between gap-4">
-            <Badge variant="primary">
-              <Sparkles size={14} />
-              SkillDrop
-            </Badge>
+            <div className="absolute left-5 right-5 top-5 flex items-center justify-between gap-4">
+              <Badge variant="primary">
+                <Sparkles size={14} />
+                SkillDrop
+              </Badge>
 
-            <div className="rounded-full bg-white/20 px-4 py-2 text-xs font-black text-white backdrop-blur-xl">
-              Real people · 1:1 calls
+              <div className="rounded-full bg-white/20 px-4 py-2 text-xs font-black text-white backdrop-blur-xl">
+                Real people · 1:1 calls
+              </div>
             </div>
           </div>
 
-          <div className="absolute bottom-0 left-0 right-0">
-            <div className="rounded-t-[34px] border-t border-white/15 bg-[#171124]/72 p-6 text-white shadow-[var(--shadow-md)] backdrop-blur-xl">
-              <p className="text-sm font-bold text-white/70">
-                Find practical help online
-              </p>
-
-              <h2 className="mt-2 max-w-xl text-3xl font-black leading-tight tracking-[-0.055em]">
-                Book short video calls with people who can help you move forward.
-              </h2>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {seoKeywords.map((keyword) => (
-                  <span
-                    key={keyword}
-                    className="rounded-full bg-white/12 px-3 py-1.5 text-xs font-black text-white/85"
-                  >
-                    {keyword}
-                  </span>
-                ))}
+          <div className="rounded-b-[34px] border-t border-white/10 bg-[#171124] p-6 text-white">
+            <div className="flex items-start gap-4">
+              <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white sm:flex">
+                <Video size={21} />
               </div>
+
+              <div>
+                <p className="text-sm font-bold text-white/65">
+                  Find practical help online
+                </p>
+
+                <h2 className="mt-2 max-w-xl text-3xl font-black leading-tight tracking-[-0.055em]">
+                  Book short video calls with people who can help you move
+                  forward.
+                </h2>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {seoKeywords.map((keyword) => (
+                <span
+                  key={keyword}
+                  className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-black text-white/80"
+                >
+                  {keyword}
+                </span>
+              ))}
             </div>
           </div>
         </div>
@@ -738,7 +721,10 @@ function ProblemCard({
   const Icon = problem.icon;
 
   return (
-    <Link href={`/experts?q=${encodeURIComponent(problem.query)}`} className="group">
+    <Link
+      href={`/experts?q=${encodeURIComponent(problem.query)}`}
+      className="group"
+    >
       <Card className="h-full p-6 transition group-hover:-translate-y-1 group-hover:shadow-[var(--shadow-md)]">
         <div className="flex items-center justify-between gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
@@ -758,7 +744,10 @@ function ProblemCard({
 
         <div className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]">
           Find your help
-          <ArrowRight size={16} className="transition group-hover:translate-x-1" />
+          <ArrowRight
+            size={16}
+            className="transition group-hover:translate-x-1"
+          />
         </div>
       </Card>
     </Link>
@@ -854,132 +843,6 @@ function CommissionRow({
       </div>
 
       <p className="text-lg font-black text-[var(--foreground)]">{value}</p>
-    </div>
-  );
-}
-
-function HelperPreviewCard({
-  helper,
-}: {
-  helper: {
-    name: string;
-    role: string;
-    canHelpWith: string;
-    tag: string;
-    price: string;
-    rating: string;
-  };
-}) {
-  return (
-    <Card className="p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-md)]">
-      <div className="flex items-start gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-lg font-black text-white shadow-sm">
-          {helper.name.charAt(0)}
-        </div>
-
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-xl font-black tracking-tight text-[var(--foreground)]">
-              {helper.name}
-            </h3>
-            <Badge variant="success">Verified</Badge>
-          </div>
-
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            {helper.role}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-          Can help with
-        </p>
-
-        <p className="mt-2 text-sm font-bold leading-6 text-[var(--foreground)]">
-          {helper.canHelpWith}
-        </p>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between rounded-2xl bg-[var(--card-soft)] p-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-            Rating
-          </p>
-
-          <p className="mt-1 flex items-center gap-1 text-lg font-black text-[var(--foreground)]">
-            <Star size={16} fill="currentColor" />
-            {helper.rating}
-          </p>
-        </div>
-
-        <div className="text-right">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-            From
-          </p>
-
-          <p className="mt-1 text-lg font-black text-[var(--foreground)]">
-            {helper.price}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <Badge>{helper.tag}</Badge>
-
-        <Link href="/experts" className="text-sm font-bold text-[var(--primary-dark)]">
-          Book →
-        </Link>
-      </div>
-    </Card>
-  );
-}
-
-function MiniHelper({
-  helper,
-}: {
-  helper: {
-    name: string;
-    role: string;
-    canHelpWith: string;
-    tag: string;
-    price: string;
-    rating: string;
-  };
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] font-black text-[var(--primary-dark)]">
-          {helper.name.charAt(0)}
-        </div>
-
-        <div>
-          <p className="font-bold leading-tight text-[var(--foreground)]">
-            {helper.name}
-          </p>
-          <p className="text-sm text-[var(--muted-foreground)]">{helper.role}</p>
-        </div>
-      </div>
-
-      <div className="text-right">
-        <Badge>{helper.tag}</Badge>
-        <p className="mt-2 text-sm font-bold text-[var(--foreground)]">
-          {helper.price}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function MiniPanel({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-white/10 p-3">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/45">
-        {label}
-      </p>
-
-      <p className="mt-1 text-sm font-black">{value}</p>
     </div>
   );
 }
