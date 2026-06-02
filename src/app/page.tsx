@@ -548,30 +548,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section-page bg-[var(--background-soft)]">
-        <div className="container-page">
-          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div>
-              <Badge variant="success">Featured helpers</Badge>
-
-              <h2 className="heading-xl mt-5 max-w-3xl text-balance">
-                Choose people by what they can help you with.
-              </h2>
-            </div>
-
-            <ButtonLink href="/experts" variant="secondary">
-              See marketplace
-              <ArrowRight size={18} />
-            </ButtonLink>
-          </div>
-
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
-            {helpers.map((helper) => (
-              <HelperPreviewCard key={helper.name} helper={helper} />
-            ))}
-          </div>
-        </div>
-      </section>
+     
 
       <section className="section-page-sm">
         <div className="container-page">
@@ -611,10 +588,21 @@ export default function HomePage() {
 }
 
 function HeroMarketplacePreview() {
+  const seoKeywords = [
+    "CV help",
+    "Interview preparation",
+    "Document help",
+    "Translation",
+    "Language practice",
+    "Tech support",
+    "Relocation advice",
+    "Study application",
+  ];
+
   return (
     <div className="relative">
       <Card className="relative overflow-hidden p-4 shadow-[var(--shadow-lg)]">
-        <div className="relative min-h-[520px] overflow-hidden rounded-[34px] bg-[#211a42]">
+        <div className="relative min-h-[560px] overflow-hidden rounded-[34px] bg-[#211a42]">
           <Image
             src="/images/home-hero.png"
             alt="Freelancer working on a laptop"
@@ -624,8 +612,8 @@ function HeroMarketplacePreview() {
             className="object-cover"
           />
 
-          <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/85 via-[#171124]/25 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#171124]/30 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/65 via-[#171124]/10 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#171124]/15 via-transparent to-transparent" />
 
           <div className="absolute left-5 right-5 top-5 flex items-center justify-between gap-4">
             <Badge variant="primary">
@@ -633,49 +621,33 @@ function HeroMarketplacePreview() {
               SkillDrop
             </Badge>
 
-            <div className="rounded-full bg-white/15 px-4 py-2 text-xs font-black text-white backdrop-blur-xl">
-              Global helpers
-            </div>
-          </div>
-
-          <div className="absolute left-5 top-20 rounded-[24px] border border-white/15 bg-white/14 p-4 text-white shadow-[var(--shadow-md)] backdrop-blur-xl">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15">
-                <Video size={19} />
-              </div>
-
-              <div>
-                <p className="text-sm font-black">1:1 video calls</p>
-                <p className="text-xs font-semibold text-white/65">
-                  Short and practical
-                </p>
-              </div>
+            <div className="rounded-full bg-white/20 px-4 py-2 text-xs font-black text-white backdrop-blur-xl">
+              Real people · 1:1 calls
             </div>
           </div>
 
           <div className="absolute bottom-5 left-5 right-5">
-            <div className="max-w-md rounded-[28px] border border-white/15 bg-white/14 p-5 text-white shadow-[var(--shadow-md)] backdrop-blur-xl">
-              <p className="text-sm font-bold text-white/65">
-                Example request
+            <div className="max-w-lg rounded-[28px] border border-white/15 bg-[#171124]/55 p-5 text-white shadow-[var(--shadow-md)] backdrop-blur-xl">
+              <p className="text-sm font-bold text-white/70">
+                Find practical help online
               </p>
 
               <h2 className="mt-2 text-3xl font-black leading-tight tracking-[-0.055em]">
-                “I need help preparing my CV before sending applications.”
+                Book short video calls with people who can help you move forward.
               </h2>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <MiniPanel label="Format" value="1:1 call" />
-                <MiniPanel label="Duration" value="30 min" />
-                <MiniPanel label="Result" value="Next steps" />
+              <div className="mt-5 flex flex-wrap gap-2">
+                {seoKeywords.map((keyword) => (
+                  <span
+                    key={keyword}
+                    className="rounded-full bg-white/12 px-3 py-1.5 text-xs font-black text-white/85"
+                  >
+                    {keyword}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="mt-5 grid gap-4">
-          {helpers.map((helper) => (
-            <MiniHelper key={helper.name} helper={helper} />
-          ))}
         </div>
       </Card>
 
@@ -687,10 +659,10 @@ function HeroMarketplacePreview() {
 
           <div>
             <p className="text-sm font-bold text-[var(--foreground)]">
-              Clear checkout
+              Secure booking
             </p>
             <p className="text-xs text-[var(--muted-foreground)]">
-              Price shown before payment
+              Clear price before payment
             </p>
           </div>
         </div>
