@@ -200,7 +200,7 @@ export default async function ExpertDashboardPage({
 
   const activeServices = expert.services.filter((service) => service.isActive);
   const quality = getExpertQuality({
-    image: null,
+    image: expert.user.avatarUrl,
     headline: expert.headline,
     bio: expert.bio,
     country: expert.country,
