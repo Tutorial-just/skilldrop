@@ -613,36 +613,19 @@ export default function HomePage() {
 function HeroMarketplacePreview() {
   return (
     <div className="relative">
-      <div className="absolute -left-6 top-10 hidden rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-md)] backdrop-blur-xl lg:block">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
-            <Video size={20} />
-          </div>
-
-          <div>
-            <p className="text-sm font-black text-[var(--foreground)]">
-              1:1 video calls
-            </p>
-            <p className="text-xs font-semibold text-[var(--muted-foreground)]">
-              Short, focused and practical
-            </p>
-          </div>
-        </div>
-      </div>
-
       <Card className="relative overflow-hidden p-4 shadow-[var(--shadow-lg)]">
         <div className="relative min-h-[520px] overflow-hidden rounded-[34px] bg-[#211a42]">
           <Image
             src="/images/home-hero.png"
-            alt="Person getting practical help online"
+            alt="Freelancer working on a laptop"
             fill
             priority
             sizes="(min-width: 1024px) 44vw, 100vw"
-            className="object-cover opacity-90"
+            className="object-cover"
           />
 
-          <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/90 via-[#171124]/35 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#171124]/45 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#171124]/85 via-[#171124]/25 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#171124]/30 via-transparent to-transparent" />
 
           <div className="absolute left-5 right-5 top-5 flex items-center justify-between gap-4">
             <Badge variant="primary">
@@ -652,6 +635,21 @@ function HeroMarketplacePreview() {
 
             <div className="rounded-full bg-white/15 px-4 py-2 text-xs font-black text-white backdrop-blur-xl">
               Global helpers
+            </div>
+          </div>
+
+          <div className="absolute left-5 top-20 rounded-[24px] border border-white/15 bg-white/14 p-4 text-white shadow-[var(--shadow-md)] backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15">
+                <Video size={19} />
+              </div>
+
+              <div>
+                <p className="text-sm font-black">1:1 video calls</p>
+                <p className="text-xs font-semibold text-white/65">
+                  Short and practical
+                </p>
+              </div>
             </div>
           </div>
 
