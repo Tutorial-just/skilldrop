@@ -789,7 +789,7 @@ function ProblemCard({
         </p>
 
         <div className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]">
-          Find help
+          Find your help
           <ArrowRight size={16} className="transition group-hover:translate-x-1" />
         </div>
       </Card>
