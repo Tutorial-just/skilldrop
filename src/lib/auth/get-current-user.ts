@@ -139,7 +139,7 @@ export async function getCurrentUser() {
     user_metadata: authUser.user_metadata,
   });
 
-  let user = await prisma.user.upsert({
+   let user = await prisma.user.upsert({
     where: {
       email,
     },
@@ -152,10 +152,7 @@ export async function getCurrentUser() {
         create: {},
       },
     },
-    update: {
-      ...(displayName ? { name: displayName } : {}),
-      ...(avatarUrl ? { avatarUrl } : {}),
-    },
+    update: {},
     include: {
       expertProfile: true,
       buyerSettings: true,

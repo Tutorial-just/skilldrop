@@ -908,6 +908,8 @@ const MAX_EXPERT_DOCUMENT_SIZE_BYTES = 5 * 1024 * 1024;
 
 const ALLOWED_EXPERT_DOCUMENT_TYPES = [
   "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -934,6 +936,17 @@ function getSafeFileExtension(fileName: string, mimeType: string) {
 
   if (mimeType === "image/webp") {
     return "webp";
+  }
+  if (mimeType === "application/msword") {
+    return "doc";
+  }
+
+  if (
+    mimeType ===
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) 
+  {
+   return "docx";
   }
 
   return "file";

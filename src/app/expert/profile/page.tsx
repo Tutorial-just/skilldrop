@@ -586,6 +586,7 @@ export default async function ExpertProfilePage({
 
               <form
                 action={uploadExpertDocumentAction}
+                encType="multipart/form-data"
                 className="mt-6 grid gap-4"
               >
                 <div>
@@ -799,6 +800,7 @@ export default async function ExpertProfilePage({
             <form
               id="expert-profile-form"
               action={updateProviderProfileAction}
+              encType="multipart/form-data"
               className="mt-8 grid gap-8"
             >
               <FormDraft formId="expert-profile-form" />

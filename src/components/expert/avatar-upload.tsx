@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
 
 type AvatarUploadProps = {
@@ -15,14 +15,26 @@ export function AvatarUpload({
   currentAvatarUrl,
   fallbackLetter,
 }: AvatarUploadProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const removeInputRef = useRef<HTMLInputElement | null>(null);
+
   const [previewUrl, setPreviewUrl] = useState<string | null>(
     currentAvatarUrl ?? null,
   );
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     setPreviewUrl(currentAvatarUrl ?? null);
   }, [currentAvatarUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [objectUrl]);
 
   return (
     <div>
@@ -65,6 +77,7 @@ export function AvatarUpload({
                 Choose photo
 
                 <input
+                  ref={fileInputRef}
                   name={name}
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -73,6 +86,10 @@ export function AvatarUpload({
                     const file = event.target.files?.[0];
 
                     setError("");
+
+                    if (removeInputRef.current) {
+                      removeInputRef.current.value = "false";
+                    }
 
                     if (!file) {
                       return;
@@ -90,8 +107,13 @@ export function AvatarUpload({
                       return;
                     }
 
-                    const objectUrl = URL.createObjectURL(file);
-                    setPreviewUrl(objectUrl);
+                    if (objectUrl) {
+                      URL.revokeObjectURL(objectUrl);
+                    }
+
+                    const nextObjectUrl = URL.createObjectURL(file);
+                    setObjectUrl(nextObjectUrl);
+                    setPreviewUrl(nextObjectUrl);
                   }}
                 />
               </label>
@@ -102,22 +124,19 @@ export function AvatarUpload({
                   className="btn btn-secondary"
                   onClick={() => {
                     setPreviewUrl(null);
+                    setError("");
 
-                    const input = document.querySelector<HTMLInputElement>(
-                      `input[name="${name}"]`,
-                    );
-
-                    if (input) {
-                      input.value = "";
+                    if (objectUrl) {
+                      URL.revokeObjectURL(objectUrl);
+                      setObjectUrl(null);
                     }
 
-                    const removeInput =
-                      document.querySelector<HTMLInputElement>(
-                        `input[name="removeAvatar"]`,
-                      );
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "";
+                    }
 
-                    if (removeInput) {
-                      removeInput.value = "true";
+                    if (removeInputRef.current) {
+                      removeInputRef.current.value = "true";
                     }
                   }}
                 >
@@ -130,7 +149,7 @@ export function AvatarUpload({
         </div>
       </div>
 
-      <input type="hidden" name="removeAvatar" value="false" />
+      <input ref={removeInputRef} type="hidden" name="removeAvatar" value="false" />
     </div>
   );
 }
