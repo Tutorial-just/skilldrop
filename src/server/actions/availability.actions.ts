@@ -242,10 +242,6 @@ function parseWeekdays(values: string[]) {
   return Array.from(new Set(weekdays));
 }
 
-function addMinutes(date: Date, minutes: number) {
-  return new Date(date.getTime() + minutes * 60 * 1000);
-}
-
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + days);
@@ -312,21 +308,23 @@ export async function createAvailabilityAction(formData: FormData) {
   await assertAvailabilityRateLimit(`create:${expert.id}`);
 
   const startTimeValue = getStringValue(formData, "startTime");
-  const durationMinutes = parseDuration(
-    getStringValue(formData, "durationMinutes"),
-  );
+  const endTimeValue = getStringValue(formData, "endTime");
 
   const startTime = parseLocalDateTime(startTimeValue);
+  const endTime = parseLocalDateTime(endTimeValue);
 
   if (!startTime) {
     redirectWithError("/expert/availability", "invalid-start-time");
   }
 
-  if (!durationMinutes) {
-    redirectWithError("/expert/availability", "invalid-duration");
+  if (!endTime) {
+    redirectWithError("/expert/availability", "invalid-end-time");
   }
 
-  const endTime = addMinutes(startTime, durationMinutes);
+  if (!isValidWindowRange(startTime, endTime)) {
+    redirectWithError("/expert/availability", "invalid-time-range");
+  }
+
   const windowDurationMinutes = getDurationMinutes(startTime, endTime);
 
   await ensureWindowCanFitActiveService({
@@ -342,10 +340,6 @@ export async function createAvailabilityAction(formData: FormData) {
 
   if (isTooFarInFuture(startTime)) {
     redirectWithError("/expert/availability", "too-far-in-future");
-  }
-
-  if (!isValidWindowRange(startTime, endTime)) {
-    redirectWithError("/expert/availability", "invalid-time-range");
   }
 
   try {

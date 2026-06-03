@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BookingStatus } from "@prisma/client";
+
 import { createBookingAction } from "@/server/actions/booking.actions";
 import { prisma } from "@/lib/prisma";
 
@@ -12,6 +14,15 @@ type BookPageProps = {
     payment?: string;
   }>;
 };
+
+const BOOKING_STEP_MINUTES = 15;
+
+const activeBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+  BookingStatus.DISPUTED,
+];
 
 export default async function BookPage({
   params,
@@ -45,10 +56,28 @@ export default async function BookPage({
             gte: new Date(),
           },
         },
+        include: {
+          bookings: {
+            where: {
+              status: {
+                in: activeBookingStatuses,
+              },
+            },
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              status: true,
+            },
+            orderBy: {
+              startTime: "asc",
+            },
+          },
+        },
         orderBy: {
           startTime: "asc",
         },
-        take: 12,
+        take: 30,
       },
     },
   });
@@ -63,7 +92,12 @@ export default async function BookPage({
     notFound();
   }
 
-  const hasAvailableSlots = expert.availability.length > 0;
+  const generatedTimeSlots = generateBookableTimeSlots({
+    availability: expert.availability,
+    durationMinutes: service.durationMinutes,
+  });
+
+  const hasAvailableSlots = generatedTimeSlots.length > 0;
 
   return (
     <main className="container-page py-10">
@@ -93,8 +127,8 @@ export default async function BookPage({
             </h1>
 
             <p className="mt-4 leading-8 text-[#6f6a63]">
-              Enter your details and choose one of the expert’s available time
-              slots. You’ll continue to secure checkout after this step.
+              Choose one of the expert’s available start times. The call will
+              be booked for the selected offer duration.
             </p>
           </div>
 
@@ -141,9 +175,9 @@ export default async function BookPage({
             <div>
               <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
                 <div>
-                  <p className="text-sm font-black">Choose available slot</p>
+                  <p className="text-sm font-black">Choose available time</p>
                   <p className="mt-1 text-sm text-[#6f6a63]">
-                    These slots are created by the expert.
+                    Times are generated from the expert’s availability windows.
                   </p>
                 </div>
 
@@ -151,22 +185,22 @@ export default async function BookPage({
                   href="/expert/availability"
                   className="text-sm font-black text-[#2563eb] hover:text-[#1d4ed8]"
                 >
-                  Manage slots →
+                  Manage availability →
                 </Link>
               </div>
 
               {hasAvailableSlots ? (
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {expert.availability.map((slot, index) => (
+                  {generatedTimeSlots.map((slot, index) => (
                     <label
-                      key={slot.id}
+                      key={`${slot.availabilityId}-${slot.startTime.toISOString()}`}
                       className="cursor-pointer rounded-[1.5rem] border border-[#e8e1d8] bg-white p-4 transition hover:border-[#2563eb] hover:bg-[#eef4ff]"
                     >
                       <input
                         required
                         type="radio"
-                        name="availabilityId"
-                        value={slot.id}
+                        name="timeSlot"
+                        value={`${slot.availabilityId}|${slot.startTime.toISOString()}`}
                         defaultChecked={index === 0}
                         className="sr-only peer"
                       />
@@ -191,6 +225,17 @@ export default async function BookPage({
                                 timeStyle: "short",
                               }).format(slot.endTime)}
                             </p>
+
+                            <p className="mt-2 text-xs font-bold text-[#9a948b]">
+                              Window:{" "}
+                              {new Intl.DateTimeFormat("en", {
+                                timeStyle: "short",
+                              }).format(slot.windowStartTime)}{" "}
+                              —{" "}
+                              {new Intl.DateTimeFormat("en", {
+                                timeStyle: "short",
+                              }).format(slot.windowEndTime)}
+                            </p>
                           </div>
 
                           <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-black text-green-700">
@@ -204,17 +249,17 @@ export default async function BookPage({
               ) : (
                 <div className="mt-4 rounded-[1.5rem] bg-[#fff3e8] p-5">
                   <p className="font-black text-[#f97316]">
-                    No available slots yet
+                    No available times yet
                   </p>
                   <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-                    This expert has no open time slots. Add slots from the
-                    expert availability page, then come back to booking.
+                    This expert has no free time that can fit this offer
+                    duration. Try another service or come back later.
                   </p>
                   <Link
-                    href="/expert/availability"
+                    href={`/experts/${expert.id}`}
                     className="mt-4 inline-flex rounded-full bg-[#151515] px-5 py-2.5 text-sm font-black text-white transition hover:bg-[#2563eb]"
                   >
-                    Add availability
+                    View services
                   </Link>
                 </div>
               )}
@@ -223,9 +268,9 @@ export default async function BookPage({
             <div className="rounded-[1.5rem] bg-[#eef4ff] p-5">
               <p className="font-black text-[#2563eb]">Before you continue</p>
               <div className="mt-3 grid gap-3 text-sm text-[#6f6a63] md:grid-cols-3">
-                <p>✓ Slot reserved</p>
+                <p>✓ Time reserved for 15 minutes</p>
                 <p>✓ Secure checkout</p>
-                <p>✓ Video room after booking</p>
+                <p>✓ Video room after payment</p>
               </div>
             </div>
 
@@ -252,21 +297,18 @@ export default async function BookPage({
             </p>
 
             <div className="mt-6 space-y-3 rounded-[1.75rem] bg-[#f7f4ef] p-5">
-              <SummaryRow
-                label="Expert"
-                value={expert.user.name ?? "Expert"}
-              />
+              <SummaryRow label="Expert" value={expert.user.name ?? "Expert"} />
               <SummaryRow
                 label="Duration"
                 value={`${service.durationMinutes} min`}
               />
               <SummaryRow
                 label="Price"
-                value={`€${service.priceCents / 100}`}
+                value={`€${(service.priceCents / 100).toFixed(2)}`}
               />
               <SummaryRow
-                label="Available slots"
-                value={`${expert.availability.length}`}
+                label="Available times"
+                value={`${generatedTimeSlots.length}`}
               />
               <SummaryRow label="Payment" value="Secure checkout" />
             </div>
@@ -275,9 +317,12 @@ export default async function BookPage({
               <p className="font-black">What happens next?</p>
 
               <div className="mt-4 space-y-4 text-sm leading-6 text-white/60">
-                <Step number="01" text="We reserve the selected slot." />
+                <Step number="01" text="We reserve the selected time." />
                 <Step number="02" text="You continue to secure checkout." />
-                <Step number="03" text="Join the secure video room from your booking." />
+                <Step
+                  number="03"
+                  text="Join the secure video room from your booking."
+                />
               </div>
             </div>
 
@@ -333,4 +378,98 @@ function Step({ number, text }: { number: string; text: string }) {
       <span>{text}</span>
     </div>
   );
+}
+
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+function rangesOverlap({
+  startA,
+  endA,
+  startB,
+  endB,
+}: {
+  startA: Date;
+  endA: Date;
+  startB: Date;
+  endB: Date;
+}) {
+  return startA < endB && endA > startB;
+}
+
+function alignToNextStep(date: Date, stepMinutes: number) {
+  const alignedDate = new Date(date);
+  alignedDate.setSeconds(0, 0);
+
+  const minutes = alignedDate.getMinutes();
+  const remainder = minutes % stepMinutes;
+
+  if (remainder !== 0) {
+    alignedDate.setMinutes(minutes + (stepMinutes - remainder), 0, 0);
+  }
+
+  return alignedDate;
+}
+
+function generateBookableTimeSlots({
+  availability,
+  durationMinutes,
+}: {
+  availability: {
+    id: string;
+    startTime: Date;
+    endTime: Date;
+    bookings: {
+      id: string;
+      startTime: Date;
+      endTime: Date;
+      status: BookingStatus;
+    }[];
+  }[];
+  durationMinutes: number;
+}) {
+  const now = new Date();
+
+  return availability.flatMap((window) => {
+    const slots: {
+      availabilityId: string;
+      startTime: Date;
+      endTime: Date;
+      windowStartTime: Date;
+      windowEndTime: Date;
+    }[] = [];
+
+    let cursor = alignToNextStep(window.startTime, BOOKING_STEP_MINUTES);
+
+    while (addMinutes(cursor, durationMinutes) <= window.endTime) {
+      const slotStart = new Date(cursor);
+      const slotEnd = addMinutes(slotStart, durationMinutes);
+
+      const isFuture = slotStart > now;
+
+      const hasOverlap = window.bookings.some((booking) =>
+        rangesOverlap({
+          startA: slotStart,
+          endA: slotEnd,
+          startB: booking.startTime,
+          endB: booking.endTime,
+        }),
+      );
+
+      if (isFuture && !hasOverlap) {
+        slots.push({
+          availabilityId: window.id,
+          startTime: slotStart,
+          endTime: slotEnd,
+          windowStartTime: window.startTime,
+          windowEndTime: window.endTime,
+        });
+      }
+
+      cursor = addMinutes(cursor, BOOKING_STEP_MINUTES);
+    }
+
+    return slots;
+  });
 }

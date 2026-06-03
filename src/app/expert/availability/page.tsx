@@ -16,11 +16,8 @@ import {
   Trash2,
   Video,
 } from "lucide-react";
-import {
-  formatDateTime,
-  getDurationMinutes,
-  
-} from "@/lib/date-time";
+
+import { formatDateTime, getDurationMinutes } from "@/lib/date-time";
 import {
   createAvailabilityAction,
   createBulkAvailabilityAction,
@@ -184,7 +181,9 @@ export default async function ExpertAvailabilityPage({
     (window) => window.bookings.length > 0,
   );
 
-  const pastWindows = expert.availability.filter((window) => window.endTime < now);
+  const pastWindows = expert.availability.filter(
+    (window) => window.endTime < now,
+  );
 
   const pastOpenWindows = pastWindows.filter(
     (window) => window.bookings.length === 0,
@@ -226,7 +225,6 @@ export default async function ExpertAvailabilityPage({
     ? durationOptions.filter((duration) => duration >= shortestServiceDuration)
     : durationOptions;
 
-  const defaultSingleDuration = String(shortestServiceDuration ?? 60);
   const defaultBulkDuration = String(shortestServiceDuration ?? 60);
 
   const isPaymentReady =
@@ -318,7 +316,8 @@ export default async function ExpertAvailabilityPage({
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Add time windows when you are available. Buyers will be able to
-                choose a short 1:1 call inside those windows based on your offers.
+                choose a short 1:1 call inside those windows based on your
+                offers.
               </p>
             </div>
 
@@ -368,8 +367,8 @@ export default async function ExpertAvailabilityPage({
                   <span className="font-bold text-[var(--foreground)]">
                     {shortestServiceDuration} minutes
                   </span>
-                  . A buyer can only book inside a window if there is enough free
-                  time for the selected call duration.
+                  . A buyer can only book inside a window if there is enough
+                  free time for the selected call duration.
                 </p>
 
                 <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
@@ -418,7 +417,9 @@ export default async function ExpertAvailabilityPage({
             </h2>
 
             <p className="mt-2 text-sm font-bold leading-6 text-[var(--primary-dark)]/80">
-              Add availability in your local time. SkillDrop stores the time safely and shows each buyer the equivalent time in their own timezone.
+              Add availability in your local time. SkillDrop stores the time
+              safely and shows each buyer the equivalent time in their own
+              timezone.
             </p>
           </Card>
 
@@ -449,7 +450,7 @@ export default async function ExpertAvailabilityPage({
               <div className="mt-4 border-t border-[var(--border)] pt-4">
                 <form
                   action={createAvailabilityAction}
-                  className="grid gap-4 md:grid-cols-[1fr_160px_auto] md:items-end"
+                  className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end"
                 >
                   <div>
                     <label htmlFor="startTime" className="text-sm font-bold">
@@ -466,36 +467,27 @@ export default async function ExpertAvailabilityPage({
                     />
 
                     <p className="mt-2 text-xs font-bold leading-5 text-[var(--muted-foreground)]">
-                      Use your local time. Buyers should see the equivalent time
-                      in their own timezone.
+                      Example: 15:00.
                     </p>
                   </div>
 
                   <div>
-                    <label
-                      htmlFor="durationMinutes"
-                      className="text-sm font-bold"
-                    >
-                      Window length
+                    <label htmlFor="endTime" className="text-sm font-bold">
+                      End time
                     </label>
 
-                    <select
-                      id="durationMinutes"
-                      name="durationMinutes"
+                    <input
+                      id="endTime"
+                      name="endTime"
+                      type="datetime-local"
+                      min={minDateTime}
                       required
-                      defaultValue={defaultSingleDuration}
                       className="input mt-2"
-                    >
-                      {availableDurationOptions.map((duration) => (
-                        <option key={duration} value={duration}>
-                          {duration} min
-                        </option>
-                      ))}
-                    </select>
+                    />
 
                     {shortestServiceDuration ? (
                       <p className="mt-2 text-xs font-bold leading-5 text-[var(--muted-foreground)]">
-                        Minimum recommended: {shortestServiceDuration} min.
+                        Must fit at least {shortestServiceDuration} min.
                       </p>
                     ) : null}
                   </div>
@@ -935,6 +927,7 @@ function WindowChip({
     </div>
   );
 }
+
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <Card soft className="p-4">
@@ -1014,7 +1007,9 @@ function filterWindowsByView({
   if (view === "open") {
     return windows.filter(
       (window) =>
-        window.isActive && window.endTime >= now && getWindowFreeMinutes(window) > 0,
+        window.isActive &&
+        window.endTime >= now &&
+        getWindowFreeMinutes(window) > 0,
     );
   }
 
@@ -1120,7 +1115,6 @@ function getWindowFreeMinutes(window: {
   return Math.max(totalMinutes - bookedMinutes, 0);
 }
 
-
 function toDateTimeLocalValue(date: Date) {
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
   const localDate = new Date(date.getTime() - offsetMs);
@@ -1176,6 +1170,10 @@ function formatAvailabilityError(error: string) {
     return "Please choose a valid start time.";
   }
 
+  if (error === "invalid-end-time") {
+    return "Please choose a valid end time.";
+  }
+
   if (error === "invalid-start-date") {
     return "Please choose a valid start date.";
   }
@@ -1197,7 +1195,7 @@ function formatAvailabilityError(error: string) {
   }
 
   if (error === "invalid-time-range") {
-    return "Please choose a valid time range.";
+    return "Please choose a valid time range. End time must be after start time.";
   }
 
   if (error === "invalid-break") {
@@ -1261,5 +1259,3 @@ function formatTime(date: Date) {
     minute: "2-digit",
   }).format(date);
 }
-
-
