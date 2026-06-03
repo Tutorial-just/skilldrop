@@ -21,7 +21,7 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
-
+import Image from "next/image";
 import {
   updateBuyerAccountAction,
   updateBuyerPreferencesAction,
@@ -131,10 +131,7 @@ export default async function BuyerProfilePage({
   const upcomingBookings = buyer.bookings.filter(
     (booking) =>
       booking.startTime >= now &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED" &&
-      booking.status !== "DISPUTED",
+      (booking.status === "PAID" || booking.status === "CONFIRMED"),
   );
 
   const completedBookings = buyer.bookings.filter(
@@ -149,16 +146,6 @@ export default async function BuyerProfilePage({
 
   const preferredLanguages = settings?.preferredLanguages ?? [];
   const interests = settings?.interests ?? [];
-
-  const profileScore = calculateProfileScore({
-    hasName: Boolean(buyer.name),
-    hasTimezone: Boolean(settings?.preferredTimezone),
-    hasLanguages: preferredLanguages.length > 0,
-    hasInterests: interests.length > 0,
-    hasBudget: Boolean(settings?.budgetMinCents || settings?.budgetMaxCents),
-    hasSavedHelpers: buyer.savedExperts.length > 0,
-    hasCompletedCall: completedBookings.length > 0,
-  });
 
   const budgetMin = settings?.budgetMinCents
     ? String(settings.budgetMinCents / 100)
@@ -230,12 +217,7 @@ export default async function BuyerProfilePage({
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard
-              label="Profile score"
-              value={`${profileScore}%`}
-              hint="Personalization strength"
-            />
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
 
             <MetricCard
               label="Saved helpers"
@@ -266,73 +248,8 @@ export default async function BuyerProfilePage({
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-6">
-          <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
-            <Card className="p-5 md:p-6">
-              <Badge variant="primary">
-                <Sparkles size={14} />
-                Profile strength
-              </Badge>
-
-              <div className="mt-5 flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-5xl font-black tracking-[-0.06em] text-[var(--foreground)]">
-                    {profileScore}%
-                  </p>
-
-                  <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
-                    More detail means better recommendations.
-                  </p>
-                </div>
-
-                <p className="text-sm font-bold text-[var(--primary-dark)]">
-                  {profileScore >= 85
-                    ? "Excellent"
-                    : profileScore >= 65
-                      ? "Good"
-                      : "Keep going"}
-                </p>
-              </div>
-
-              <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
-                  style={{ width: `${profileScore}%` }}
-                />
-              </div>
-
-              <div className="mt-5 grid gap-2">
-                <MiniCheck done={Boolean(buyer.name)} text="Display name added" />
-
-                <MiniCheck
-                  done={Boolean(settings?.preferredTimezone)}
-                  text="Timezone selected"
-                />
-
-                <MiniCheck
-                  done={preferredLanguages.length > 0}
-                  text="Preferred languages added"
-                />
-
-                <MiniCheck done={interests.length > 0} text="Topics added" />
-
-                <MiniCheck
-                  done={Boolean(
-                    settings?.budgetMinCents || settings?.budgetMaxCents,
-                  )}
-                  text="Budget range added"
-                />
-
-                <MiniCheck
-                  done={buyer.savedExperts.length > 0}
-                  text="At least one helper saved"
-                />
-
-                <MiniCheck
-                  done={completedBookings.length > 0}
-                  text="Completed first call"
-                />
-              </div>
-            </Card>
+          <div className="grid gap-6">
+           
 
             <Card className="p-5 md:p-6">
               <Badge variant="accent">
@@ -341,8 +258,19 @@ export default async function BuyerProfilePage({
               </Badge>
 
               <div className="mt-5 flex items-start gap-4 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
-                  {displayName.charAt(0).toUpperCase()}
+                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
+                   {buyer.avatarUrl ? (
+                     <Image
+                       src={buyer.avatarUrl}
+                       alt={displayName}
+                       fill
+                       sizes="64px"
+                       className="object-cover"
+                       unoptimized
+                      />
+                     ) : (
+                      displayName.charAt(0).toUpperCase()
+                   )}
                 </div>
 
                 <div className="min-w-0">
@@ -805,25 +733,7 @@ function MetricCard({
   );
 }
 
-function MiniCheck({ done, text }: { done: boolean; text: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
-      <div
-        className={
-          done
-            ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--success-soft)] text-[var(--success)]"
-            : "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]"
-        }
-      >
-        {done ? <CheckCircle2 size={15} /> : <CalendarClock size={15} />}
-      </div>
 
-      <p className="text-sm font-medium text-[var(--muted-foreground)]">
-        {text}
-      </p>
-    </div>
-  );
-}
 
 function ToggleCard({
   name,
@@ -886,35 +796,6 @@ function SnapshotRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function calculateProfileScore({
-  hasName,
-  hasTimezone,
-  hasLanguages,
-  hasInterests,
-  hasBudget,
-  hasSavedHelpers,
-  hasCompletedCall,
-}: {
-  hasName: boolean;
-  hasTimezone: boolean;
-  hasLanguages: boolean;
-  hasInterests: boolean;
-  hasBudget: boolean;
-  hasSavedHelpers: boolean;
-  hasCompletedCall: boolean;
-}) {
-  const checks = [
-    hasName,
-    hasTimezone,
-    hasLanguages,
-    hasInterests,
-    hasBudget,
-    hasSavedHelpers,
-    hasCompletedCall,
-  ];
-
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-}
 
 function getNextActionTitle({
   hasLanguages,

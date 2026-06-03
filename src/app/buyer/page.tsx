@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -14,13 +15,11 @@ import {
   FileText,
   Globe2,
   GraduationCap,
-  HeartHandshake,
   Languages,
   Lightbulb,
   MessageCircle,
   Search,
   Settings,
-  ShieldCheck,
   Sparkles,
   Star,
   UserRound,
@@ -38,7 +37,6 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UnreadNotificationsCard } from "@/components/notifications/unread-notifications-card";
-
 
 const problemCards = [
   {
@@ -159,10 +157,7 @@ export default async function BuyerDashboardPage() {
   const upcomingBookings = bookings.filter(
     (booking) =>
       booking.startTime >= now &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED" &&
-      booking.status !== "DISPUTED",
+      (booking.status === "PAID" || booking.status === "CONFIRMED"),
   );
 
   const pendingPaymentBookings = bookings.filter(
@@ -277,14 +272,6 @@ export default async function BuyerDashboardPage() {
     take: 4,
   });
 
-  const buyerReadiness = calculateBuyerReadiness({
-    hasUpcoming: upcomingBookings.length > 0,
-    hasCompleted: completedBookings.length > 0,
-    hasSavedExperts: buyer.savedExperts.length > 0,
-    hasExpertsAvailable: recommendedExperts.length > 0,
-    hasNoPendingPayment: pendingPaymentBookings.length === 0,
-  });
-
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
@@ -359,7 +346,7 @@ export default async function BuyerDashboardPage() {
               icon={Video}
               label="Upcoming"
               value={String(upcomingBookings.length)}
-              hint="Reserved or scheduled calls"
+              hint="Paid or confirmed calls"
             />
 
             <MetricCard
@@ -399,87 +386,13 @@ export default async function BuyerDashboardPage() {
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-6">
-          <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-            <Card className="p-5 md:p-6">
-              {nextActionBooking ? (
-                <MainActionPanel booking={nextActionBooking} />
-              ) : (
-                <StartPanel />
-              )}
-            </Card>
-
-            <Card className="p-5 md:p-6">
-              <Badge variant="primary">
-                <ShieldCheck size={14} />
-                Workspace readiness
-              </Badge>
-
-              <div className="mt-5 flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-5xl font-bold tracking-[-0.06em]">
-                    {buyerReadiness}%
-                  </p>
-
-                  <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
-                    Ready to use
-                  </p>
-                </div>
-
-                <p className="text-sm font-bold text-[var(--primary-dark)]">
-                  {buyerReadiness >= 70 ? "Good" : "Getting started"}
-                </p>
-              </div>
-
-              <div className="mt-5 h-3 overflow-hidden rounded-full bg-[var(--border)]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
-                  style={{ width: `${buyerReadiness}%` }}
-                />
-              </div>
-
-              <div className="mt-5 grid gap-2">
-                <MiniCheck
-                  done={pendingPaymentBookings.length === 0}
-                  text="No payment waiting"
-                />
-
-                <MiniCheck
-                  done={upcomingBookings.length > 0}
-                  text="Upcoming call scheduled"
-                />
-
-                <MiniCheck
-                  done={buyer.savedExperts.length > 0}
-                  text="Helper saved for later"
-                />
-
-                <MiniCheck
-                  done={completedBookings.length > 0}
-                  text="Completed first session"
-                />
-
-                <MiniCheck
-                  done={recommendedExperts.length > 0}
-                  text="Helpers available now"
-                />
-              </div>
-
-              {waitingReviewBookings.length > 0 ? (
-                <div className="mt-5 rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent-soft)] p-4">
-                  <div className="flex gap-3">
-                    <Star
-                      size={18}
-                      className="mt-0.5 shrink-0 text-[var(--accent)]"
-                    />
-                    <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-                      You have completed calls waiting for review. Leaving a
-                      review helps keep the marketplace trustworthy.
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </Card>
-          </div>
+          <Card className="p-5 md:p-6">
+            {nextActionBooking ? (
+              <MainActionPanel booking={nextActionBooking} />
+            ) : (
+              <StartPanel />
+            )}
+          </Card>
 
           <Card className="p-5 md:p-6">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -594,7 +507,7 @@ export default async function BuyerDashboardPage() {
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                      Your next calls and reservations appear here.
+                      Your next paid or confirmed calls appear here.
                     </p>
                   </div>
 
@@ -890,7 +803,9 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
           {title}
         </h2>
 
-        <p className="mt-3 leading-7 text-[var(--muted-foreground)]">{description}</p>
+        <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
+          {description}
+        </p>
 
         {bookingNote ? (
           <BookingNote note={bookingNote} className="mt-5" />
@@ -1195,6 +1110,7 @@ function SavedExpertPreview({
       user: {
         name: string | null;
         email: string;
+        avatarUrl: string | null;
       };
       services: {
         priceCents: number;
@@ -1214,12 +1130,30 @@ function SavedExpertPreview({
     ? calculatePricingBreakdown(startingPrice).clientTotalCents
     : null;
 
+  const helperName = expert.user.name ?? expert.user.email;
+  const fallbackLetter = (
+    expert.user.name?.charAt(0) ||
+    expert.user.email.charAt(0) ||
+    "H"
+  ).toUpperCase();
+
   return (
     <Link href={`/experts/${expert.id}`} className="group">
       <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-lg font-bold text-white">
-            {expert.user.name?.charAt(0).toUpperCase() ?? "H"}
+          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[18px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-lg font-bold text-white">
+            {expert.user.avatarUrl ? (
+              <Image
+                src={expert.user.avatarUrl}
+                alt={helperName}
+                fill
+                sizes="48px"
+                className="object-cover"
+                unoptimized
+              />
+            ) : (
+              fallbackLetter
+            )}
           </div>
 
           <div className="min-w-0">
@@ -1241,7 +1175,7 @@ function SavedExpertPreview({
             </div>
 
             <h3 className="mt-3 font-bold tracking-[-0.02em] text-[var(--foreground)]">
-              {expert.user.name ?? expert.user.email}
+              {helperName}
             </h3>
 
             <p className="mt-1 line-clamp-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
@@ -1273,6 +1207,7 @@ function ExpertCard({
     user: {
       name: string | null;
       email: string;
+      avatarUrl: string | null;
     };
     services: {
       priceCents: number;
@@ -1290,12 +1225,30 @@ function ExpertCard({
     ? calculatePricingBreakdown(startingPrice).clientTotalCents
     : null;
 
+  const helperName = expert.user.name ?? expert.user.email;
+  const fallbackLetter = (
+    expert.user.name?.charAt(0) ||
+    expert.user.email.charAt(0) ||
+    "H"
+  ).toUpperCase();
+
   return (
     <Link href={`/experts/${expert.id}`} className="group">
       <div className="h-full rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
         <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-bold text-white">
-            {expert.user.name?.charAt(0).toUpperCase() ?? "H"}
+          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-bold text-white">
+            {expert.user.avatarUrl ? (
+              <Image
+                src={expert.user.avatarUrl}
+                alt={helperName}
+                fill
+                sizes="56px"
+                className="object-cover"
+                unoptimized
+              />
+            ) : (
+              fallbackLetter
+            )}
           </div>
 
           <div className="min-w-0">
@@ -1317,7 +1270,7 @@ function ExpertCard({
             </div>
 
             <h3 className="mt-3 font-bold tracking-[-0.02em]">
-              {expert.user.name ?? expert.user.email}
+              {helperName}
             </h3>
 
             <p className="mt-1 line-clamp-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
@@ -1438,9 +1391,13 @@ function QuickAction({
           <Icon size={21} />
         </div>
 
-        <h3 className="mt-5 text-xl font-bold tracking-[-0.03em] text-[var(--foreground)]">{title}</h3>
+        <h3 className="mt-5 text-xl font-bold tracking-[-0.03em] text-[var(--foreground)]">
+          {title}
+        </h3>
 
-        <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">{text}</p>
+        <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+          {text}
+        </p>
 
         <div className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]">
           Open
@@ -1492,26 +1449,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
       <p className="text-right text-sm font-bold text-[var(--foreground)]">
         {value}
-      </p>
-    </div>
-  );
-}
-
-function MiniCheck({ done, text }: { done: boolean; text: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
-      <div
-        className={
-          done
-            ? "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--success-soft)] text-[var(--success)]"
-            : "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]"
-        }
-      >
-        {done ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}
-      </div>
-
-      <p className="text-sm font-medium text-[var(--muted-foreground)]">
-        {text}
       </p>
     </div>
   );
@@ -1572,32 +1509,6 @@ function EmptyState({ title, text }: { title: string; text: string }) {
       </p>
     </div>
   );
-}
-
-function calculateBuyerReadiness({
-  hasUpcoming,
-  hasCompleted,
-  hasSavedExperts,
-  hasExpertsAvailable,
-  hasNoPendingPayment,
-}: {
-  hasUpcoming: boolean;
-  hasCompleted: boolean;
-  hasSavedExperts: boolean;
-  hasExpertsAvailable: boolean;
-  hasNoPendingPayment: boolean;
-}) {
-  const checks = [
-    hasNoPendingPayment,
-    hasUpcoming,
-    hasCompleted,
-    hasSavedExperts,
-    hasExpertsAvailable,
-  ];
-
-  const completed = checks.filter(Boolean).length;
-
-  return Math.round((completed / checks.length) * 100);
 }
 
 function getSmartTipTitle({

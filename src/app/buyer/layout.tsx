@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BookingStatus } from "@prisma/client";
 import {
   Bell,
   Bookmark,
   CalendarDays,
+  CreditCard,
   Search,
   Settings,
   Sparkles,
@@ -23,7 +26,7 @@ const buyerLinks = [
     icon: UserRound,
   },
   {
-    label: "Find experts",
+    label: "Find helpers",
     href: "/experts",
     icon: Search,
   },
@@ -33,7 +36,7 @@ const buyerLinks = [
     icon: CalendarDays,
   },
   {
-    label: "Saved experts",
+    label: "Saved helpers",
     href: "/buyer/saved",
     icon: Bookmark,
   },
@@ -53,6 +56,11 @@ const buyerLinks = [
     href: "/buyer/settings",
     icon: Settings,
   },
+];
+
+const upcomingBookingStatuses: BookingStatus[] = [
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
 ];
 
 export default async function BuyerLayout({
@@ -103,83 +111,95 @@ export default async function BuyerLayout({
   const upcomingBookings = buyer.bookings.filter(
     (booking) =>
       booking.startTime >= now &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED" &&
-      booking.status !== "DISPUTED",
+      upcomingBookingStatuses.includes(booking.status),
+  );
+
+  const pendingBookings = buyer.bookings.filter(
+    (booking) =>
+      booking.startTime >= now && booking.status === BookingStatus.PENDING,
   );
 
   const completedBookings = buyer.bookings.filter(
-    (booking) => booking.status === "COMPLETED",
+    (booking) => booking.status === BookingStatus.COMPLETED,
   );
 
+  const displayName = buyer.name ?? "Client";
   const initials = getInitials(buyer.name ?? buyer.email);
-
-  const profileScore = calculateProfileScore({
-    hasName: Boolean(buyer.name),
-    hasTimezone: Boolean(buyer.buyerSettings?.preferredTimezone),
-    hasLanguages: Boolean(buyer.buyerSettings?.preferredLanguages.length),
-    hasInterests: Boolean(buyer.buyerSettings?.interests.length),
-    hasSavedExperts: buyer.savedExperts.length > 0,
-  });
 
   return (
     <div className="min-h-[calc(100vh-76px)] p-4 md:p-6">
       <div className="mx-auto grid max-w-[1500px] gap-6 xl:grid-cols-[280px_1fr]">
         <aside className="xl:sticky xl:top-[92px] xl:self-start">
-          <div className="max-h-none overflow-visible rounded-[32px] border border-[var(--border)] bg-white/72 p-4 shadow-[var(--shadow-sm)] backdrop-blur-xl xl:max-h-[calc(100vh-116px)] xl:overflow-y-auto">
-            <div className="rounded-[28px] bg-gradient-to-br from-[var(--primary)] to-[#312e81] p-4 text-white">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/14 text-lg font-black">
-                {initials}
+          <div className="max-h-none overflow-visible rounded-[32px] border border-[var(--border)] bg-[var(--card)]/90 p-4 shadow-[var(--shadow-sm)] backdrop-blur-xl xl:max-h-[calc(100vh-116px)] xl:overflow-y-auto">
+            <div className="rounded-[28px] border border-white/10 bg-gradient-to-br from-[#312e81] via-[#1e1b4b] to-[#0f172a] p-4 text-white shadow-[var(--shadow-sm)]">
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/14 text-lg font-black ring-1 ring-white/12">
+                  {buyer.avatarUrl ? (
+                    <Image
+                      src={buyer.avatarUrl}
+                      alt={displayName}
+                      fill
+                      sizes="48px"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    initials
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-black tracking-[-0.04em]">
+                    {displayName}
+                  </h2>
+
+                  <p className="mt-1 truncate text-xs font-bold text-white/70">
+                    {buyer.email}
+                  </p>
+                </div>
               </div>
 
-              <h2 className="mt-4 truncate text-lg font-black tracking-[-0.04em]">
-                {buyer.name ?? "Client"}
-              </h2>
-
-              <p className="mt-1 truncate text-xs font-bold text-white/70">
-                {buyer.email}
-              </p>
-
               <div className="mt-4 grid gap-2">
-                <div className="rounded-2xl bg-white/12 p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
+                <div className="rounded-2xl bg-white/12 p-3 ring-1 ring-white/10">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/50">
                     Workspace
                   </p>
 
-                  <p className="mt-1 text-sm font-black">Client</p>
+                  <p className="mt-1 text-sm font-black">Buyer</p>
                 </div>
 
-                <div className="rounded-2xl bg-white/12 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
-                      Profile
-                    </p>
+                {pendingBookings.length > 0 ? (
+                  <Link
+                    href="/buyer/bookings"
+                    className="rounded-2xl bg-amber-300/16 p-3 text-white ring-1 ring-amber-200/20 transition hover:bg-amber-300/22"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100/80">
+                        To pay
+                      </p>
 
-                    <p className="text-xs font-black text-white">
-                      {profileScore}%
-                    </p>
-                  </div>
+                      <p className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-950">
+                        {pendingBookings.length}
+                      </p>
+                    </div>
 
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/14">
-                    <div
-                      className="h-full rounded-full bg-white"
-                      style={{ width: `${profileScore}%` }}
-                    />
-                  </div>
-                </div>
+                    <p className="mt-1 text-sm font-black">
+                      Finish pending bookings
+                    </p>
+                  </Link>
+                ) : null}
 
                 {unreadNotifications > 0 ? (
                   <Link
                     href="/notifications?filter=unread"
-                    className="rounded-2xl bg-white/12 p-3 transition hover:bg-white/18"
+                    className="rounded-2xl bg-violet-300/16 p-3 text-white ring-1 ring-violet-200/20 transition hover:bg-violet-300/22"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/48">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-100/80">
                         Unread
                       </p>
 
-                      <p className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[var(--primary-dark)]">
+                      <p className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-black text-violet-950">
                         {unreadNotifications}
                       </p>
                     </div>
@@ -202,10 +222,13 @@ export default async function BuyerLayout({
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="group flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-sm font-black text-[var(--foreground)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
+                    className="group flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-sm font-black text-[var(--muted-foreground)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.25)]"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <Icon size={17} className="shrink-0" />
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary-dark)] transition group-hover:bg-[var(--primary)] group-hover:text-white">
+                        <Icon size={16} />
+                      </span>
+
                       <span className="truncate">{link.label}</span>
                     </span>
 
@@ -216,7 +239,7 @@ export default async function BuyerLayout({
                         </span>
                       ) : null}
 
-                      <span className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]">
+                      <span className="text-[var(--muted)] transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]">
                         ›
                       </span>
                     </span>
@@ -229,6 +252,11 @@ export default async function BuyerLayout({
               <SidebarStat
                 label="Upcoming"
                 value={String(upcomingBookings.length)}
+              />
+
+              <SidebarStat
+                label="To pay"
+                value={String(pendingBookings.length)}
               />
 
               <SidebarStat
@@ -247,22 +275,42 @@ export default async function BuyerLayout({
               />
             </div>
 
-            <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-white/62 p-4">
+            <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-[var(--primary-dark)]" />
 
-                <p className="text-sm font-black">Quick tip</p>
+                <p className="text-sm font-black text-[var(--foreground)]">
+                  Quick tip
+                </p>
               </div>
 
-              <p className="mt-2 text-xs font-semibold leading-5 text-muted">
-                Save useful experts and come back later when you are ready to
+              <p className="mt-2 text-xs font-semibold leading-5 text-[var(--muted-foreground)]">
+                Save useful helpers and come back later when you are ready to
                 book.
               </p>
             </div>
+
+            <Link
+              href="/experts"
+              className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 py-3 text-sm font-black text-[var(--foreground)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
+            >
+              <Search size={16} />
+              Find helpers
+            </Link>
+
+            {pendingBookings.length > 0 ? (
+              <Link
+                href="/buyer/bookings"
+                className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-black text-white transition hover:opacity-90"
+              >
+                <CreditCard size={16} />
+                Pay pending booking
+              </Link>
+            ) : null}
           </div>
         </aside>
 
-        <div className="min-w-0 overflow-hidden rounded-[32px] border border-[var(--border)] bg-white/38 shadow-[var(--shadow-sm)] backdrop-blur-xl">
+        <div className="min-w-0 overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--card)]/92 shadow-[var(--shadow-sm)] backdrop-blur-xl">
           {children}
         </div>
       </div>
@@ -272,9 +320,12 @@ export default async function BuyerLayout({
 
 function SidebarStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/62 px-4 py-2.5">
-      <p className="text-xs font-bold text-muted">{label}</p>
-      <p className="text-xs font-black">{value}</p>
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2.5">
+      <p className="text-xs font-bold text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-xs font-black text-[var(--foreground)]">{value}</p>
     </div>
   );
 }
@@ -289,28 +340,4 @@ function getInitials(value: string) {
   const second = parts[1]?.charAt(0) ?? "";
 
   return `${first}${second}`.toUpperCase();
-}
-
-function calculateProfileScore({
-  hasName,
-  hasTimezone,
-  hasLanguages,
-  hasInterests,
-  hasSavedExperts,
-}: {
-  hasName: boolean;
-  hasTimezone: boolean;
-  hasLanguages: boolean;
-  hasInterests: boolean;
-  hasSavedExperts: boolean;
-}) {
-  const checks = [
-    hasName,
-    hasTimezone,
-    hasLanguages,
-    hasInterests,
-    hasSavedExperts,
-  ];
-
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }

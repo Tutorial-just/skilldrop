@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -202,6 +203,7 @@ function SavedExpertCard({
       user: {
         name: string | null;
         email: string;
+        avatarUrl: string | null;
       };
       services: {
         id: string;
@@ -237,8 +239,19 @@ function SavedExpertCard({
     <Card className="p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
       <div className="grid gap-5 lg:grid-cols-[1fr_230px] lg:items-start">
         <div className="flex gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
-            {avatarLetter}
+          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
+            {expert.user.avatarUrl ? (
+              <Image
+                src={expert.user.avatarUrl}
+                alt={helperName}
+                fill
+                sizes="64px"
+                className="object-cover"
+                unoptimized
+              />
+            ) : (
+              avatarLetter
+            )}
           </div>
 
           <div className="min-w-0">

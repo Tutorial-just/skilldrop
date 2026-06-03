@@ -13,7 +13,7 @@ import {
   Video,
   WalletCards,
 } from "lucide-react";
-
+import Image from "next/image";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { getUnreadNotificationCount } from "@/server/services/notification-count.service";
@@ -156,9 +156,20 @@ export default async function ExpertLayout({
           <div className="rounded-[30px] border border-[var(--border)] bg-[var(--card)]/90 p-3 shadow-[var(--shadow-sm)] backdrop-blur-xl xl:max-h-[calc(100vh-116px)] xl:overflow-y-auto">
             <div className="rounded-[26px] border border-white/10 bg-gradient-to-br from-[#312e81] via-[#1e1b4b] to-[#0f172a] p-4 text-white shadow-[var(--shadow-sm)]">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/14 text-base font-bold ring-1 ring-white/12">
-                  {initials}
-                </div>
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/14 text-base font-bold ring-1 ring-white/12">
+                  {expert.user.avatarUrl ? (
+                    <Image
+                      src={expert.user.avatarUrl}
+                      alt={displayName}
+                      fill
+                      sizes="48px"
+                      className="object-cover"
+                      unoptimized
+                    />
+                   ) : (
+                     initials
+                 )}
+               </div>
 
                 <div className="min-w-0">
                   <h2 className="truncate text-base font-bold tracking-[-0.03em]">

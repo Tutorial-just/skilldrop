@@ -92,14 +92,11 @@ export default async function BuyerSettingsPage({
   const upcomingBookings = buyer.bookings.filter(
     (booking) =>
       booking.startTime >= now &&
-      booking.status !== "CANCELLED" &&
-      booking.status !== "REFUNDED" &&
-      booking.status !== "COMPLETED" &&
-      booking.status !== "DISPUTED",
+      (booking.status === "PAID" || booking.status === "CONFIRMED"),
   );
 
   const pendingBookings = buyer.bookings.filter(
-    (booking) => booking.status === "PENDING",
+    (booking) => booking.status === "PENDING" && booking.startTime >= now,
   );
 
   const confirmedBookings = buyer.bookings.filter(
@@ -117,19 +114,6 @@ export default async function BuyerSettingsPage({
   const disputedBookings = buyer.bookings.filter(
     (booking) => booking.status === "DISPUTED",
   );
-
-  const accountReadiness = calculateAccountReadiness({
-    hasName: Boolean(buyer.name?.trim()),
-    hasLanguages: preferredLanguages.length > 0,
-    hasInterests: interests.length > 0,
-    hasTimezone: Boolean(settings?.preferredTimezone),
-    hasBudget:
-      typeof settings?.budgetMinCents === "number" ||
-      typeof settings?.budgetMaxCents === "number",
-    hasSavedExperts: buyer.savedExperts.length > 0,
-    hasCompletedBookings: completedBookings.length > 0,
-    hasReviews: buyer.reviews.length > 0,
-  });
 
   const totalSpendCents = buyer.bookings
     .filter(
@@ -196,7 +180,7 @@ export default async function BuyerSettingsPage({
               icon={CalendarClock}
               label="Upcoming"
               value={String(upcomingBookings.length)}
-              text="Scheduled calls"
+              text="Paid or confirmed calls"
             />
 
             <MiniStat
@@ -252,16 +236,7 @@ export default async function BuyerSettingsPage({
                   </p>
                 </div>
 
-                <Badge variant={accountReadiness >= 70 ? "success" : "accent"}>
-                  {accountReadiness}% ready
-                </Badge>
-              </div>
-
-              <div className="mt-6 h-3 overflow-hidden rounded-full bg-[var(--border)]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[#8b5cf6]"
-                  style={{ width: `${accountReadiness}%` }}
-                />
+                <Badge variant="success">Active account</Badge>
               </div>
 
               <div className="mt-6 grid gap-3">
@@ -796,41 +771,6 @@ function SupportLink({
       <span className="text-sm font-bold text-[var(--primary-dark)]">Open</span>
     </Link>
   );
-}
-
-function calculateAccountReadiness({
-  hasName,
-  hasLanguages,
-  hasInterests,
-  hasTimezone,
-  hasBudget,
-  hasSavedExperts,
-  hasCompletedBookings,
-  hasReviews,
-}: {
-  hasName: boolean;
-  hasLanguages: boolean;
-  hasInterests: boolean;
-  hasTimezone: boolean;
-  hasBudget: boolean;
-  hasSavedExperts: boolean;
-  hasCompletedBookings: boolean;
-  hasReviews: boolean;
-}) {
-  const checks = [
-    hasName,
-    hasLanguages,
-    hasInterests,
-    hasTimezone,
-    hasBudget,
-    hasSavedExperts,
-    hasCompletedBookings,
-    hasReviews,
-  ];
-
-  const done = checks.filter(Boolean).length;
-
-  return Math.round((done / checks.length) * 100);
 }
 
 function getBookingTotalCents(priceCents: number) {
