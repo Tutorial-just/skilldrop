@@ -7,6 +7,7 @@ import {
   Bookmark,
   CalendarClock,
   CheckCircle2,
+  Clock3,
   Download,
   Eye,
   FileText,
@@ -14,22 +15,24 @@ import {
   HelpCircle,
   Lock,
   Mail,
-  MessageCircle,
   Palette,
   Receipt,
+  Save,
   ShieldAlert,
   ShieldCheck,
-  Settings,
   Star,
   Trash2,
   UserRound,
   Video,
   WalletCards,
-  Clock3,
 } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import {
+  updateBuyerAccountAction,
+  updateBuyerPreferencesAction,
+} from "@/server/actions/buyer-profile.actions";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { AppearanceSettings } from "@/components/expert/appearance-settings";
 import { Badge } from "@/components/ui/badge";
@@ -39,8 +42,18 @@ import { Card } from "@/components/ui/card";
 type BuyerSettingsPageProps = {
   searchParams?: Promise<{
     saved?: string;
+    error?: string;
   }>;
 };
+
+const reminderOptions = [
+  { label: "10 minutes", value: "10" },
+  { label: "15 minutes", value: "15" },
+  { label: "30 minutes", value: "30" },
+  { label: "1 hour", value: "60" },
+  { label: "2 hours", value: "120" },
+  { label: "1 day", value: "1440" },
+];
 
 export default async function BuyerSettingsPage({
   searchParams,
@@ -87,7 +100,7 @@ export default async function BuyerSettingsPage({
   const defaultReminderMin = settings?.defaultReminderMin ?? 30;
   const allowReminders = settings?.allowReminders ?? true;
   const hideEmail = settings?.hideEmail ?? true;
-  const preferredTimezone = settings?.preferredTimezone ?? "Not set";
+  const preferredTimezone = settings?.preferredTimezone ?? "";
 
   const upcomingBookings = buyer.bookings.filter(
     (booking) =>
@@ -107,8 +120,11 @@ export default async function BuyerSettingsPage({
     (booking) => booking.status === "COMPLETED",
   );
 
-  const cancelledBookings = buyer.bookings.filter(
-    (booking) => booking.status === "CANCELLED" || booking.status === "REFUNDED",
+  const closedBookings = buyer.bookings.filter(
+    (booking) =>
+      booking.status === "CANCELLED" ||
+      booking.status === "REFUNDED" ||
+      booking.status === "EXPIRED",
   );
 
   const disputedBookings = buyer.bookings.filter(
@@ -144,24 +160,30 @@ export default async function BuyerSettingsPage({
 
               {resolvedSearchParams.saved ? (
                 <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
-                  Settings saved.
+                  {formatSavedMessage(resolvedSearchParams.saved)}
+                </div>
+              ) : null}
+
+              {resolvedSearchParams.error ? (
+                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
+                  {formatSettingsError(resolvedSearchParams.error)}
                 </div>
               ) : null}
 
               <div className="mt-6">
                 <Badge variant="primary">
-                  <Settings size={14} />
+                  <UserRound size={14} />
                   Buyer settings
                 </Badge>
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Control your SkillDrop workspace.
+                Manage your account and booking preferences.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-                Manage appearance, account visibility, reminders, activity,
-                privacy and support tools from one clean place.
+                Update your name, timezone, reminders, privacy, interests and
+                budget from one place.
               </p>
             </div>
 
@@ -208,7 +230,7 @@ export default async function BuyerSettingsPage({
               icon={WalletCards}
               label="Spend"
               value={formatMoney(totalSpendCents)}
-              text="Paid / confirmed"
+              text="Paid bookings"
             />
           </div>
         </div>
@@ -216,60 +238,54 @@ export default async function BuyerSettingsPage({
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-5">
-          <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+          <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
             <Card className="p-5 md:p-6">
               <Badge variant="primary">
                 <UserRound size={14} />
-                Account summary
+                Account
               </Badge>
 
-              <div className="mt-5 flex flex-col justify-between gap-5 md:flex-row md:items-start">
-                <div>
-                  <h2 className="text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
-                    Your account
-                  </h2>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+                Account details
+              </h2>
 
-                  <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
-                    Basic account details. Profile preferences like languages,
-                    topics, budget and timezone are managed from your buyer
-                    profile.
-                  </p>
-                </div>
-
-                <Badge variant="success">Active account</Badge>
-              </div>
+              <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                Your email is used to sign in and receive important booking
+                updates.
+              </p>
 
               <div className="mt-6 grid gap-3">
                 <SettingRow icon={Mail} label="Email" value={buyer.email} />
-
-                <SettingRow
-                  icon={UserRound}
-                  label="Display name"
-                  value={buyer.name ?? "Not set"}
-                />
-
                 <SettingRow
                   icon={ShieldCheck}
                   label="Role"
                   value={formatRole(role)}
                 />
-
-                <SettingRow
-                  icon={CalendarClock}
-                  label="Default reminder"
-                  value={`${defaultReminderMin} minutes`}
-                />
               </div>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <ButtonLink href="/buyer/profile" variant="secondary">
-                  Edit profile preferences
-                </ButtonLink>
+              <form action={updateBuyerAccountAction} className="mt-6 grid gap-4">
+                <div>
+                  <label className="text-sm font-black" htmlFor="name">
+                    Display name
+                  </label>
 
-                <ButtonLink href="/buyer/bookings" variant="secondary">
-                  View bookings
-                </ButtonLink>
-              </div>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    required
+                    maxLength={80}
+                    defaultValue={buyer.name ?? ""}
+                    placeholder="Your name"
+                    className="input mt-2"
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-primary">
+                  Save account
+                  <Save size={18} />
+                </button>
+              </form>
             </Card>
 
             <Card className="p-5 md:p-6">
@@ -284,7 +300,7 @@ export default async function BuyerSettingsPage({
 
               <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
                 Choose how SkillDrop looks while you browse helpers, save
-                profiles, book calls and manage your activity.
+                profiles and manage calls.
               </p>
 
               <div className="mt-6">
@@ -292,6 +308,149 @@ export default async function BuyerSettingsPage({
               </div>
             </Card>
           </div>
+
+          <Card className="p-5 md:p-6">
+            <Badge variant="primary">
+              <Globe2 size={14} />
+              Preferences
+            </Badge>
+
+            <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
+              <div>
+                <h2 className="text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+                  Personalization, reminders and privacy
+                </h2>
+
+                <p className="mt-3 max-w-2xl leading-7 text-[var(--muted-foreground)]">
+                  These settings help SkillDrop show better helpers and make
+                  booking times easier to understand.
+                </p>
+              </div>
+
+              <Badge variant="accent">Saved to your account</Badge>
+            </div>
+
+            <form
+              action={updateBuyerPreferencesAction}
+              className="mt-7 grid gap-6"
+            >
+              <div className="grid gap-5 md:grid-cols-2">
+                <Field label="Timezone" htmlFor="preferredTimezone">
+                  <input
+                    id="preferredTimezone"
+                    name="preferredTimezone"
+                    type="text"
+                    maxLength={80}
+                    defaultValue={preferredTimezone}
+                    placeholder="Europe/Paris, America/New_York, Asia/Dubai..."
+                    className="input mt-2"
+                  />
+                  <p className="mt-2 text-xs font-semibold text-[var(--muted-foreground)]">
+                    Used for call reminders and booking times.
+                  </p>
+                </Field>
+
+                <Field label="Default reminder" htmlFor="defaultReminderMin">
+                  <select
+                    id="defaultReminderMin"
+                    name="defaultReminderMin"
+                    defaultValue={String(defaultReminderMin)}
+                    className="input mt-2"
+                  >
+                    {reminderOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs font-semibold text-[var(--muted-foreground)]">
+                    How early you want to be reminded before a call.
+                  </p>
+                </Field>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <Field label="Preferred languages" htmlFor="preferredLanguages">
+                  <input
+                    id="preferredLanguages"
+                    name="preferredLanguages"
+                    type="text"
+                    defaultValue={preferredLanguages.join(", ")}
+                    placeholder="English, French, Spanish..."
+                    className="input mt-2"
+                  />
+                  <p className="mt-2 text-xs font-semibold text-[var(--muted-foreground)]">
+                    Separate items with commas.
+                  </p>
+                </Field>
+
+                <Field label="Topics / interests" htmlFor="interests">
+                  <input
+                    id="interests"
+                    name="interests"
+                    type="text"
+                    defaultValue={interests.join(", ")}
+                    placeholder="CV review, documents, coding, language practice..."
+                    className="input mt-2"
+                  />
+                  <p className="mt-2 text-xs font-semibold text-[var(--muted-foreground)]">
+                    Helps personalize helper suggestions.
+                  </p>
+                </Field>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <Field label="Minimum budget" htmlFor="budgetMin">
+                  <input
+                    id="budgetMin"
+                    name="budgetMin"
+                    type="number"
+                    min={0}
+                    max={10000}
+                    step="0.01"
+                    defaultValue={formatCentsInput(settings?.budgetMinCents)}
+                    placeholder="10"
+                    className="input mt-2"
+                  />
+                </Field>
+
+                <Field label="Maximum budget" htmlFor="budgetMax">
+                  <input
+                    id="budgetMax"
+                    name="budgetMax"
+                    type="number"
+                    min={0}
+                    max={10000}
+                    step="0.01"
+                    defaultValue={formatCentsInput(settings?.budgetMaxCents)}
+                    placeholder="50"
+                    className="input mt-2"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <CheckboxCard
+                  name="allowReminders"
+                  defaultChecked={allowReminders}
+                  title="Call reminders"
+                  text="Receive reminders before upcoming calls."
+                />
+
+                <CheckboxCard
+                  name="hideEmail"
+                  defaultChecked={hideEmail}
+                  title="Hide my email"
+                  text="Helpers should contact you through SkillDrop, not directly by email."
+                />
+              </div>
+
+              <button type="submit" className="btn btn-primary w-full sm:w-fit">
+                Save preferences
+                <Save size={18} />
+              </button>
+            </form>
+          </Card>
 
           <div className="grid gap-5 xl:grid-cols-4">
             <QuickActionCard
@@ -331,13 +490,12 @@ export default async function BuyerSettingsPage({
             <SystemPanel
               icon={Bell}
               badge="Notifications"
-              title="Call reminders"
-              text="Your reminder preference is saved in your profile. Message delivery can be connected later."
+              title="Reminder status"
+              text="Control call reminder behavior from your preferences."
               rows={[
                 ["Booking confirmations", "Enabled"],
                 ["Call reminders", allowReminders ? "Enabled" : "Off"],
                 ["Reminder time", `${defaultReminderMin} min`],
-                ["Product updates", "Soon"],
               ]}
             />
 
@@ -345,12 +503,11 @@ export default async function BuyerSettingsPage({
               icon={Lock}
               badge="Privacy"
               title="Visibility and contact"
-              text="Control what helpers can see and how communication should happen."
+              text="Control what helpers can see and how communication happens."
               rows={[
                 ["Email visibility", hideEmail ? "Hidden" : "Visible"],
                 ["Platform contact", "Enabled"],
                 ["Saved helpers", "Private"],
-                ["Blocked helpers", "Soon"],
               ]}
             />
 
@@ -358,12 +515,11 @@ export default async function BuyerSettingsPage({
               icon={ShieldCheck}
               badge="Security"
               title="Account protection"
-              text="Security tools for your buyer account and booking history."
+              text="Security and payment safety for your buyer account."
               rows={[
-                ["Authentication", "Supabase"],
+                ["Authentication", "Enabled"],
                 ["Session status", "Active"],
                 ["Payment protection", "Enabled"],
-                ["Two-factor auth", "Soon"],
               ]}
             />
           </div>
@@ -371,28 +527,17 @@ export default async function BuyerSettingsPage({
           <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
             <Card className="p-5 md:p-6">
               <Badge variant="primary">
-                <Globe2 size={14} />
-                Profile preferences
+                <Eye size={14} />
+                Current preferences
               </Badge>
 
-              <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-                <div>
-                  <h2 className="text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
-                    Personalization lives in Profile.
-                  </h2>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+                Your saved preferences
+              </h2>
 
-                  <p className="mt-3 max-w-2xl leading-7 text-[var(--muted-foreground)]">
-                    Languages, topics, budget, timezone and reminder defaults
-                    help SkillDrop show better helpers and keep the settings
-                    page simple.
-                  </p>
-                </div>
-
-                <ButtonLink href="/buyer/profile">
-                  <UserRound size={18} />
-                  Open profile
-                </ButtonLink>
-              </div>
+              <p className="mt-3 max-w-2xl leading-7 text-[var(--muted-foreground)]">
+                Quick preview of what is saved on your buyer account.
+              </p>
 
               <div className="mt-6 grid gap-3 md:grid-cols-2">
                 <PreferencePreview
@@ -417,13 +562,16 @@ export default async function BuyerSettingsPage({
                   )}
                 />
 
-                <PreferencePreview label="Timezone" value={preferredTimezone} />
+                <PreferencePreview
+                  label="Timezone"
+                  value={preferredTimezone || "Not set"}
+                />
               </div>
             </Card>
 
             <Card className="p-5 md:p-6">
               <Badge variant="accent">
-                <Eye size={14} />
+                <Clock3 size={14} />
                 Activity
               </Badge>
 
@@ -463,13 +611,7 @@ export default async function BuyerSettingsPage({
                 <SettingRow
                   icon={FileText}
                   label="Closed calls"
-                  value={String(cancelledBookings.length)}
-                />
-
-                <SettingRow
-                  icon={ShieldCheck}
-                  label="Account status"
-                  value="Active"
+                  value={String(closedBookings.length)}
                 />
               </div>
             </Card>
@@ -487,16 +629,14 @@ export default async function BuyerSettingsPage({
               </h2>
 
               <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
-                These tools are useful for a professional platform, but they can
-                be built after the main booking, payment and support flow is
-                stable.
+                Export tools can be added after the main booking and payment
+                flow is stable.
               </p>
 
               <div className="mt-6 grid gap-3">
                 <DisabledTool icon={Receipt} label="Export booking history" />
                 <DisabledTool icon={Download} label="Download receipts" />
                 <DisabledTool icon={Star} label="Export reviews" />
-                <DisabledTool icon={FileText} label="Download account archive" />
               </div>
             </Card>
 
@@ -511,16 +651,12 @@ export default async function BuyerSettingsPage({
               </h2>
 
               <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
-                Later this area can include support tickets, booking disputes,
-                refunds and safety reports.
+                Open support and safety pages when you need help with bookings,
+                refunds or platform rules.
               </p>
 
               <div className="mt-6 grid gap-3">
-                <SupportLink
-                  icon={HelpCircle}
-                  label="Help center"
-                  href="/help"
-                />
+                <SupportLink icon={HelpCircle} label="Help center" href="/help" />
                 <SupportLink
                   icon={ShieldCheck}
                   label="Safety and trust"
@@ -531,7 +667,6 @@ export default async function BuyerSettingsPage({
                   label="Refund policy"
                   href="/legal/refunds"
                 />
-                <DisabledTool icon={MessageCircle} label="Support tickets" />
               </div>
             </Card>
           </div>
@@ -549,20 +684,73 @@ export default async function BuyerSettingsPage({
                 </h2>
 
                 <p className="mt-3 max-w-3xl leading-7 text-[var(--muted-foreground)]">
-                  Account deletion, full data export and account pause should be
-                  added later with confirmation screens, identity checks and
-                  admin-safe audit logs.
+                  Account deletion should be handled with confirmation screens,
+                  identity checks and admin-safe audit logs. For now, contact
+                  support if you need to close your account.
                 </p>
               </div>
 
               <div className="rounded-2xl border border-[var(--danger)]/20 bg-[var(--background-soft)] p-4 text-sm font-bold text-[var(--danger)]">
-                Protected
+                Contact support
               </div>
             </div>
           </Card>
         </div>
       </section>
     </main>
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label htmlFor={htmlFor} className="text-sm font-black">
+        {label}
+      </label>
+
+      {children}
+    </div>
+  );
+}
+
+function CheckboxCard({
+  name,
+  defaultChecked,
+  title,
+  text,
+}: {
+  name: string;
+  defaultChecked: boolean;
+  title: string;
+  text: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)]">
+      <input
+        name={name}
+        type="checkbox"
+        defaultChecked={defaultChecked}
+        className="mt-1 h-5 w-5 rounded border-[var(--border)] accent-[var(--primary)]"
+      />
+
+      <span>
+        <span className="block font-black tracking-[-0.02em] text-[var(--foreground)]">
+          {title}
+        </span>
+
+        <span className="mt-1 block text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+          {text}
+        </span>
+      </span>
+    </label>
   );
 }
 
@@ -738,7 +926,7 @@ function DisabledTool({ icon: Icon, label }: { icon: LucideIcon; label: string }
       </div>
 
       <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-bold text-[var(--accent)]">
-        Soon
+        Later
       </span>
     </div>
   );
@@ -800,6 +988,14 @@ function formatMoney(cents: number) {
   return `€${(cents / 100).toFixed(2).replace(".00", "")}`;
 }
 
+function formatCentsInput(cents?: number | null) {
+  if (typeof cents !== "number") {
+    return "";
+  }
+
+  return String(cents / 100);
+}
+
 function formatRole(role: string) {
   const normalizedRole = role.toLowerCase();
 
@@ -816,4 +1012,44 @@ function formatRole(role: string) {
   }
 
   return role;
+}
+
+function formatSavedMessage(saved: string) {
+  if (saved === "account") {
+    return "Account details saved.";
+  }
+
+  if (saved === "preferences") {
+    return "Preferences saved.";
+  }
+
+  return "Settings saved.";
+}
+
+function formatSettingsError(error: string) {
+  if (error === "missing-name") {
+    return "Please add your display name.";
+  }
+
+  if (error === "name-too-long") {
+    return "Display name is too long.";
+  }
+
+  if (error === "invalid-timezone") {
+    return "Please enter a valid timezone, for example Europe/Paris.";
+  }
+
+  if (error === "invalid-reminder") {
+    return "Please choose a valid reminder time.";
+  }
+
+  if (error === "invalid-budget") {
+    return "Please enter a valid budget range.";
+  }
+
+  if (error === "not-signed-in") {
+    return "Please sign in again.";
+  }
+
+  return "Something went wrong. Please try again.";
 }

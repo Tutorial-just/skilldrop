@@ -1019,3 +1019,62 @@ export async function uploadExpertDocumentAction(formData: FormData) {
 
   redirect("/expert/profile?saved=1");
 }
+function getStoragePathFromExpertDocumentUrl(fileUrl: string) {
+  const marker = "/expert-documents/";
+  const markerIndex = fileUrl.indexOf(marker);
+
+  if (markerIndex === -1) {
+    return null;
+  }
+
+  const rawPath = fileUrl.slice(markerIndex + marker.length).split("?")[0];
+
+  if (!rawPath) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(rawPath);
+  } catch {
+    return rawPath;
+  }
+}
+
+export async function deleteExpertDocumentAction(formData: FormData) {
+  const expert = await getCurrentExpertProfile();
+
+  await assertExpertRateLimit(expert.userId, "delete-document");
+
+  const documentId = getStringValue(formData, "documentId");
+
+  if (!documentId) {
+    redirectWithError("/expert/profile", "document-not-found");
+  }
+
+  const expertDocument = await prisma.expertDocument.findFirst({
+    where: {
+      id: documentId,
+      expertId: expert.id,
+    },
+  });
+
+  if (!expertDocument) {
+    redirectWithError("/expert/profile", "document-not-found");
+  }
+
+  const storagePath = getStoragePathFromExpertDocumentUrl(expertDocument.fileUrl);
+
+  if (storagePath) {
+    await supabaseAdmin.storage.from("expert-documents").remove([storagePath]);
+  }
+
+  await prisma.expertDocument.delete({
+    where: {
+      id: expertDocument.id,
+    },
+  });
+
+  revalidateExpertPaths(expert.id);
+
+  redirect("/expert/profile?deleted=1");
+}

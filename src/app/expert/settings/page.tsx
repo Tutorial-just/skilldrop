@@ -39,6 +39,7 @@ type ExpertSettingsPageProps = {
   searchParams?: Promise<{
     stripe?: string;
     error?: string;
+    saved?: string;
   }>;
 };
 
@@ -62,6 +63,7 @@ export default async function ExpertSettingsPage({
     },
     include: {
       user: true,
+      settings: true,
       services: {
         where: {
           isActive: true,
@@ -103,6 +105,12 @@ export default async function ExpertSettingsPage({
               {resolvedSearchParams.stripe ? (
                 <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
                   {formatStripeMessage(resolvedSearchParams.stripe)}
+                </div>
+              ) : null}
+
+              {resolvedSearchParams.saved === "settings" ? (
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
+                  Settings saved. Your helper preferences are now stored on your account.
                 </div>
               ) : null}
 
@@ -398,7 +406,7 @@ export default async function ExpertSettingsPage({
             </Card>
           </div>
 
-          <ProviderSettingsControls />
+          <ProviderSettingsControls settings={expert.settings} />
 
           <Card className="p-5 md:p-6">
             <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -602,6 +610,14 @@ function formatSettingsError(error: string) {
 
   if (error === "stripe-account-invalid") {
     return "Stripe account could not be found. Please reconnect Stripe.";
+  }
+
+  if (error === "invalid-minimum-notice") {
+    return "Please choose a valid minimum notice value.";
+  }
+
+  if (error === "invalid-buffer") {
+    return "Please choose a valid buffer between calls.";
   }
 
   return "Something went wrong. Please try again.";

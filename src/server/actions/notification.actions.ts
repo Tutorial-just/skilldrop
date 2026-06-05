@@ -160,3 +160,80 @@ export async function markAllNotificationsReadAction(formData?: FormData) {
 
   redirect(returnTo);
 }
+
+export async function deleteNotificationAction(formData: FormData) {
+  "use server";
+
+  const { user } = await requireRole(["buyer", "expert", "admin"]);
+
+  const notificationId = String(formData.get("notificationId") ?? "");
+  const returnTo = String(formData.get("returnTo") ?? "/notifications");
+
+  if (!notificationId) {
+    return;
+  }
+
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    return;
+  }
+
+  await prisma.notification.updateMany({
+    where: {
+      id: notificationId,
+      deletedAt: null,
+      OR: [
+        {
+          userId: user.id,
+        },
+        {
+          email,
+        },
+      ],
+    },
+    data: {
+      deletedAt: new Date(),
+    },
+  });
+
+  revalidatePath(returnTo);
+  revalidatePath("/notifications");
+  revalidatePath("/buyer");
+  revalidatePath("/expert");
+}
+
+export async function clearNotificationsAction(formData: FormData) {
+  "use server";
+
+  const { user } = await requireRole(["buyer", "expert", "admin"]);
+
+  const returnTo = String(formData.get("returnTo") ?? "/notifications");
+  const email = user.email?.toLowerCase();
+
+  if (!email) {
+    return;
+  }
+
+  await prisma.notification.updateMany({
+    where: {
+      deletedAt: null,
+      OR: [
+        {
+          userId: user.id,
+        },
+        {
+          email,
+        },
+      ],
+    },
+    data: {
+      deletedAt: new Date(),
+    },
+  });
+
+  revalidatePath(returnTo);
+  revalidatePath("/notifications");
+  revalidatePath("/buyer");
+  revalidatePath("/expert");
+}

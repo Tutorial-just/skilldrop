@@ -19,6 +19,7 @@ import {
   Paperclip,
   Save,
   ShieldCheck,
+  Trash2,
   Sparkles,
   Star,
   UploadCloud,
@@ -32,6 +33,7 @@ import { TagInput } from "@/components/expert/tag-input";
 import { FormDraft } from "@/components/forms/form-draft";
 import { TextareaWithCounter } from "@/components/forms/textarea-with-counter";
 import {
+  deleteExpertDocumentAction,
   updateProviderProfileAction,
   uploadExpertDocumentAction,
 } from "@/server/actions/expert.actions";
@@ -45,6 +47,7 @@ type ExpertProfilePageProps = {
   searchParams?: Promise<{
     error?: string;
     saved?: string;
+    deleted?: string;
   }>;
 };
 
@@ -336,6 +339,12 @@ export default async function ExpertProfilePage({
               {resolvedSearchParams.saved ? (
                 <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
                   Profile saved. Your public profile has been updated.
+                </div>
+              ) : null}
+
+              {resolvedSearchParams.deleted ? (
+                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-black text-[var(--success)]">
+                  Document deleted.
                 </div>
               ) : null}
 
@@ -645,36 +654,62 @@ export default async function ExpertProfilePage({
               {expert.documents.length > 0 ? (
                 <div className="mt-6 grid gap-3">
                   {expert.documents.map((expertDocument) => (
-                    <a
+                    <div
                       key={expertDocument.id}
-                      href={expertDocument.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="group rounded-2xl border border-[var(--border)] bg-[#111827]/80 p-4 transition hover:bg-white/10"
+                      className="rounded-2xl border border-[var(--border)] bg-[#111827]/80 p-4"
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
-                          <FileText size={18} />
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                            <FileText size={18} />
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black">
+                              {expertDocument.title}
+                            </p>
+
+                            <p className="mt-1 text-xs font-bold text-muted">
+                              {expertDocument.type === "CV" ? "CV" : "Portfolio"}
+                              {expertDocument.fileName
+                                ? ` · ${expertDocument.fileName}`
+                                : ""}
+                            </p>
+
+                            <p className="mt-1 text-xs font-semibold text-muted">
+                              {formatFileSize(expertDocument.sizeBytes)}
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-black">
-                            {expertDocument.title}
-                          </p>
+                        <div className="flex shrink-0 flex-col gap-2 sm:min-w-[130px]">
+                          <a
+                            href={expertDocument.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-secondary w-full"
+                          >
+                            Open
+                          </a>
 
-                          <p className="mt-1 text-xs font-bold text-muted">
-                            {expertDocument.type === "CV" ? "CV" : "Portfolio"}
-                            {expertDocument.fileName
-                              ? ` · ${expertDocument.fileName}`
-                              : ""}
-                          </p>
+                          <form action={deleteExpertDocumentAction}>
+                            <input
+                              type="hidden"
+                              name="documentId"
+                              value={expertDocument.id}
+                            />
 
-                          <p className="mt-1 text-xs font-semibold text-muted">
-                            {formatFileSize(expertDocument.sizeBytes)}
-                          </p>
+                            <button
+                              type="submit"
+                              className="btn btn-secondary w-full border-red-200 text-red-600 hover:bg-red-50"
+                            >
+                              Delete
+                              <Trash2 size={16} />
+                            </button>
+                          </form>
                         </div>
                       </div>
-                    </a>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -1390,6 +1425,10 @@ function formatProfileError(error: string) {
 
   if (error === "document-upload-failed") {
     return "Document upload failed. Please try again.";
+  }
+
+  if (error === "document-not-found") {
+    return "Document not found or you cannot delete it.";
   }
 
   if (error === "not-signed-in") {

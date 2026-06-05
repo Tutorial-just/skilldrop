@@ -1,6 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Bell,
   CalendarClock,
@@ -8,13 +6,15 @@ import {
   Eye,
   Lock,
   Mail,
+  Save,
   ShieldCheck,
   Video,
 } from "lucide-react";
 
+import { updateExpertSettingsAction } from "@/server/actions/expert-settings.actions";
 import { Badge } from "@/components/ui/badge";
 
-type HelperSettings = {
+type ExpertSettingsData = {
   bookingEmails: boolean;
   callReminders: boolean;
   reviewAlerts: boolean;
@@ -27,14 +27,18 @@ type HelperSettings = {
 
   autoConfirmBookings: boolean;
   allowSameDayBookings: boolean;
-  minimumNotice: string;
-  bufferBetweenCalls: string;
+  minimumNoticeMinutes: number;
+  bufferBetweenCallsMin: number;
 
   hideEmailFromBuyers: boolean;
   requireBuyerMessage: boolean;
+} | null;
+
+type ProviderSettingsControlsProps = {
+  settings: ExpertSettingsData;
 };
 
-const defaultSettings: HelperSettings = {
+const defaultSettings = {
   bookingEmails: true,
   callReminders: true,
   reviewAlerts: true,
@@ -47,98 +51,56 @@ const defaultSettings: HelperSettings = {
 
   autoConfirmBookings: false,
   allowSameDayBookings: true,
-  minimumNotice: "2 hours",
-  bufferBetweenCalls: "10 minutes",
+  minimumNoticeMinutes: 120,
+  bufferBetweenCallsMin: 10,
 
   hideEmailFromBuyers: true,
   requireBuyerMessage: true,
 };
 
-const storageKey = "skilldrop-helper-settings";
-
-export function ProviderSettingsControls() {
-  const [settings, setSettings] = useState<HelperSettings>(defaultSettings);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(storageKey);
-
-    if (!raw) {
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as Partial<HelperSettings>;
-
-      setSettings({
-        ...defaultSettings,
-        ...parsed,
-      });
-    } catch {
-      setSettings(defaultSettings);
-    }
-  }, []);
-
-  function updateSetting<K extends keyof HelperSettings>(
-    key: K,
-    value: HelperSettings[K],
-  ) {
-    const nextSettings = {
-      ...settings,
-      [key]: value,
-    };
-
-    setSettings(nextSettings);
-    localStorage.setItem(storageKey, JSON.stringify(nextSettings));
-
-    setSaved(true);
-
-    window.setTimeout(() => {
-      setSaved(false);
-    }, 1400);
-  }
+export function ProviderSettingsControls({
+  settings,
+}: ProviderSettingsControlsProps) {
+  const currentSettings = {
+    ...defaultSettings,
+    ...(settings ?? {}),
+  };
 
   return (
-    <div className="grid gap-5">
-      {saved ? (
-        <div className="rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
-          Settings saved on this device.
-        </div>
-      ) : null}
-
+    <form action={updateExpertSettingsAction} className="grid gap-5">
       <div className="grid gap-5 xl:grid-cols-2">
         <SettingsSection
           icon={Bell}
           badge="Notifications"
           title="Booking alerts"
-          text="Choose which updates you want to receive."
+          text="Choose which helper updates should be sent to you."
         >
-          <ToggleRow
+          <CheckboxRow
+            name="bookingEmails"
             label="New booking emails"
             description="Get an email when a buyer books you."
-            checked={settings.bookingEmails}
-            onChange={(value) => updateSetting("bookingEmails", value)}
+            defaultChecked={currentSettings.bookingEmails}
           />
 
-          <ToggleRow
+          <CheckboxRow
+            name="callReminders"
             label="Call reminders"
             description="Receive reminders before upcoming calls."
-            checked={settings.callReminders}
-            onChange={(value) => updateSetting("callReminders", value)}
+            defaultChecked={currentSettings.callReminders}
           />
 
-          <ToggleRow
+          <CheckboxRow
+            name="reviewAlerts"
             label="Review alerts"
             description="Know when a buyer leaves a review."
-            checked={settings.reviewAlerts}
-            onChange={(value) => updateSetting("reviewAlerts", value)}
+            defaultChecked={currentSettings.reviewAlerts}
           />
 
-          <ToggleRow
+          <CheckboxRow
+            name="weeklySummary"
             label="Weekly summary"
             description="Get a weekly overview of bookings and performance."
-            checked={settings.weeklySummary}
-            onChange={(value) => updateSetting("weeklySummary", value)}
+            defaultChecked={currentSettings.weeklySummary}
           />
         </SettingsSection>
 
@@ -148,32 +110,32 @@ export function ProviderSettingsControls() {
           title="Public profile"
           text="Control what buyers can see before booking."
         >
-          <ToggleRow
+          <CheckboxRow
+            name="profileVisible"
             label="Profile visible"
-            description="Allow buyers to discover your profile."
-            checked={settings.profileVisible}
-            onChange={(value) => updateSetting("profileVisible", value)}
+            description="Allow buyers to discover your profile in search."
+            defaultChecked={currentSettings.profileVisible}
           />
 
-          <ToggleRow
+          <CheckboxRow
+            name="showAvailability"
             label="Show availability"
             description="Display open time slots on your public profile."
-            checked={settings.showAvailability}
-            onChange={(value) => updateSetting("showAvailability", value)}
+            defaultChecked={currentSettings.showAvailability}
           />
 
-          <ToggleRow
+          <CheckboxRow
+            name="showStartingPrice"
             label="Show starting price"
             description="Show your lowest active offer price."
-            checked={settings.showStartingPrice}
-            onChange={(value) => updateSetting("showStartingPrice", value)}
+            defaultChecked={currentSettings.showStartingPrice}
           />
 
-          <ToggleRow
+          <CheckboxRow
+            name="showLanguages"
             label="Show languages"
             description="Display languages on your public profile."
-            checked={settings.showLanguages}
-            onChange={(value) => updateSetting("showLanguages", value)}
+            defaultChecked={currentSettings.showLanguages}
           />
         </SettingsSection>
       </div>
@@ -185,40 +147,46 @@ export function ProviderSettingsControls() {
           title="Booking rules"
           text="Set simple rules for how buyers can book calls."
         >
-          <ToggleRow
+          <CheckboxRow
+            name="autoConfirmBookings"
             label="Auto-confirm bookings"
-            description="Automatically confirm paid bookings."
-            checked={settings.autoConfirmBookings}
-            onChange={(value) => updateSetting("autoConfirmBookings", value)}
+            description="Automatically confirm paid bookings when payment succeeds."
+            defaultChecked={currentSettings.autoConfirmBookings}
           />
 
-          <ToggleRow
+          <CheckboxRow
+            name="allowSameDayBookings"
             label="Allow same-day bookings"
             description="Let buyers book available slots today."
-            checked={settings.allowSameDayBookings}
-            onChange={(value) => updateSetting("allowSameDayBookings", value)}
+            defaultChecked={currentSettings.allowSameDayBookings}
           />
 
           <SelectRow
+            name="minimumNoticeMinutes"
             label="Minimum notice"
             description="How much time you need before a call."
-            value={settings.minimumNotice}
-            options={["30 minutes", "1 hour", "2 hours", "6 hours", "24 hours"]}
-            onChange={(value) => updateSetting("minimumNotice", value)}
+            defaultValue={String(currentSettings.minimumNoticeMinutes)}
+            options={[
+              ["30", "30 minutes"],
+              ["60", "1 hour"],
+              ["120", "2 hours"],
+              ["360", "6 hours"],
+              ["1440", "24 hours"],
+            ]}
           />
 
           <SelectRow
+            name="bufferBetweenCallsMin"
             label="Buffer between calls"
             description="Break time between two calls."
-            value={settings.bufferBetweenCalls}
+            defaultValue={String(currentSettings.bufferBetweenCallsMin)}
             options={[
-              "No buffer",
-              "5 minutes",
-              "10 minutes",
-              "15 minutes",
-              "30 minutes",
+              ["0", "No buffer"],
+              ["5", "5 minutes"],
+              ["10", "10 minutes"],
+              ["15", "15 minutes"],
+              ["30", "30 minutes"],
             ]}
-            onChange={(value) => updateSetting("bufferBetweenCalls", value)}
           />
         </SettingsSection>
 
@@ -228,18 +196,18 @@ export function ProviderSettingsControls() {
           title="Buyer protection"
           text="Protect your contact details and improve booking quality."
         >
-          <ToggleRow
+          <CheckboxRow
+            name="hideEmailFromBuyers"
             label="Hide email from buyers"
-            description="Buyers will contact you through SkillDrop."
-            checked={settings.hideEmailFromBuyers}
-            onChange={(value) => updateSetting("hideEmailFromBuyers", value)}
+            description="Buyers contact you through SkillDrop, not directly by email."
+            defaultChecked={currentSettings.hideEmailFromBuyers}
           />
 
-          <ToggleRow
+          <CheckboxRow
+            name="requireBuyerMessage"
             label="Require buyer message"
             description="Ask buyers to explain what they need before booking."
-            checked={settings.requireBuyerMessage}
-            onChange={(value) => updateSetting("requireBuyerMessage", value)}
+            defaultChecked={currentSettings.requireBuyerMessage}
           />
 
           <InfoRow
@@ -251,7 +219,20 @@ export function ProviderSettingsControls() {
           <InfoRow icon={Video} label="Calls" value="Video rooms enabled" />
         </SettingsSection>
       </div>
-    </div>
+
+      <div className="sticky bottom-4 z-20 rounded-[26px] border border-[var(--border)] bg-[var(--card)]/95 p-3 shadow-[var(--shadow-md)] backdrop-blur-xl">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-bold text-[var(--muted-foreground)]">
+            Save these settings to your account. They will work on every device.
+          </p>
+
+          <button type="submit" className="btn btn-primary">
+            Save settings
+            <Save size={18} />
+          </button>
+        </div>
+      </div>
+    </form>
   );
 }
 
@@ -266,7 +247,7 @@ function SettingsSection({
   badge: string;
   title: string;
   text: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-sm)]">
@@ -288,19 +269,19 @@ function SettingsSection({
   );
 }
 
-function ToggleRow({
+function CheckboxRow({
+  name,
   label,
   description,
-  checked,
-  onChange,
+  defaultChecked,
 }: {
+  name: string;
   label: string;
   description: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
+  defaultChecked: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)]">
       <div className="min-w-0">
         <p className="font-bold tracking-[-0.02em] text-[var(--foreground)]">
           {label}
@@ -311,42 +292,34 @@ function ToggleRow({
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        className={
-          checked
-            ? "flex h-8 w-14 shrink-0 items-center justify-end rounded-full border border-[var(--primary)] bg-[var(--primary)] p-1 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.28)]"
-            : "flex h-8 w-14 shrink-0 items-center justify-start rounded-full border border-[var(--border)] bg-[var(--background-soft)] p-1 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(139,92,246,0.28)]"
-        }
-        aria-pressed={checked}
-      >
-        <span
-          className={
-            checked
-              ? "flex h-6 w-6 items-center justify-center rounded-full bg-white text-[var(--primary)] shadow-sm"
-              : "flex h-6 w-6 items-center justify-center rounded-full bg-[var(--muted-foreground)]/30 shadow-sm"
-          }
-        >
-          {checked ? <Check size={14} /> : null}
+      <input
+        type="checkbox"
+        name={name}
+        defaultChecked={defaultChecked}
+        className="peer sr-only"
+      />
+
+      <span className="flex h-8 w-14 shrink-0 items-center justify-start rounded-full border border-[var(--border)] bg-[var(--background-soft)] p-1 transition peer-checked:justify-end peer-checked:border-[var(--primary)] peer-checked:bg-[var(--primary)]">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--muted-foreground)]/30 shadow-sm transition peer-checked:bg-white peer-checked:text-[var(--primary)]">
+          {defaultChecked ? <Check size={14} /> : null}
         </span>
-      </button>
-    </div>
+      </span>
+    </label>
   );
 }
 
 function SelectRow({
+  name,
   label,
   description,
-  value,
+  defaultValue,
   options,
-  onChange,
 }: {
+  name: string;
   label: string;
   description: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
+  defaultValue: string;
+  options: [string, string][];
 }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
@@ -361,14 +334,10 @@ function SelectRow({
           </p>
         </div>
 
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="input"
-        >
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
+        <select name={name} defaultValue={defaultValue} className="input">
+          {options.map(([value, labelText]) => (
+            <option key={value} value={value}>
+              {labelText}
             </option>
           ))}
         </select>
