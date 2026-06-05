@@ -26,7 +26,7 @@ import {
   Video,
   WalletCards,
 } from "lucide-react";
-import { BookingStatus } from "@prisma/client";
+import { BookingStatus, Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import {
@@ -161,7 +161,7 @@ export default async function BuyerDashboardPage() {
 
 const [
   activeBookings,
-  recentBookings,
+  recentBookingRows,
   completedWithoutReviewBookings,
   totalBookedResult,
 ] = await Promise.all([
@@ -221,15 +221,17 @@ const [
   }),
 ]);
 
-const bookings = [
+const bookingsMap = new Map<string, DashboardBooking>();
+
+for (const booking of [
   ...activeBookings,
   ...completedWithoutReviewBookings,
-  ...recentBookings,
-].filter(
-  (booking, index, array) =>
-    array.findIndex((item) => item.id === booking.id) === index,
-);
+  ...recentBookingRows,
+]) {
+  bookingsMap.set(booking.id, booking);
+}
 
+const bookings = Array.from(bookingsMap.values());
   const upcomingBookings = bookings.filter(
     (booking) =>
       booking.startTime >= now &&
