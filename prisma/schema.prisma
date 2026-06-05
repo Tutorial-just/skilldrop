@@ -76,6 +76,7 @@ model ExpertProfile {
   savedBy      SavedExpert[]
 
   documents ExpertDocument[]
+  settings  ExpertSettings?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -368,6 +369,36 @@ model BuyerSettings {
   @@index([createdAt])
 }
 
+model ExpertSettings {
+  id String @id @default(cuid())
+
+  expertId String        @unique
+  expert   ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  bookingEmails Boolean @default(true)
+  callReminders Boolean @default(true)
+  reviewAlerts  Boolean @default(true)
+  weeklySummary Boolean @default(false)
+
+  profileVisible    Boolean @default(true)
+  showAvailability  Boolean @default(true)
+  showStartingPrice Boolean @default(true)
+  showLanguages     Boolean @default(true)
+
+  autoConfirmBookings   Boolean @default(false)
+  allowSameDayBookings  Boolean @default(true)
+  minimumNoticeMinutes  Int     @default(120)
+  bufferBetweenCallsMin Int     @default(10)
+
+  hideEmailFromBuyers Boolean @default(true)
+  requireBuyerMessage Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expertId])
+}
+
 model AdminAuditLog {
   id String @id @default(cuid())
 
@@ -406,8 +437,8 @@ model Notification {
 
   metadata Json?
 
-  isRead Boolean   @default(false)
-  readAt DateTime?
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
   deletedAt DateTime?
 
   createdAt DateTime @default(now())
