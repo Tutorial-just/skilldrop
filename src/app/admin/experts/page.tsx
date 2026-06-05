@@ -32,8 +32,14 @@ type AdminExpertsPageProps = {
     status?: string;
     verified?: string;
     risk?: string;
+    page?: string;
   }>;
 };
+
+const ADMIN_EXPERTS_PAGE_SIZE = 50;
+const MAX_ADMIN_EXPERT_SERVICES = 5;
+const MAX_ADMIN_EXPERT_AVAILABILITY = 8;
+const MAX_ADMIN_EXPERT_REVIEWS = 10;
 
 export default async function AdminExpertsPage({
   searchParams,
@@ -46,6 +52,11 @@ export default async function AdminExpertsPage({
   const statusFilter = resolvedSearchParams.status ?? "all";
   const verifiedFilter = resolvedSearchParams.verified ?? "all";
   const riskFilter = resolvedSearchParams.risk ?? "all";
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
 
   const now = new Date();
 
@@ -125,6 +136,18 @@ export default async function AdminExpertsPage({
       : {}),
   };
 
+  const filteredExpertsCount = await prisma.expertProfile.count({
+    where: expertWhere,
+  });
+
+  const totalPages = Math.max(
+    Math.ceil(filteredExpertsCount / ADMIN_EXPERTS_PAGE_SIZE),
+    1,
+  );
+
+  const safePage = Math.min(page, totalPages);
+  const skip = (safePage - 1) * ADMIN_EXPERTS_PAGE_SIZE;
+
   const [
     rawExperts,
     totalExperts,
@@ -145,6 +168,7 @@ export default async function AdminExpertsPage({
           orderBy: {
             priceCents: "asc",
           },
+          take: MAX_ADMIN_EXPERT_SERVICES,
         },
         availability: {
           where: {
@@ -156,6 +180,7 @@ export default async function AdminExpertsPage({
           orderBy: {
             startTime: "asc",
           },
+          take: MAX_ADMIN_EXPERT_AVAILABILITY,
         },
         reviews: {
           select: {
@@ -170,7 +195,7 @@ export default async function AdminExpertsPage({
           orderBy: {
             createdAt: "desc",
           },
-          take: 20,
+          take: MAX_ADMIN_EXPERT_REVIEWS,
         },
       },
       orderBy: [
@@ -181,6 +206,8 @@ export default async function AdminExpertsPage({
           createdAt: "desc",
         },
       ],
+      skip,
+      take: ADMIN_EXPERTS_PAGE_SIZE,
     }),
 
     prisma.expertProfile.count(),
@@ -343,7 +370,10 @@ export default async function AdminExpertsPage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <SummaryRow label="Shown experts" value={String(experts.length)} />
+                <SummaryRow 
+                  label="Filtered experts"
+                  value={String(filteredExpertsCount)}
+                />
                 <SummaryRow label="High risk" value={String(highRiskExperts.length)} />
                 <SummaryRow
                   label="Medium risk"
@@ -516,7 +546,8 @@ export default async function AdminExpertsPage({
       <section className="container-page py-8 md:py-10 lg:py-12">
         <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-sm font-black text-muted">
-            Showing {experts.length} expert{experts.length === 1 ? "" : "s"}
+            Showing {experts.length} of {filteredExpertsCount} expert
+            {filteredExpertsCount === 1 ? "" : "s"}
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -550,9 +581,118 @@ export default async function AdminExpertsPage({
             </Card>
           )}
         </div>
+        {filteredExpertsCount > ADMIN_EXPERTS_PAGE_SIZE ? (
+          <PaginationControls
+            page={safePage}
+            totalPages={totalPages}
+            q={query}
+            status={statusFilter}
+            verified={verifiedFilter}
+            risk={riskFilter}
+          />
+        ) : null}
       </section>
     </main>
   );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  q,
+  status,
+  verified,
+  risk,
+}: {
+  page: number;
+  totalPages: number;
+  q: string;
+  status: string;
+  verified: string;
+  risk: string;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4 sm:flex-row">
+      <p className="text-sm font-bold text-muted">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={buildAdminExpertsHref({
+              page: previousPage,
+              q,
+              status,
+              verified,
+              risk,
+            })}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={buildAdminExpertsHref({
+              page: nextPage,
+              q,
+              status,
+              verified,
+              risk,
+            })}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function buildAdminExpertsHref({
+  page,
+  q,
+  status,
+  verified,
+  risk,
+}: {
+  page: number;
+  q: string;
+  status: string;
+  verified: string;
+  risk: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (status && status !== "all") {
+    params.set("status", status);
+  }
+
+  if (verified && verified !== "all") {
+    params.set("verified", verified);
+  }
+
+  if (risk && risk !== "all") {
+    params.set("risk", risk);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/admin/experts?${queryString}` : "/admin/experts";
 }
 
 function ExpertAdminCard({

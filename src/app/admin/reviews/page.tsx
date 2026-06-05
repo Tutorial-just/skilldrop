@@ -24,8 +24,11 @@ type AdminReviewsPageProps = {
     bad?: string;
     recommend?: string;
     problem?: string;
+    page?: string;
   }>;
 };
+
+const ADMIN_REVIEWS_PAGE_SIZE = 50;
 
 export default async function AdminReviewsPage({
   searchParams,
@@ -39,6 +42,12 @@ export default async function AdminReviewsPage({
   const badOnly = resolvedSearchParams.bad === "true";
   const recommendFilter = resolvedSearchParams.recommend ?? "all";
   const problemFilter = resolvedSearchParams.problem ?? "all";
+
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
 
   const filters: Prisma.ReviewWhereInput[] = [];
 
@@ -184,6 +193,19 @@ export default async function AdminReviewsPage({
           AND: filters,
         }
       : {};
+  
+
+  const filteredReviewsCount = await prisma.review.count({
+    where: reviewWhere,
+  });
+
+  const totalPages = Math.max(
+    Math.ceil(filteredReviewsCount / ADMIN_REVIEWS_PAGE_SIZE),
+    1,
+  );
+
+  const safePage = Math.min(page, totalPages);
+  const skip = (safePage - 1) * ADMIN_REVIEWS_PAGE_SIZE;
 
   const [
     reviews,
@@ -214,7 +236,8 @@ export default async function AdminReviewsPage({
       orderBy: {
         createdAt: "desc",
       },
-      take: 120,
+      skip,
+      take: ADMIN_REVIEWS_PAGE_SIZE,
     }),
 
     prisma.review.count(),
@@ -368,7 +391,11 @@ export default async function AdminReviewsPage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <SummaryRow label="Shown reviews" value={String(reviews.length)} />
+                <SummaryRow 
+                  label="Filtered reviews"
+                  value={String(filteredReviewsCount)}
+                />
+                 
                 <SummaryRow
                   label="Shown quality issues"
                   value={String(shownQualityIssues)}
@@ -641,7 +668,9 @@ export default async function AdminReviewsPage({
           <Badge>Quality issues: {badOnly ? "yes" : "no"}</Badge>
           <Badge>Recommend: {recommendFilter}</Badge>
           <Badge>Outcome: {problemFilter}</Badge>
-          <Badge>{reviews.length} shown</Badge>
+          <Badge>
+             {reviews.length} shown / {filteredReviewsCount} found
+          </Badge>
         </div>
 
         <div className="grid gap-5">
@@ -672,9 +701,129 @@ export default async function AdminReviewsPage({
             </Card>
           )}
         </div>
+        {filteredReviewsCount > ADMIN_REVIEWS_PAGE_SIZE ? (
+           <PaginationControls
+              page={safePage}
+              totalPages={totalPages}
+              q={query}
+              rating={ratingFilter}
+              bad={badOnly}
+              recommend={recommendFilter}
+              problem={problemFilter}
+            />
+          ) : null}
       </section>
     </main>
   );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  q,
+  rating,
+  bad,
+  recommend,
+  problem,
+}: {
+  page: number;
+  totalPages: number;
+  q: string;
+  rating: string;
+  bad: boolean;
+  recommend: string;
+  problem: string;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4 sm:flex-row">
+      <p className="text-sm font-bold text-muted">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={buildAdminReviewsHref({
+              page: previousPage,
+              q,
+              rating,
+              bad,
+              recommend,
+              problem,
+            })}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={buildAdminReviewsHref({
+              page: nextPage,
+              q,
+              rating,
+              bad,
+              recommend,
+              problem,
+            })}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function buildAdminReviewsHref({
+  page,
+  q,
+  rating,
+  bad,
+  recommend,
+  problem,
+}: {
+  page: number;
+  q: string;
+  rating: string;
+  bad: boolean;
+  recommend: string;
+  problem: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (rating && rating !== "all") {
+    params.set("rating", rating);
+  }
+
+  if (bad) {
+    params.set("bad", "true");
+  }
+
+  if (recommend && recommend !== "all") {
+    params.set("recommend", recommend);
+  }
+
+  if (problem && problem !== "all") {
+    params.set("problem", problem);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/admin/reviews?${queryString}` : "/admin/reviews";
 }
 
 function ReviewAdminCard({

@@ -26,10 +26,13 @@ type AdminUsersPageProps = {
     error?: string;
     role?: string;
     q?: string;
+    page?: string;
   }>;
 };
 
 const userRoles: UserRole[] = ["BUYER", "EXPERT", "ADMIN"];
+
+const ADMIN_USERS_PAGE_SIZE = 50;
 
 export default async function AdminUsersPage({
   searchParams,
@@ -41,6 +44,12 @@ export default async function AdminUsersPage({
   const roleFilter = resolvedSearchParams.role ?? "all";
   const query = resolvedSearchParams.q?.trim() ?? "";
   const roleValue = roleFilter.toUpperCase() as UserRole;
+
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
 
   const userWhere: Prisma.UserWhereInput = {
     ...(roleFilter !== "all" && userRoles.includes(roleValue)
@@ -101,6 +110,18 @@ export default async function AdminUsersPage({
       : {}),
   };
 
+  const filteredUsersCount = await prisma.user.count({
+    where: userWhere,
+  });
+
+  const totalPages = Math.max(
+    Math.ceil(filteredUsersCount / ADMIN_USERS_PAGE_SIZE),
+    1,
+  );
+
+  const safePage = Math.min(page, totalPages);
+  const skip = (safePage - 1) * ADMIN_USERS_PAGE_SIZE;
+
   const [
     users,
     totalUsers,
@@ -138,7 +159,8 @@ export default async function AdminUsersPage({
       orderBy: {
         createdAt: "desc",
       },
-      take: 120,
+      skip,
+      take: ADMIN_USERS_PAGE_SIZE,
     }),
 
     prisma.user.count(),
@@ -236,7 +258,10 @@ export default async function AdminUsersPage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <SummaryRow label="Shown users" value={String(users.length)} />
+                <SummaryRow 
+                  label="Filtered users"
+                  value={String(filteredUsersCount)}
+                />
                 <SummaryRow label="Shown buyers" value={String(shownBuyers)} />
                 <SummaryRow label="Shown experts" value={String(shownExperts)} />
                 <SummaryRow label="Shown admins" value={String(shownAdmins)} />
@@ -330,7 +355,8 @@ export default async function AdminUsersPage({
       <section className="container-page py-8 md:py-10 lg:py-12">
         <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-sm font-black text-muted">
-            Showing {users.length} user{users.length === 1 ? "" : "s"}
+             Showing {users.length} of {filteredUsersCount} user
+             {filteredUsersCount === 1 ? "" : "s"}
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -364,9 +390,96 @@ export default async function AdminUsersPage({
             </Card>
           )}
         </div>
+        {filteredUsersCount > ADMIN_USERS_PAGE_SIZE ? (
+          <PaginationControls
+            page={safePage}
+            totalPages={totalPages}
+            q={query}
+            role={roleFilter}
+          />
+        ) : null}
       </section>
     </main>
   );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  q,
+  role,
+}: {
+  page: number;
+  totalPages: number;
+  q: string;
+  role: string;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4 sm:flex-row">
+      <p className="text-sm font-bold text-muted">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={buildAdminUsersHref({
+              page: previousPage,
+              q,
+              role,
+            })}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={buildAdminUsersHref({
+              page: nextPage,
+              q,
+              role,
+            })}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function buildAdminUsersHref({
+  page,
+  q,
+  role,
+}: {
+  page: number;
+  q: string;
+  role: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (role && role !== "all") {
+    params.set("role", role);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/admin/users?${queryString}` : "/admin/users";
 }
 
 function UserAdminCard({

@@ -33,6 +33,7 @@ type AdminBookingsPageProps = {
     error?: string;
     q?: string;
     status?: string;
+    page?: string;
   }>;
 };
 
@@ -53,6 +54,8 @@ const activeStatuses: BookingStatus[] = [
   "DISPUTED",
 ];
 
+const ADMIN_BOOKINGS_PAGE_SIZE = 50;
+
 export default async function AdminBookingsPage({
   searchParams,
 }: AdminBookingsPageProps) {
@@ -63,6 +66,11 @@ export default async function AdminBookingsPage({
   const query = resolvedSearchParams.q?.trim() ?? "";
   const statusFilter = resolvedSearchParams.status ?? "all";
   const statusValue = statusFilter.toUpperCase() as BookingStatus;
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
 
   const bookingWhere: Prisma.BookingWhereInput = {
     ...(statusFilter === "all"
@@ -199,92 +207,108 @@ export default async function AdminBookingsPage({
       : {}),
   };
 
-  const [
-    bookings,
-    totalBookings,
-    pendingBookings,
-    paidBookings,
-    confirmedBookings,
-    completedBookings,
-    cancelledBookings,
-    refundedBookings,
-    disputedBookings,
-  ] = await Promise.all([
-    prisma.booking.findMany({
-      where: bookingWhere,
-      include: {
-        buyer: true,
-        expert: {
-          include: {
-            user: true,
-          },
+  const filteredBookingsCount = await prisma.booking.count({
+  where: bookingWhere,
+});
+
+const totalPages = Math.max(
+  Math.ceil(filteredBookingsCount / ADMIN_BOOKINGS_PAGE_SIZE),
+  1,
+);
+
+const safePage = Math.min(page, totalPages);
+const skip = (safePage - 1) * ADMIN_BOOKINGS_PAGE_SIZE;
+
+const [
+  bookings,
+  totalBookings,
+  pendingBookings,
+  paidBookings,
+  confirmedBookings,
+  completedBookings,
+  cancelledBookings,
+  refundedBookings,
+  disputedBookings,
+  paidVolumeAggregate,
+] = await Promise.all([
+  prisma.booking.findMany({
+    where: bookingWhere,
+    include: {
+      buyer: true,
+      expert: {
+        include: {
+          user: true,
         },
-        service: true,
-        callRoom: true,
-        review: true,
       },
-      orderBy: {
-        createdAt: "desc",
+      service: true,
+      callRoom: true,
+      review: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    skip,
+    take: ADMIN_BOOKINGS_PAGE_SIZE,
+  }),
+
+  prisma.booking.count(),
+
+  prisma.booking.count({
+    where: {
+      status: "PENDING",
+    },
+  }),
+
+  prisma.booking.count({
+    where: {
+      status: "PAID",
+    },
+  }),
+
+  prisma.booking.count({
+    where: {
+      status: "CONFIRMED",
+    },
+  }),
+
+  prisma.booking.count({
+    where: {
+      status: "COMPLETED",
+    },
+  }),
+
+  prisma.booking.count({
+    where: {
+      status: "CANCELLED",
+    },
+  }),
+
+  prisma.booking.count({
+    where: {
+      status: "REFUNDED",
+    },
+  }),
+
+  prisma.booking.count({
+    where: {
+      status: "DISPUTED",
+    },
+  }),
+
+  prisma.booking.aggregate({
+    where: {
+      ...bookingWhere,
+      status: {
+        in: ["PAID", "CONFIRMED", "COMPLETED"],
       },
-      take: 120,
-    }),
+    },
+    _sum: {
+      clientTotalCents: true,
+    },
+  }),
+]);
 
-    prisma.booking.count(),
-
-    prisma.booking.count({
-      where: {
-        status: "PENDING",
-      },
-    }),
-
-    prisma.booking.count({
-      where: {
-        status: "PAID",
-      },
-    }),
-
-    prisma.booking.count({
-      where: {
-        status: "CONFIRMED",
-      },
-    }),
-
-    prisma.booking.count({
-      where: {
-        status: "COMPLETED",
-      },
-    }),
-
-    prisma.booking.count({
-      where: {
-        status: "CANCELLED",
-      },
-    }),
-
-    prisma.booking.count({
-      where: {
-        status: "REFUNDED",
-      },
-    }),
-
-    prisma.booking.count({
-      where: {
-        status: "DISPUTED",
-      },
-    }),
-  ]);
-
-  const paidVolumeCents = bookings
-    .filter(
-      (booking) =>
-        booking.status === "PAID" ||
-        booking.status === "CONFIRMED" ||
-        booking.status === "COMPLETED",
-    )
-    .reduce(
-      (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
-      0,
-    );
+  const paidVolumeCents = paidVolumeAggregate._sum.clientTotalCents ?? 0;
 
   const shownDisputed = bookings.filter(
     (booking) => booking.status === "DISPUTED",
@@ -348,7 +372,10 @@ export default async function AdminBookingsPage({
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <SummaryRow label="Shown bookings" value={String(bookings.length)} />
+                <SummaryRow
+                  label="Filtered bookings"
+                  value={String(filteredBookingsCount)}
+                />
                 <SummaryRow label="Shown disputed" value={String(shownDisputed)} />
                 <SummaryRow
                   label="Shown refundable"
@@ -483,7 +510,8 @@ export default async function AdminBookingsPage({
       <section className="container-page py-8 md:py-10 lg:py-12">
         <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-sm font-black text-muted">
-            Showing {bookings.length} booking{bookings.length === 1 ? "" : "s"}
+            Showing {bookings.length} of {filteredBookingsCount} booking
+            {filteredBookingsCount === 1 ? "" : "s"}
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -519,9 +547,96 @@ export default async function AdminBookingsPage({
             </Card>
           )}
         </div>
+        {filteredBookingsCount > ADMIN_BOOKINGS_PAGE_SIZE ? (
+          <PaginationControls
+            page={safePage}
+            totalPages={totalPages}
+            q={query}
+            status={statusFilter}
+          />
+        ) : null}
       </section>
     </main>
   );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  q,
+  status,
+}: {
+  page: number;
+  totalPages: number;
+  q: string;
+  status: string;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4 sm:flex-row">
+      <p className="text-sm font-bold text-muted">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={buildAdminBookingsHref({
+              page: previousPage,
+              q,
+              status,
+            })}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={buildAdminBookingsHref({
+              page: nextPage,
+              q,
+              status,
+            })}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function buildAdminBookingsHref({
+  page,
+  q,
+  status,
+}: {
+  page: number;
+  q: string;
+  status: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (status && status !== "all") {
+    params.set("status", status);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/admin/bookings?${queryString}` : "/admin/bookings";
 }
 
 function BookingAdminCard({

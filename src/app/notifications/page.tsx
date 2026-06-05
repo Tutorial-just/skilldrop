@@ -24,8 +24,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-export default async function NotificationsPage() {
+
+type NotificationsPageProps = {
+  searchParams?: Promise<{
+    page?: string;
+  }>;
+};
+
+const NOTIFICATIONS_PAGE_SIZE = 20;
+
+export default async function NotificationsPage({
+  searchParams,
+}: NotificationsPageProps) {
   const { user } = await requireRole(["buyer", "expert", "admin"]);
+  const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const email = user.email?.toLowerCase();
 
@@ -43,36 +55,87 @@ export default async function NotificationsPage() {
     redirect("/sign-in");
   }
 
-  const notifications = await prisma.notification.findMany({
-    where: {
-      OR: [
-        {
-          userId: currentUser.id,
-        },
-        {
-          email: currentUser.email,
-        },
-      ],
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 80,
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
+
+  const notificationWhere = {
+    OR: [
+      {
+        userId: currentUser.id,
+      },
+      {
+        email: currentUser.email,
+      },
+    ],
+  };
+
+  const totalNotificationsCount = await prisma.notification.count({
+    where: notificationWhere,
   });
 
-  const unreadCount = notifications.filter(
-    (notification) => !notification.isRead,
-  ).length;
+  const totalPages = Math.max(
+    Math.ceil(totalNotificationsCount / NOTIFICATIONS_PAGE_SIZE),
+    1,
+  );
 
-  const bookingNotifications = notifications.filter((notification) =>
-    notification.type.startsWith("BOOKING"),
-  ).length;
+  const safePage = Math.min(page, totalPages);
+  const skip = (safePage - 1) * NOTIFICATIONS_PAGE_SIZE;
 
-  const paymentNotifications = notifications.filter(
-    (notification) =>
-      notification.type === "PAYMENT_CONFIRMED" ||
-      notification.type === "BOOKING_REFUNDED",
-  ).length;
+  const [
+    notifications,
+    unreadCount,
+    bookingNotifications,
+    paymentNotifications,
+  ] = await Promise.all([
+    prisma.notification.findMany({
+      where: notificationWhere,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take: NOTIFICATIONS_PAGE_SIZE,
+    }),
+
+    prisma.notification.count({
+      where: {
+        ...notificationWhere,
+        isRead: false,
+      },
+    }),
+
+    prisma.notification.count({
+      where: {
+        ...notificationWhere,
+        type: {
+          in: [
+            "BOOKING_CREATED",
+            "BOOKING_PENDING_PAYMENT",
+            "BOOKING_EXPIRED",
+            "BOOKING_CANCELLED",
+            "BOOKING_REFUNDED",
+            "BOOKING_DISPUTED",
+          ],
+        },
+      },
+    }),
+
+    prisma.notification.count({
+      where: {
+        ...notificationWhere,
+        OR: [
+          {
+            type: "PAYMENT_CONFIRMED",
+          },
+          {
+            type: "BOOKING_REFUNDED",
+          },
+        ],
+      },
+    }),
+  ]);
 
   const backHref = getDashboardHref(currentUser.role);
 
@@ -133,8 +196,8 @@ export default async function NotificationsPage() {
 
             <MetricCard
               label="Total"
-              value={String(notifications.length)}
-              hint="Latest updates"
+              value={String(totalNotificationsCount)}
+              hint="All updates"
             />
 
             <MetricCard
@@ -197,9 +260,52 @@ export default async function NotificationsPage() {
               <EmptyState />
             )}
           </div>
+
+          {totalNotificationsCount > NOTIFICATIONS_PAGE_SIZE ? (
+            <PaginationControls page={safePage} totalPages={totalPages} />
+          ) : null}
         </Card>
       </section>
     </main>
+  );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+}: {
+  page: number;
+  totalPages: number;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 sm:flex-row">
+      <p className="text-sm font-bold text-muted">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={`/notifications?page=${previousPage}`}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={`/notifications?page=${nextPage}`}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

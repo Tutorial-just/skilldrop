@@ -24,7 +24,12 @@ const activeBookingStatuses: BookingStatus[] = [
   BookingStatus.PENDING,
   BookingStatus.PAID,
   BookingStatus.CONFIRMED,
+  BookingStatus.DISPUTED,
 ];
+
+const ADMIN_DASHBOARD_EXPERT_LIMIT = 50;
+const ADMIN_DASHBOARD_AVAILABILITY_LIMIT = 5;
+const ADMIN_DASHBOARD_REVIEW_LIMIT = 10;
 
 export default async function AdminPage() {
   await requireRole(["admin"]);
@@ -51,7 +56,7 @@ export default async function AdminPage() {
     reviewsCount,
     lowReviewsCount,
     notRecommendedReviewsCount,
-    completedBookings,
+    completedBookingsAggregate,
     recentReviews,
     rawExperts,
   ] = await Promise.all([
@@ -177,11 +182,11 @@ export default async function AdminPage() {
       },
     }),
 
-    prisma.booking.findMany({
+    prisma.booking.aggregate({
       where: {
-        status: "COMPLETED",
+        status: BookingStatus.COMPLETED,
       },
-      select: {
+      _sum: {
         priceCents: true,
         platformFeeCents: true,
         clientServiceFeeCents: true,
@@ -256,6 +261,7 @@ export default async function AdminPage() {
           orderBy: {
             startTime: "asc",
           },
+          take: ADMIN_DASHBOARD_AVAILABILITY_LIMIT,
         },
         services: {
           where: {
@@ -278,30 +284,27 @@ export default async function AdminPage() {
           orderBy: {
             createdAt: "desc",
           },
-          take: 10,
+          take: ADMIN_DASHBOARD_REVIEW_LIMIT,
         },
       },
       orderBy: {
         createdAt: "desc",
       },
-      take: 100,
+      take: ADMIN_DASHBOARD_EXPERT_LIMIT,
     }),
   ]);
 
-  const grossCompletedCents = completedBookings.reduce(
-    (sum, booking) => sum + getClientTotalCents(booking),
-    0,
-  );
+  const grossCompletedCents =
+    completedBookingsAggregate._sum.clientTotalCents ??
+    completedBookingsAggregate._sum.priceCents ??
+    0;
 
-  const estimatedPlatformFeeCents = completedBookings.reduce(
-    (sum, booking) => sum + getPlatformGrossFeeCents(booking),
-    0,
-  );
+  const estimatedPlatformFeeCents =
+    (completedBookingsAggregate._sum.platformFeeCents ?? 0) +
+    (completedBookingsAggregate._sum.clientServiceFeeCents ?? 0);
 
-  const providerNetCompletedCents = completedBookings.reduce(
-    (sum, booking) => sum + getProviderNetCents(booking),
-    0,
-  );
+  const providerNetCompletedCents =
+    completedBookingsAggregate._sum.providerNetCents ?? 0;
 
   const expertsWithRisk = rawExperts.map((expert) => {
     const qualityScore = calculateQualityScore({
@@ -1165,53 +1168,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function getPlatformGrossFeeCents(booking: {
-  priceCents: number;
-  platformFeeCents: number | null;
-  clientServiceFeeCents: number | null;
-}) {
-  if (
-    typeof booking.platformFeeCents === "number" &&
-    typeof booking.clientServiceFeeCents === "number"
-  ) {
-    return booking.platformFeeCents + booking.clientServiceFeeCents;
-  }
 
-  const pricing = calculatePricingBreakdown(booking.priceCents);
-
-  return pricing.platformGrossFeeCents;
-}
-
-function getClientTotalCents(booking: {
-  priceCents: number;
-  clientTotalCents: number | null;
-}) {
-  if (typeof booking.clientTotalCents === "number") {
-    return booking.clientTotalCents;
-  }
-
-  const pricing = calculatePricingBreakdown(booking.priceCents);
-
-  return pricing.clientTotalCents;
-}
-
-function getProviderNetCents(booking: {
-  priceCents: number;
-  providerNetCents: number | null;
-  platformFeeCents: number | null;
-}) {
-  if (typeof booking.providerNetCents === "number") {
-    return booking.providerNetCents;
-  }
-
-  if (typeof booking.platformFeeCents === "number") {
-    return Math.max(booking.priceCents - booking.platformFeeCents, 0);
-  }
-
-  const pricing = calculatePricingBreakdown(booking.priceCents);
-
-  return pricing.providerNetCents;
-}
 
 function formatMoney(cents: number) {
   return `€${(cents / 100).toFixed(2).replace(".00", "")}`;

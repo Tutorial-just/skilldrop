@@ -14,7 +14,7 @@ import {
   Video,
   XCircle,
 } from "lucide-react";
-
+import { BookingStatus } from "@prisma/client";
 import {
   formatDateTime,
   getDurationMinutes,
@@ -44,14 +44,36 @@ type BuyerBookingsPageProps = {
     payment?: string;
     error?: string;
     booking?: string;
+    page?: string;
   }>;
 };
+
+const BOOKINGS_PAGE_SIZE = 20;
+
+const upcomingBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+];
+
+const closedBookingStatuses: BookingStatus[] = [
+  BookingStatus.CANCELLED,
+  BookingStatus.REFUNDED,
+  BookingStatus.DISPUTED,
+  BookingStatus.EXPIRED,
+];
 
 export default async function BuyerBookingsPage({
   searchParams,
 }: BuyerBookingsPageProps) {
   const { user } = await requireRole(["buyer", "admin"]);
   const resolvedSearchParams = searchParams ? await searchParams : {};
+
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
 
   const buyer = await prisma.user.findUnique({
     where: {
@@ -74,61 +96,6 @@ export default async function BuyerBookingsPage({
 
   const now = new Date();
 
-  const bookings = await prisma.booking.findMany({
-    where: {
-      buyerId: buyer.id,
-    },
-    include: {
-      expert: {
-        include: {
-          user: true,
-        },
-      },
-      service: true,
-      callRoom: true,
-      review: true,
-    },
-    orderBy: {
-      startTime: "desc",
-    },
-  });
-
-  const upcomingBookings = bookings
-    .filter(
-      (booking) =>
-        booking.startTime >= now &&
-        ![
-          "CANCELLED",
-          "REFUNDED",
-          "COMPLETED",
-          "DISPUTED",
-          "EXPIRED",
-        ].includes(booking.status),
-    )
-    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-
-  const confirmedUpcomingBookings = upcomingBookings.filter(
-    (booking) => booking.status === "CONFIRMED",
-  );
-
-  const closedBookings = bookings.filter((booking) =>
-    ["CANCELLED", "REFUNDED", "DISPUTED", "EXPIRED"].includes(booking.status),
-  );
-
-  const waitingReviewBookings = bookings.filter(
-    (booking) => booking.status === "COMPLETED" && !booking.review,
-  );
-
-  const pendingPaymentBookings = bookings.filter(
-    (booking) => booking.status === "PENDING" && booking.startTime >= now,
-  );
-
-  const paidWaitingConfirmationBookings = bookings.filter(
-    (booking) => booking.status === "PAID" && booking.startTime >= now,
-  );
-
-  const nextBooking = upcomingBookings[0] ?? null;
-
   const highlightedBookingId =
     resolvedSearchParams.booked ??
     resolvedSearchParams.paid ??
@@ -142,14 +109,232 @@ export default async function BuyerBookingsPage({
     error: resolvedSearchParams.error,
   });
 
-  const totalPaidCents = bookings
-    .filter((booking) =>
-      ["CONFIRMED", "COMPLETED"].includes(booking.status),
-    )
-    .reduce(
-      (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
-      0,
-    );
+  const totalBookingsCount = await prisma.booking.count({
+    where: {
+      buyerId: buyer.id,
+    },
+  });
+
+  const totalPages = Math.max(
+    Math.ceil(totalBookingsCount / BOOKINGS_PAGE_SIZE),
+    1,
+  );
+
+  const safePage = Math.min(page, totalPages);
+  const skip = (safePage - 1) * BOOKINGS_PAGE_SIZE;
+
+  const [
+    bookings,
+    nextBooking,
+    upcomingBookingsCount,
+    confirmedUpcomingBookingsCount,
+    pendingPaymentBookingsCount,
+    paidWaitingConfirmationBookingsCount,
+    waitingReviewBookingsCount,
+    closedBookingsCount,
+    pendingPaymentBookings,
+    paidWaitingConfirmationBookings,
+    waitingReviewBookings,
+    paidBookingsForTotal,
+  ] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        buyerId: buyer.id,
+      },
+      include: {
+        expert: {
+          include: {
+            user: true,
+          },
+        },
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "desc",
+      },
+      skip,
+      take: BOOKINGS_PAGE_SIZE,
+    }),
+
+    prisma.booking.findFirst({
+      where: {
+        buyerId: buyer.id,
+        startTime: {
+          gte: now,
+        },
+        status: {
+          in: upcomingBookingStatuses,
+        },
+      },
+      include: {
+        expert: {
+          include: {
+            user: true,
+          },
+        },
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "asc",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        buyerId: buyer.id,
+        startTime: {
+          gte: now,
+        },
+        status: {
+          in: upcomingBookingStatuses,
+        },
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        buyerId: buyer.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.CONFIRMED,
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        buyerId: buyer.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.PENDING,
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        buyerId: buyer.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.PAID,
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        buyerId: buyer.id,
+        status: BookingStatus.COMPLETED,
+        review: {
+          is: null,
+        },
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        buyerId: buyer.id,
+        status: {
+          in: closedBookingStatuses,
+        },
+      },
+    }),
+
+    prisma.booking.findMany({
+      where: {
+        buyerId: buyer.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.PENDING,
+      },
+      include: {
+        expert: {
+          include: {
+            user: true,
+          },
+        },
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "asc",
+      },
+      take: 3,
+    }),
+
+    prisma.booking.findMany({
+      where: {
+        buyerId: buyer.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.PAID,
+      },
+      include: {
+        expert: {
+          include: {
+            user: true,
+          },
+        },
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "asc",
+      },
+      take: 3,
+    }),
+
+    prisma.booking.findMany({
+      where: {
+        buyerId: buyer.id,
+        status: BookingStatus.COMPLETED,
+        review: {
+          is: null,
+        },
+      },
+      include: {
+        expert: {
+          include: {
+            user: true,
+          },
+        },
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "desc",
+      },
+      take: 3,
+    }),
+
+    prisma.booking.findMany({
+      where: {
+        buyerId: buyer.id,
+        status: {
+          in: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED],
+        },
+      },
+      select: {
+        priceCents: true,
+        clientServiceFeeCents: true,
+        clientTotalCents: true,
+      },
+    }),
+  ]);
+
+  const totalPaidCents = paidBookingsForTotal.reduce(
+    (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
+    0,
+  );
 
   return (
     <main>
@@ -207,28 +392,28 @@ export default async function BuyerBookingsPage({
             <MiniStat
               icon={Video}
               label="Upcoming"
-              value={String(upcomingBookings.length)}
+              value={String(upcomingBookingsCount)}
               hint="Reserved or scheduled calls"
             />
 
             <MiniStat
               icon={CheckCircle2}
               label="Confirmed"
-              value={String(confirmedUpcomingBookings.length)}
+              value={String(confirmedUpcomingBookingsCount)}
               hint="Ready for call window"
             />
 
             <MiniStat
               icon={Clock3}
               label="Payment"
-              value={String(pendingPaymentBookings.length)}
+              value={String(pendingPaymentBookingsCount)}
               hint="Waiting for payment"
             />
 
             <MiniStat
               icon={Star}
               label="Reviews"
-              value={String(waitingReviewBookings.length)}
+              value={String(waitingReviewBookingsCount)}
               hint="Waiting feedback"
             />
 
@@ -278,7 +463,7 @@ export default async function BuyerBookingsPage({
                 </p>
 
                 <div className="mt-6 grid gap-4">
-                  {pendingPaymentBookings.slice(0, 3).map((booking) => (
+                  {pendingPaymentBookings.map((booking) => (
                     <BookingCard
                       key={booking.id}
                       booking={booking}
@@ -307,7 +492,7 @@ export default async function BuyerBookingsPage({
                 </p>
 
                 <div className="mt-6 grid gap-4">
-                  {paidWaitingConfirmationBookings.slice(0, 3).map((booking) => (
+                  {paidWaitingConfirmationBookings.map((booking) => (
                     <BookingCard
                       key={booking.id}
                       booking={booking}
@@ -336,7 +521,7 @@ export default async function BuyerBookingsPage({
                 </p>
 
                 <div className="mt-6 grid gap-4">
-                  {waitingReviewBookings.slice(0, 3).map((booking) => (
+                  {waitingReviewBookings.map((booking) => (
                     <BookingCard
                       key={booking.id}
                       booking={booking}
@@ -397,7 +582,9 @@ export default async function BuyerBookingsPage({
                 </p>
               </div>
 
-              <Badge>{bookings.length} total</Badge>
+              <Badge>
+                {totalBookingsCount} total
+              </Badge>
             </div>
 
             <div className="mt-6 grid gap-4">
@@ -435,7 +622,14 @@ export default async function BuyerBookingsPage({
               )}
             </div>
 
-            {closedBookings.length > 0 ? (
+            {totalBookingsCount > BOOKINGS_PAGE_SIZE ? (
+              <PaginationControls
+                page={safePage}
+                totalPages={totalPages}
+              />
+            ) : null}
+
+            {closedBookingsCount > 0 ? (
               <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
                 <div className="flex items-center gap-3">
                   <XCircle
@@ -444,8 +638,8 @@ export default async function BuyerBookingsPage({
                   />
 
                   <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-                    You have {closedBookings.length} closed booking
-                    {closedBookings.length === 1 ? "" : "s"}.
+                    You have {closedBookingsCount} closed booking
+                    {closedBookingsCount === 1 ? "" : "s"}.
                   </p>
                 </div>
               </div>
@@ -454,6 +648,45 @@ export default async function BuyerBookingsPage({
         </div>
       </section>
     </main>
+  );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+}: {
+  page: number;
+  totalPages: number;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 sm:flex-row">
+      <p className="text-sm font-bold text-[var(--muted-foreground)]">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={`/buyer/bookings?page=${previousPage}`}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={`/buyer/bookings?page=${nextPage}`}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

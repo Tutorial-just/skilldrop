@@ -33,6 +33,7 @@ type ExpertsPageProps = {
     maxPrice?: string;
     language?: string;
     sort?: string;
+    page?: string;
   }>;
 };
 
@@ -79,6 +80,10 @@ const sortLabels: Record<string, string> = {
   cheapest: "Cheapest",
   soonest: "Soonest",
 };
+
+const EXPERTS_PAGE_SIZE = 20;
+const MAX_RAW_EXPERTS = 120;
+const MAX_CARD_REVIEWS = 8;
 
 const synonymMap: Record<string, string[]> = {
   cv: ["cv", "resume", "job", "career", "application", "interview"],
@@ -144,6 +149,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
   const language = resolvedSearchParams.language?.trim().toLowerCase() ?? "";
   const sort = resolvedSearchParams.sort ?? "best";
+
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
 
   const now = new Date();
 
@@ -298,7 +309,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           problemSolved: true,
           createdAt: true,
         },
-        take: 20,
+        take: MAX_CARD_REVIEWS,
       },
     },
     orderBy: [
@@ -312,7 +323,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
         totalSessions: "desc",
       },
     ],
-    take: 40,
+    take: MAX_RAW_EXPERTS,
   });
 
   let experts = rawExperts
@@ -396,13 +407,25 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       return aTime - bTime;
     });
   }
+  const totalMatchedExperts = experts.length;
+
+  const totalPages = Math.max(
+    Math.ceil(totalMatchedExperts / EXPERTS_PAGE_SIZE),
+    1,
+  );
+
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * EXPERTS_PAGE_SIZE;
+  const endIndex = startIndex + EXPERTS_PAGE_SIZE;
+
+  const visibleExperts = experts.slice(startIndex, endIndex);
 
   const totalOpenTimes = experts.reduce(
     (sum, expert) => sum + expert.availability.length,
     0,
   );
 
-  const verifiedCount = experts.filter((expert) => expert.isVerified).length;
+  const verifiedCount = visibleExperts.filter((expert) => expert.isVerified).length;
 
   const hasActiveFilters =
     Boolean(query) ||
@@ -463,7 +486,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               <div className="mt-5 grid gap-3">
                 <StatRow
                   label="Bookable helpers"
-                  value={String(experts.length)}
+                  value={String(totalMatchedExperts)}
                 />
                 <StatRow label="Verified" value={String(verifiedCount)} />
                 <StatRow label="Open times" value={String(totalOpenTimes)} />
@@ -638,15 +661,30 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 </p>
               </div>
 
-              <Badge>{experts.length} found</Badge>
+              <Badge>
+                {visibleExperts.length} shown / {totalMatchedExperts} found
+              </Badge>
             </div>
 
-            {experts.length > 0 ? (
+            {visibleExperts.length > 0 ? (
+             <>
               <div className="grid gap-5">
-                {experts.map((expert) => (
+                {visibleExperts.map((expert) => (
                   <ExpertSearchCard key={expert.id} expert={expert} />
                 ))}
               </div>
+              {totalMatchedExperts > EXPERTS_PAGE_SIZE ? (
+                <PaginationControls
+                  page={safePage}
+                  totalPages={totalPages}
+                  query={query}
+                  verifiedOnly={verifiedOnly}
+                  maxPrice={resolvedSearchParams.maxPrice ?? ""}
+                  language={language}
+                  sort={sort}
+                />
+              ) : null}
+            </>
             ) : (
               <EmptyState
                 title="No helpers found"
@@ -658,6 +696,115 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       </section>
     </main>
   );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  query,
+  verifiedOnly,
+  maxPrice,
+  language,
+  sort,
+}: {
+  page: number;
+  totalPages: number;
+  query: string;
+  verifiedOnly: boolean;
+  maxPrice: string;
+  language: string;
+  sort: string;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 sm:flex-row">
+      <p className="text-sm font-bold text-[var(--muted-foreground)]">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={buildExpertsPageHref({
+              page: previousPage,
+              query,
+              verifiedOnly,
+              maxPrice,
+              language,
+              sort,
+            })}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={buildExpertsPageHref({
+              page: nextPage,
+              query,
+              verifiedOnly,
+              maxPrice,
+              language,
+              sort,
+            })}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function buildExpertsPageHref({
+  page,
+  query,
+  verifiedOnly,
+  maxPrice,
+  language,
+  sort,
+}: {
+  page: number;
+  query: string;
+  verifiedOnly: boolean;
+  maxPrice: string;
+  language: string;
+  sort: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (query) {
+    params.set("q", query);
+  }
+
+  if (verifiedOnly) {
+    params.set("verified", "true");
+  }
+
+  if (maxPrice) {
+    params.set("maxPrice", maxPrice);
+  }
+
+  if (language) {
+    params.set("language", language);
+  }
+
+  if (sort && sort !== "best") {
+    params.set("sort", sort);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/experts?${queryString}` : "/experts";
 }
 
 function ExpertSearchCard({

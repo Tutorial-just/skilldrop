@@ -88,6 +88,10 @@ model ExpertProfile {
   @@index([totalSessions])
   @@index([createdAt])
   @@index([country])
+  @@index([status, rating])
+  @@index([status, totalSessions])
+  @@index([status, createdAt])
+  @@index([status, isVerified, rating])
 }
 
 enum ExpertStatus {
@@ -170,6 +174,8 @@ model Availability {
   @@index([expertId, isActive])
   @@index([expertId, startTime])
   @@index([expertId, startTime, endTime])
+  @@index([isActive, startTime])
+  @@index([expertId, isActive, startTime])
 }
 
 model Booking {
@@ -241,6 +247,12 @@ model Booking {
   @@index([availabilityId, status, startTime])
   @@index([status, expiresAt])
   @@index([status, startTime])
+  @@index([buyerId, startTime])
+  @@index([buyerId, status, startTime])
+  @@index([buyerId, updatedAt])
+  @@index([expertId, updatedAt])
+  @@index([status, createdAt])
+  @@index([createdAt, status])
 }
 
 enum BookingStatus {
@@ -280,6 +292,11 @@ model Review {
   @@index([expertId])
   @@index([rating])
   @@index([createdAt])
+  @@index([expertId, createdAt])
+  @@index([buyerId, createdAt])
+  @@index([rating, createdAt])
+  @@index([wouldRecommend, createdAt])
+  @@index([problemSolved, createdAt])
 }
 
 model CallRoom {
@@ -399,6 +416,11 @@ model Notification {
   @@index([type])
   @@index([isRead])
   @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+  @@index([userId, isRead, createdAt])
+  @@index([email, isRead, createdAt])
+  @@index([type, createdAt])
 }
 
 enum NotificationType {
@@ -449,6 +471,9 @@ model BookingReport {
   @@index([bookingId])
   @@index([reporterId])
   @@index([status])
+  @@index([status, createdAt])
+  @@index([bookingId, status])
+  @@index([reporterId, createdAt])
 }
 
 model ExpertDocument {

@@ -67,11 +67,15 @@ const durationOptions = [15, 30, 45, 60];
 const breakOptions = [0, 5, 10, 15, 30];
 const repeatWeekOptions = [1, 2, 3, 4, 6, 8];
 const MAX_VISIBLE_WINDOWS = 60;
+const MAX_LOADED_WINDOWS = 140;
+const PAST_WINDOW_DAYS = 30;
+const FUTURE_WINDOW_DAYS = 180;
 
 const activeBookingStatuses: BookingStatus[] = [
   BookingStatus.PENDING,
   BookingStatus.PAID,
   BookingStatus.CONFIRMED,
+  BookingStatus.DISPUTED,
 ];
 
 const viewTabs: {
@@ -105,6 +109,16 @@ export default async function ExpertAvailabilityPage({
 
   const now = new Date();
 
+  const pastWindowLimitDate = new Date(now);
+  pastWindowLimitDate.setDate(pastWindowLimitDate.getDate() - PAST_WINDOW_DAYS);
+  pastWindowLimitDate.setHours(0, 0, 0, 0);
+
+  const futureWindowLimitDate = new Date(now);
+  futureWindowLimitDate.setDate(
+    futureWindowLimitDate.getDate() + FUTURE_WINDOW_DAYS,
+  );
+  futureWindowLimitDate.setHours(23, 59, 59, 999);
+
   const expert = await prisma.expertProfile.findUnique({
     where: {
       userId: user.id,
@@ -124,6 +138,27 @@ export default async function ExpertAvailabilityPage({
         },
       },
       availability: {
+        where: {
+          OR: [
+            {
+              isActive: true,
+              endTime: {
+                gte: now,
+              },
+              startTime: {
+                lte: futureWindowLimitDate,
+              },
+            },
+            {
+              startTime: {
+                gte: pastWindowLimitDate,
+              },
+              endTime: {
+                lt: now,
+              },
+            },
+          ],
+        },
         include: {
           bookings: {
             where: {
@@ -143,6 +178,7 @@ export default async function ExpertAvailabilityPage({
         orderBy: {
           startTime: "asc",
         },
+        take: MAX_LOADED_WINDOWS,
       },
       bookings: {
         where: {
@@ -154,8 +190,17 @@ export default async function ExpertAvailabilityPage({
           },
         },
         include: {
-          service: true,
-          buyer: true,
+          service: {
+            select: {
+              title: true,
+            },
+          },
+          buyer: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
         },
         orderBy: {
           startTime: "asc",

@@ -26,7 +26,7 @@ import {
   Video,
   WalletCards,
 } from "lucide-react";
-
+import { BookingStatus } from "@prisma/client";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import {
@@ -75,6 +75,20 @@ const problemCards = [
     href: "/experts?q=study application university motivation letter",
     icon: GraduationCap,
   },
+];
+
+const DASHBOARD_BOOKING_LIMIT = 12;
+
+const buyerActiveBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+];
+
+const paidBookingStatuses: BookingStatus[] = [
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+  BookingStatus.COMPLETED,
 ];
 
 export default async function BuyerDashboardPage() {
@@ -134,25 +148,87 @@ export default async function BuyerDashboardPage() {
     redirect("/sign-in");
   }
 
-  const bookings = await prisma.booking.findMany({
+  const bookingInclude = {
+  expert: {
+    include: {
+      user: true,
+    },
+  },
+  service: true,
+  callRoom: true,
+  review: true,
+} satisfies Prisma.BookingInclude;
+
+const [
+  activeBookings,
+  recentBookings,
+  completedWithoutReviewBookings,
+  totalBookedResult,
+] = await Promise.all([
+  prisma.booking.findMany({
     where: {
       buyerId: buyer.id,
-    },
-    include: {
-      expert: {
-        include: {
-          user: true,
-        },
+      startTime: {
+        gte: now,
       },
-      service: true,
-      callRoom: true,
-      review: true,
+      status: {
+        in: buyerActiveBookingStatuses,
+      },
     },
+    include: bookingInclude,
     orderBy: {
       startTime: "asc",
     },
-    take: 30,
-  });
+    take: DASHBOARD_BOOKING_LIMIT,
+  }),
+
+  prisma.booking.findMany({
+    where: {
+      buyerId: buyer.id,
+    },
+    include: bookingInclude,
+    orderBy: {
+      updatedAt: "desc",
+    },
+    take: 4,
+  }),
+
+  prisma.booking.findMany({
+    where: {
+      buyerId: buyer.id,
+      status: BookingStatus.COMPLETED,
+      review: {
+        is: null,
+      },
+    },
+    include: bookingInclude,
+    orderBy: {
+      endTime: "desc",
+    },
+    take: 3,
+  }),
+
+  prisma.booking.aggregate({
+    where: {
+      buyerId: buyer.id,
+      status: {
+        in: paidBookingStatuses,
+      },
+    },
+    _sum: {
+      clientTotalCents: true,
+    },
+  }),
+]);
+
+const bookings = [
+  ...activeBookings,
+  ...completedWithoutReviewBookings,
+  ...recentBookings,
+].filter(
+  (booking, index, array) =>
+    array.findIndex((item) => item.id === booking.id) === index,
+);
 
   const upcomingBookings = bookings.filter(
     (booking) =>
@@ -165,7 +241,7 @@ export default async function BuyerDashboardPage() {
   );
 
   const paidWaitingConfirmationBookings = bookings.filter(
-    (booking) => booking.status === "PAID",
+    (booking) => booking.status === "PAID" && booking.startTime >= now,
   );
 
   const confirmedUpcomingBookings = upcomingBookings.filter(
@@ -199,17 +275,7 @@ export default async function BuyerDashboardPage() {
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
     .slice(0, 4);
 
-  const totalBookedCents = bookings
-    .filter(
-      (booking) =>
-        booking.status === "PAID" ||
-        booking.status === "CONFIRMED" ||
-        booking.status === "COMPLETED",
-    )
-    .reduce(
-      (sum, booking) => sum + getBookingPricing(booking).clientTotalCents,
-      0,
-    );
+  const totalBookedCents = totalBookedResult._sum.clientTotalCents ?? 0;
 
   const recommendedExperts = await prisma.expertProfile.findMany({
     where: {

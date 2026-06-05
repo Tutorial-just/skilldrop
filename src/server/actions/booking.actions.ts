@@ -923,100 +923,22 @@ export async function updateBookingStatusAction(formData: FormData) {
 export async function releaseExpiredPendingBookings() {
   const now = new Date();
 
-  const expiredBookings = await prisma.booking.findMany({
+  const result = await prisma.booking.updateMany({
     where: {
       status: BookingStatus.PENDING,
       expiresAt: {
-        lt: now,
-      },
-      availabilityId: {
-        not: null,
+        lte: now,
       },
     },
-    include: {
-      buyer: true,
-      expert: {
-        include: {
-          user: true,
-        },
-      },
-      service: true,
-      callRoom: true,
+    data: {
+      status: BookingStatus.EXPIRED,
+      cancelledAt: now,
     },
-    take: 100,
   });
 
-  if (expiredBookings.length === 0) {
-    return;
-  }
-
-  const expiredBookingIds: string[] = [];
-
-  await prisma.$transaction(async (tx) => {
-    for (const booking of expiredBookings) {
-      const updatedBooking = await expireBooking(tx, booking.id);
-
-      if (updatedBooking.status !== BookingStatus.EXPIRED) {
-        continue;
-      }
-
-      expiredBookingIds.push(booking.id);
-    }
-  });
-
-  const actuallyExpiredBookings = expiredBookings.filter((booking) =>
-    expiredBookingIds.includes(booking.id),
-  );
-
-  await Promise.all(
-    actuallyExpiredBookings.map((booking) =>
-      safeSendNotification({
-        to: booking.buyer.email,
-        type: "BOOKING_EXPIRED",
-        subject: "Booking expired",
-        message: `Your booking "${
-          booking.service?.title ?? "Booked call"
-        }" expired because payment was not completed in time.`,
-        metadata: {
-          bookingId: booking.id,
-          expertId: booking.expertId,
-          previousStatus: BookingStatus.PENDING,
-          newStatus: BookingStatus.EXPIRED,
-          reason: "payment-expired",
-        },
-      }),
-    ),
-  );
-
-  await Promise.all(
-    actuallyExpiredBookings.map((booking) =>
-      safeSendNotification({
-        to: booking.expert.user.email,
-        type: "BOOKING_EXPIRED",
-        subject: "Booking expired",
-        message: `The booking "${
-          booking.service?.title ?? "Booked call"
-        }" expired because the buyer did not complete payment in time.`,
-        metadata: {
-          bookingId: booking.id,
-          expertId: booking.expertId,
-          previousStatus: BookingStatus.PENDING,
-          newStatus: BookingStatus.EXPIRED,
-          reason: "payment-expired",
-        },
-      }),
-    ),
-  );
-
-  const expertIds = Array.from(
-    new Set(actuallyExpiredBookings.map((booking) => booking.expertId)),
-  );
-
-  revalidateBookingPaths();
-
-  for (const expertId of expertIds) {
-    revalidatePath(`/experts/${expertId}`);
-  }
+  return {
+    expiredCount: result.count,
+  };
 }
 
 /**

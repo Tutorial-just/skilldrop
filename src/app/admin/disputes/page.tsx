@@ -27,36 +27,102 @@ import {
   resolveBookingAsCompletedAction,
 } from "@/server/actions/admin-dispute.actions";
 
-export default async function AdminDisputesPage() {
+type AdminDisputesPageProps = {
+  searchParams?: Promise<{
+    page?: string;
+    status?: string;
+  }>;
+};
+
+const DISPUTES_PAGE_SIZE = 30;
+
+export default async function AdminDisputesPage({
+  searchParams,
+}: AdminDisputesPageProps) {
   await requireRole(["admin"]);
-  const reports = await prisma.bookingReport.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      reporter: true,
-      booking: {
-        include: {
-          buyer: true,
-          expert: {
-            include: {
-              user: true,
-            },
-          },
-          service: true,
-          callRoom: true,
-          review: true,
-        },
-      },
-    },
+
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const statusFilter = resolvedSearchParams.status ?? "open";
+
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
+
+  const reportWhere =
+    statusFilter === "all"
+      ? {}
+      : statusFilter === "closed"
+        ? { status: "CLOSED" }
+        : { status: "OPEN" };
+
+  const filteredReportsCount = await prisma.bookingReport.count({
+    where: reportWhere,
   });
 
-  const openReports = reports.filter((report) => report.status === "OPEN");
-  const closedReports = reports.filter((report) => report.status === "CLOSED");
-
-  const disputedBookings = reports.filter(
-    (report) => report.booking.status === BookingStatus.DISPUTED,
+  const totalPages = Math.max(
+    Math.ceil(filteredReportsCount / DISPUTES_PAGE_SIZE),
+    1,
   );
+
+  const safePage = Math.min(page, totalPages);
+  const skip = (safePage - 1) * DISPUTES_PAGE_SIZE;
+
+  const [
+    reports,
+    openReportsCount,
+    closedReportsCount,
+    totalReportsCount,
+    disputedBookingsCount,
+  ] = await Promise.all([
+    prisma.bookingReport.findMany({
+      where: reportWhere,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take: DISPUTES_PAGE_SIZE,
+      include: {
+        reporter: true,
+        booking: {
+          include: {
+            buyer: true,
+            expert: {
+              include: {
+                user: true,
+              },
+            },
+            service: true,
+            callRoom: true,
+            review: true,
+          },
+        },
+      },
+    }),
+
+    prisma.bookingReport.count({
+      where: {
+        status: "OPEN",
+      },
+    }),
+
+    prisma.bookingReport.count({
+      where: {
+        status: "CLOSED",
+      },
+    }),
+
+    prisma.bookingReport.count(),
+
+    prisma.booking.count({
+      where: {
+        status: BookingStatus.DISPUTED,
+      },
+    }),
+  ]);
+
+  const isOpenView = statusFilter !== "closed" && statusFilter !== "all";
 
   return (
     <main>
@@ -104,97 +170,220 @@ export default async function AdminDisputesPage() {
             <MetricCard
               icon={ShieldAlert}
               label="Open reports"
-              value={String(openReports.length)}
+              value={String(openReportsCount)}
               hint="Need admin review"
             />
 
             <MetricCard
               icon={Clock3}
               label="Disputed bookings"
-              value={String(disputedBookings.length)}
+              value={String(disputedBookingsCount)}
               hint="Booking status disputed"
             />
 
             <MetricCard
               icon={CheckCircle2}
               label="Closed reports"
-              value={String(closedReports.length)}
+              value={String(closedReportsCount)}
               hint="Already reviewed"
             />
 
             <MetricCard
               icon={MessageCircle}
               label="Total reports"
-              value={String(reports.length)}
+              value={String(totalReportsCount)}
               hint="All-time reports"
             />
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            <DisputeFilterLink current={statusFilter} value="open" label="Open" />
+            <DisputeFilterLink current={statusFilter} value="closed" label="Closed" />
+            <DisputeFilterLink current={statusFilter} value="all" label="All" />
           </div>
         </div>
       </section>
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-6">
-          {openReports.length > 0 ? (
-            <Card className="border-[var(--danger)]/20 bg-[var(--danger-soft)] p-5 md:p-6">
-              <Badge variant="danger">
-                <AlertTriangle size={14} />
-                Needs review
+          <Card
+            className={
+              isOpenView
+                ? "border-[var(--danger)]/20 bg-[var(--danger-soft)] p-5 md:p-6"
+                : "p-5 md:p-6"
+            }
+          >
+            <Badge variant={isOpenView ? "danger" : "accent"}>
+              {isOpenView ? (
+                <>
+                  <AlertTriangle size={14} />
+                  Needs review
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={14} />
+                  Reports
+                </>
+              )}
+            </Badge>
+
+            <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <h2 className="text-3xl font-black tracking-[-0.05em]">
+                  {statusFilter === "closed"
+                    ? "Closed reports"
+                    : statusFilter === "all"
+                      ? "All reports"
+                      : "Open reports"}
+                </h2>
+
+                <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
+                  Showing {reports.length} of {filteredReportsCount} report
+                  {filteredReportsCount === 1 ? "" : "s"}.
+                </p>
+              </div>
+
+              <Badge>
+                Page {safePage} / {totalPages}
               </Badge>
+            </div>
 
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                Open reports
-              </h2>
+            <div className="mt-6 grid gap-4">
+              {reports.length > 0 ? (
+                reports.map((report) => (
+                  <ReportCard
+                    key={report.id}
+                    report={report}
+                    compact={report.status === "CLOSED"}
+                  />
+                ))
+              ) : (
+                <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-white/55 p-8 text-center">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
+                    <CheckCircle2 size={24} />
+                  </div>
 
-              <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
-                These reports are still open. Check the booking, reporter,
-                reason and message before taking action.
-              </p>
+                  <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+                    No reports found
+                  </h2>
 
-              <div className="mt-6 grid gap-4">
-                {openReports.map((report) => (
-                  <ReportCard key={report.id} report={report} />
-                ))}
-              </div>
-            </Card>
-          ) : (
-            <Card className="p-8 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
-                <CheckCircle2 size={24} />
-              </div>
+                  <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
+                    Change the filter or come back later when a booking problem
+                    is reported.
+                  </p>
+                </div>
+              )}
+            </div>
 
-              <h2 className="mt-5 text-2xl font-black tracking-[-0.04em]">
-                No open disputes
-              </h2>
-
-              <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-muted">
-                When a buyer or helper reports a booking problem, it will appear
-                here.
-              </p>
-            </Card>
-          )}
-
-          {closedReports.length > 0 ? (
-            <Card className="p-5 md:p-6">
-              <Badge variant="accent">
-                <CheckCircle2 size={14} />
-                Closed reports
-              </Badge>
-
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                Review history
-              </h2>
-
-              <div className="mt-6 grid gap-4">
-                {closedReports.slice(0, 20).map((report) => (
-                  <ReportCard key={report.id} report={report} compact />
-                ))}
-              </div>
-            </Card>
-          ) : null}
+            {filteredReportsCount > DISPUTES_PAGE_SIZE ? (
+              <PaginationControls
+                page={safePage}
+                totalPages={totalPages}
+                status={statusFilter}
+              />
+            ) : null}
+          </Card>
         </div>
       </section>
     </main>
   );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  status,
+}: {
+  page: number;
+  totalPages: number;
+  status: string;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white/64 p-4 sm:flex-row">
+      <p className="text-sm font-bold text-muted">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={buildAdminDisputesHref({
+              page: previousPage,
+              status,
+            })}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={buildAdminDisputesHref({
+              page: nextPage,
+              status,
+            })}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DisputeFilterLink({
+  current,
+  value,
+  label,
+}: {
+  current: string;
+  value: string;
+  label: string;
+}) {
+  const isActive = current === value || (!current && value === "open");
+
+  return (
+    <Link
+      href={buildAdminDisputesHref({
+        page: 1,
+        status: value,
+      })}
+      className={
+        isActive
+          ? "rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-black text-[var(--background)]"
+          : "hover-scale rounded-full border border-[var(--border)] bg-white/64 px-4 py-2 text-sm font-black text-[var(--muted-foreground)] hover:bg-white hover:text-[var(--primary-dark)]"
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function buildAdminDisputesHref({
+  page,
+  status,
+}: {
+  page: number;
+  status: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (status && status !== "open") {
+    params.set("status", status);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/admin/disputes?${queryString}` : "/admin/disputes";
 }
 
 type ReportCardProps = {

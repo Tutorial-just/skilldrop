@@ -37,13 +37,30 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ReportBookingForm } from "@/components/bookings/report-booking-form";
 import { getBookingStatusUi } from "@/lib/booking-status-ui";
+import { BookingStatus } from "@prisma/client";
 
 type ExpertBookingsPageProps = {
   searchParams?: Promise<{
     error?: string;
     completed?: string;
+    page?: string;
   }>;
 };
+
+const BOOKINGS_PAGE_SIZE = 20;
+
+const upcomingBookingStatuses: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.PAID,
+  BookingStatus.CONFIRMED,
+];
+
+const closedBookingStatuses: BookingStatus[] = [
+  BookingStatus.CANCELLED,
+  BookingStatus.REFUNDED,
+  BookingStatus.DISPUTED,
+  BookingStatus.EXPIRED,
+];
 
 export default async function ExpertBookingsPage({
   searchParams,
@@ -59,6 +76,12 @@ export default async function ExpertBookingsPage({
     redirect("/sign-in");
   }
 
+  const requestedPage = Number(resolvedSearchParams.page ?? 1);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
+
   const expert = await prisma.expertProfile.findFirst({
     where: {
       user: {
@@ -67,17 +90,6 @@ export default async function ExpertBookingsPage({
     },
     include: {
       user: true,
-      bookings: {
-        include: {
-          buyer: true,
-          service: true,
-          callRoom: true,
-          review: true,
-        },
-        orderBy: {
-          startTime: "desc",
-        },
-      },
     },
   });
 
@@ -87,58 +99,209 @@ export default async function ExpertBookingsPage({
 
   const now = new Date();
 
-  const upcomingBookings = expert.bookings
-    .filter(
-      (booking) =>
-        booking.startTime >= now &&
-        booking.status !== "CANCELLED" &&
-        booking.status !== "REFUNDED" &&
-        booking.status !== "COMPLETED" &&
-        booking.status !== "DISPUTED" &&
-        booking.status !== "EXPIRED"
-    )
-    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  const totalBookingsCount = await prisma.booking.count({
+    where: {
+      expertId: expert.id,
+    },
+  });
 
-  const pendingPaymentBookings = expert.bookings.filter(
-    (booking) => booking.status === "PENDING" && booking.startTime >= now,
+  const totalPages = Math.max(
+    Math.ceil(totalBookingsCount / BOOKINGS_PAGE_SIZE),
+    1,
   );
 
-  const paidWaitingConfirmationBookings = expert.bookings.filter(
-    (booking) => booking.status === "PAID" && booking.startTime >= now,
-  );
+  const safePage = Math.min(page, totalPages);
+  const skip = (safePage - 1) * BOOKINGS_PAGE_SIZE;
 
-  const confirmedBookings = expert.bookings.filter(
-    (booking) => booking.status === "CONFIRMED" && booking.startTime >= now,
-  );
+  const [
+    bookings,
+    nextBooking,
+    upcomingBookingsCount,
+    pastUncompletedBookingsCount,
+    completedBookingsCount,
+    closedBookingsCount,
+    pendingPaymentBookings,
+    paidWaitingConfirmationBookings,
+    pastUncompletedBookings,
+    confirmedBookingsCount,
+    completedNetAggregate,
+    upcomingNetAggregate,
+  ] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        expertId: expert.id,
+      },
+      include: {
+        buyer: true,
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "desc",
+      },
+      skip,
+      take: BOOKINGS_PAGE_SIZE,
+    }),
 
-  const completedBookings = expert.bookings.filter(
-    (booking) => booking.status === "COMPLETED",
-  );
+    prisma.booking.findFirst({
+      where: {
+        expertId: expert.id,
+        startTime: {
+          gte: now,
+        },
+        status: {
+          in: upcomingBookingStatuses,
+        },
+      },
+      include: {
+        buyer: true,
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "asc",
+      },
+    }),
 
-  const closedBookings = expert.bookings.filter(
-    (booking) =>
-      booking.status === "CANCELLED" ||
-      booking.status === "REFUNDED" ||
-      booking.status === "DISPUTED" ||
-      booking.status === "EXPIRED",
-  );
+    prisma.booking.count({
+      where: {
+        expertId: expert.id,
+        startTime: {
+          gte: now,
+        },
+        status: {
+          in: upcomingBookingStatuses,
+        },
+      },
+    }),
 
-  const pastUncompletedBookings = expert.bookings
-    .filter((booking) => booking.endTime < now && booking.status === "CONFIRMED")
-    .sort((a, b) => b.endTime.getTime() - a.endTime.getTime());
+    prisma.booking.count({
+      where: {
+        expertId: expert.id,
+        endTime: {
+          lt: now,
+        },
+        status: BookingStatus.CONFIRMED,
+      },
+    }),
 
-  const nextBooking = upcomingBookings[0] ?? null;
+    prisma.booking.count({
+      where: {
+        expertId: expert.id,
+        status: BookingStatus.COMPLETED,
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        expertId: expert.id,
+        status: {
+          in: closedBookingStatuses,
+        },
+      },
+    }),
+
+    prisma.booking.findMany({
+      where: {
+        expertId: expert.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.PENDING,
+      },
+      include: {
+        buyer: true,
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "asc",
+      },
+      take: 4,
+    }),
+
+    prisma.booking.findMany({
+      where: {
+        expertId: expert.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.PAID,
+      },
+      include: {
+        buyer: true,
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        startTime: "asc",
+      },
+      take: 4,
+    }),
+
+    prisma.booking.findMany({
+      where: {
+        expertId: expert.id,
+        endTime: {
+          lt: now,
+        },
+        status: BookingStatus.CONFIRMED,
+      },
+      include: {
+        buyer: true,
+        service: true,
+        callRoom: true,
+        review: true,
+      },
+      orderBy: {
+        endTime: "desc",
+      },
+      take: 4,
+    }),
+
+    prisma.booking.count({
+      where: {
+        expertId: expert.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.CONFIRMED,
+      },
+    }),
+
+    prisma.booking.aggregate({
+      where: {
+        expertId: expert.id,
+        status: BookingStatus.COMPLETED,
+      },
+      _sum: {
+        providerNetCents: true,
+      },
+    }),
+
+    prisma.booking.aggregate({
+      where: {
+        expertId: expert.id,
+        startTime: {
+          gte: now,
+        },
+        status: BookingStatus.CONFIRMED,
+      },
+      _sum: {
+        providerNetCents: true,
+      },
+    }),
+  ]);
+
+  const nextBookingForPanel = nextBooking ?? null;
   const topMessage = getTopMessage(resolvedSearchParams.error);
 
-  const completedNetCents = completedBookings.reduce(
-    (sum, booking) => sum + getBookingPricing(booking).providerNetCents,
-    0,
-  );
-
-  const upcomingNetCents = confirmedBookings.reduce(
-    (sum, booking) => sum + getBookingPricing(booking).providerNetCents,
-    0,
-  );
+  const completedNetCents = completedNetAggregate._sum.providerNetCents ?? 0;
+  const upcomingNetCents = upcomingNetAggregate._sum.providerNetCents ?? 0;
 
   return (
     <main>
@@ -205,21 +368,21 @@ export default async function ExpertBookingsPage({
             <MetricCard
               icon={Video}
               label="Upcoming"
-              value={String(upcomingBookings.length)}
+              value={String(upcomingBookingsCount)}
               hint="Reserved or scheduled calls"
             />
 
             <MetricCard
               icon={Clock3}
               label="Needs action"
-              value={String(pastUncompletedBookings.length)}
+              value={String(pastUncompletedBookingsCount)}
               hint="Past calls not completed"
             />
 
             <MetricCard
               icon={CheckCircle2}
               label="Completed"
-              value={String(completedBookings.length)}
+              value={String(completedBookingsCount)}
               hint={formatMoney(completedNetCents)}
             />
 
@@ -233,7 +396,7 @@ export default async function ExpertBookingsPage({
             <MetricCard
               icon={XCircle}
               label="Closed"
-              value={String(closedBookings.length)}
+              value={String(closedBookingsCount)}
               hint="Cancelled / refunded / disputed"
             />
           </div>
@@ -244,13 +407,13 @@ export default async function ExpertBookingsPage({
         <div className="grid gap-6 xl:grid-cols-[0.86fr_1.14fr] xl:items-start">
           <div className="grid gap-6">
             <Card className="p-5 md:p-6">
-              <Badge variant={nextBooking ? "success" : "accent"}>
+              <Badge variant={nextBookingForPanel ? "success" : "accent"}>
                 <Video size={14} />
                 Next call
               </Badge>
 
-              {nextBooking ? (
-                <NextBookingPanel booking={nextBooking} />
+              {nextBookingForPanel ? (
+                <NextBookingPanel booking={nextBookingForPanel} />
               ) : (
                 <EmptyState
                   title="No upcoming calls"
@@ -305,7 +468,7 @@ export default async function ExpertBookingsPage({
                 </p>
 
                 <div className="mt-6 grid gap-4">
-                  {pendingPaymentBookings.slice(0, 4).map((booking) => (
+                  {pendingPaymentBookings.map((booking) => (
                     <BookingCard
                       key={booking.id}
                       booking={booking}
@@ -329,12 +492,13 @@ export default async function ExpertBookingsPage({
                 </h2>
 
                 <p className="mt-2 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
-                  These bookings have payment received and are waiting for final confirmation.
-                  If this stays here too long, SkillDrop support will review it.
+                  These bookings have payment received and are waiting for final
+                  confirmation. If this stays here too long, SkillDrop support
+                  will review it.
                 </p>
 
                 <div className="mt-6 grid gap-4">
-                  {paidWaitingConfirmationBookings.slice(0, 4).map((booking) => (
+                  {paidWaitingConfirmationBookings.map((booking) => (
                     <BookingCard
                       key={booking.id}
                       booking={booking}
@@ -380,12 +544,12 @@ export default async function ExpertBookingsPage({
                   </p>
                 </div>
 
-                <Badge>{expert.bookings.length} total</Badge>
+                <Badge>{totalBookingsCount} total</Badge>
               </div>
 
               <div className="mt-6 grid gap-4">
-                {expert.bookings.length > 0 ? (
-                  expert.bookings.map((booking) => (
+                {bookings.length > 0 ? (
+                  bookings.map((booking) => (
                     <BookingCard
                       key={booking.id}
                       booking={booking}
@@ -400,13 +564,17 @@ export default async function ExpertBookingsPage({
                 )}
               </div>
 
-              {confirmedBookings.length > 0 ? (
+              {totalBookingsCount > BOOKINGS_PAGE_SIZE ? (
+                <PaginationControls page={safePage} totalPages={totalPages} />
+              ) : null}
+
+              {confirmedBookingsCount > 0 ? (
                 <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
                   <div className="flex items-center gap-3">
                     <Video size={18} className="text-[var(--muted-foreground)]" />
                     <p className="text-sm font-bold leading-6 text-[var(--muted-foreground)]">
-                      You have {confirmedBookings.length} confirmed booking
-                      {confirmedBookings.length === 1 ? "" : "s"}.
+                      You have {confirmedBookingsCount} confirmed booking
+                      {confirmedBookingsCount === 1 ? "" : "s"}.
                     </p>
                   </div>
                 </div>
@@ -416,6 +584,45 @@ export default async function ExpertBookingsPage({
         </div>
       </section>
     </main>
+  );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+}: {
+  page: number;
+  totalPages: number;
+}) {
+  const previousPage = Math.max(page - 1, 1);
+  const nextPage = Math.min(page + 1, totalPages);
+
+  return (
+    <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 sm:flex-row">
+      <p className="text-sm font-bold text-[var(--muted-foreground)]">
+        Page {page} of {totalPages}
+      </p>
+
+      <div className="flex gap-2">
+        {page > 1 ? (
+          <Link
+            href={`/expert/bookings?page=${previousPage}`}
+            className="btn btn-secondary"
+          >
+            Previous
+          </Link>
+        ) : null}
+
+        {page < totalPages ? (
+          <Link
+            href={`/expert/bookings?page=${nextPage}`}
+            className="btn btn-primary"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

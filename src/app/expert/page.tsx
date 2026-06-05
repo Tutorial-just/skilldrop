@@ -45,6 +45,7 @@ const activeBookingStatuses: BookingStatus[] = [
   BookingStatus.PENDING,
   BookingStatus.PAID,
   BookingStatus.CONFIRMED,
+  BookingStatus.DISPUTED,
 ];
 
 const inactiveBookingStatuses: BookingStatus[] = [
@@ -52,7 +53,13 @@ const inactiveBookingStatuses: BookingStatus[] = [
   BookingStatus.REFUNDED,
   BookingStatus.COMPLETED,
   BookingStatus.DISPUTED,
+  BookingStatus.EXPIRED,
 ];
+
+const DASHBOARD_BOOKINGS_LIMIT = 20;
+const DASHBOARD_SERVICES_LIMIT = 20;
+const DASHBOARD_REVIEWS_LIMIT = 4;
+const DASHBOARD_AVAILABILITY_LIMIT = 24;
 
 const workspaceLinks = [
   {
@@ -134,6 +141,7 @@ export default async function ExpertDashboardPage({
         orderBy: {
           createdAt: "desc",
         },
+        take: DASHBOARD_SERVICES_LIMIT,
       },
       availability: {
         where: {
@@ -163,29 +171,45 @@ export default async function ExpertDashboardPage({
         orderBy: {
           startTime: "asc",
         },
-        take: 24,
+        take: DASHBOARD_AVAILABILITY_LIMIT,
       },
       bookings: {
-        where: {
-          startTime: {
-            gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
-          },
+  where: {
+    OR: [
+      {
+        startTime: {
+          gte: now,
         },
-        orderBy: {
-          startTime: "asc",
-        },
-        take: 100,
-        include: {
-          buyer: true,
-          service: true,
-          callRoom: true,
+        status: {
+          in: activeBookingStatuses,
         },
       },
+      {
+        endTime: {
+          lt: now,
+        },
+        status: BookingStatus.COMPLETED,
+      },
+      {
+        status: BookingStatus.DISPUTED,
+      },
+    ],
+  },
+  orderBy: {
+    startTime: "asc",
+  },
+  take: DASHBOARD_BOOKINGS_LIMIT,
+  include: {
+    buyer: true,
+    service: true,
+    callRoom: true,
+  },
+},
       reviews: {
         orderBy: {
           createdAt: "desc",
         },
-        take: 4,
+        take: DASHBOARD_REVIEWS_LIMIT,
       },
     },
   });

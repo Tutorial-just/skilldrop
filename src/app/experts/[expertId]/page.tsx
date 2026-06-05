@@ -62,6 +62,7 @@ type GeneratedBookableTime = {
 
 const MAX_VISIBLE_WINDOWS = 24;
 const MAX_VISIBLE_TIMES = 80;
+const MAX_VISIBLE_REVIEWS = 8;
 const MAX_BOOKING_NOTE_LENGTH = 500;
 const BOOKING_STEP_MINUTES = 15;
 
@@ -69,6 +70,7 @@ const activeBookingStatuses: BookingStatus[] = [
   BookingStatus.PENDING,
   BookingStatus.PAID,
   BookingStatus.CONFIRMED,
+  BookingStatus.DISPUTED,
 ];
 
 export default async function ExpertPublicPage({
@@ -143,12 +145,13 @@ export default async function ExpertPublicPage({
           comment: true,
           createdAt: true,
         },
-        take: 20,
+        take: MAX_VISIBLE_REVIEWS,
       },
       documents: {
         orderBy: {
           createdAt: "desc",
         },
+        take: 10,
       },
     },
   });
@@ -1155,7 +1158,9 @@ Already tried:`}
                   </h2>
                 </div>
 
-                <Badge>{expert.totalReviews} reviews</Badge>
+                <Badge>
+                    {expert.reviews.length} shown / {expert.totalReviews} total 
+                </Badge>
               </div>
 
               <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -1219,6 +1224,11 @@ Already tried:`}
                   />
                 )}
               </div>
+              {expert.totalReviews > expert.reviews.length ? (
+                  <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-bold text-[var(--muted-foreground)]">
+                    Showing latest {expert.reviews.length} reviews. More reviews can be loaded later.
+                  </div>
+              ) : null}
             </Card>
           </div>
 
