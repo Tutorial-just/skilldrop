@@ -646,8 +646,12 @@ export default async function ExpertPublicPage({
 
               <p className="mt-4 text-center text-xs font-bold leading-5 text-[var(--muted-foreground)]">
                 Booking is protected by SkillDrop{" "}
+                <Link href="/trust" className="text-[var(--primary-dark)]">
+                  Trust Center
+                </Link>
+                ,{" "}
                 <Link href="/legal/safety" className="text-[var(--primary-dark)]">
-                  Safety
+                  Safety Rules
                 </Link>{" "}
                 and{" "}
                 <Link
@@ -656,7 +660,8 @@ export default async function ExpertPublicPage({
                 >
                   Refund Policy
                 </Link>
-                .
+                . After a completed call, the helper can create an action plan
+                with next steps for the buyer.
               </p>
 
               <div className="mt-5 grid gap-2">
@@ -975,7 +980,7 @@ Already tried:`}
                 What happens after payment
               </Badge>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="mt-6 grid gap-4 md:grid-cols-4">
                 <Step
                   number="1"
                   title="Booking confirmed"
@@ -988,6 +993,11 @@ Already tried:`}
                 />
                 <Step
                   number="3"
+                  title="Action plan"
+                  text="After a completed call, the helper can create clear next steps for you."
+                />
+                <Step
+                  number="4"
                   title="Leave a review"
                   text="After the call, you can rate the helper and share feedback."
                 />
@@ -1347,8 +1357,8 @@ Already tried:`}
                 />
                 <Step
                   number="3"
-                  title="Review after call"
-                  text="Feedback helps keep the marketplace trustworthy."
+                  title="Action plan + review"
+                  text="A completed call can lead to next steps, then buyer feedback keeps the marketplace trustworthy."
                 />
               </div>
             </Card>
@@ -1363,6 +1373,26 @@ Already tried:`}
                 Prepare one clear question, share enough context, and choose the
                 service that matches the result you want from the call.
               </p>
+            </Card>
+
+            <Card className="p-5">
+              <Badge variant="primary">
+                <ShieldCheck size={14} />
+                Boundaries
+              </Badge>
+
+              <p className="mt-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+                SkillDrop calls are for explanation, guidance, teaching,
+                personal experience and practical next steps. Helpers must not
+                provide illegal help, fake documents, manipulation, harmful
+                instructions or guaranteed medical, legal or financial outcomes.
+              </p>
+
+              <div className="mt-5">
+                <Link href="/trust" className="btn btn-secondary">
+                  How trust works
+                </Link>
+              </div>
             </Card>
           </div>
         </div>

@@ -1128,3 +1128,225 @@ export async function resolveDisputeByAdminAction(formData: FormData) {
 
   redirect(`/admin/bookings?status=${newStatus.toLowerCase()}&updated=1`);
 }
+
+
+const OFFICIAL_SKILLDROP_CATEGORIES = [
+  {
+    name: "Life & Everyday",
+    slug: "life-everyday",
+    icon: "LIFE",
+    description: "Daily decisions, practical problems and simple questions that need a human answer.",
+    sortOrder: 10,
+    subcategories: [
+      "Daily decisions",
+      "Personal organization",
+      "Local practical help",
+      "General life advice",
+    ],
+  },
+  {
+    name: "Relationships",
+    slug: "relationships",
+    icon: "RELATIONSHIPS",
+    description: "Dating, communication, confidence, social situations and relationship questions.",
+    sortOrder: 20,
+    subcategories: [
+      "Dating advice",
+      "Communication",
+      "Confidence",
+      "Friendship and social life",
+    ],
+  },
+  {
+    name: "Business",
+    slug: "business",
+    icon: "BUSINESS",
+    description: "Business ideas, first clients, positioning, pricing, freelancing and company building.",
+    sortOrder: 30,
+    subcategories: [
+      "Start a company",
+      "Find first clients",
+      "Pricing and offer",
+      "Freelance advice",
+      "Marketing basics",
+    ],
+  },
+  {
+    name: "Career & Studies",
+    slug: "career-studies",
+    icon: "CAREER",
+    description: "CV, interviews, applications, studies, job search and professional decisions.",
+    sortOrder: 40,
+    subcategories: [
+      "CV review",
+      "Mock interview",
+      "Motivation letter",
+      "Study applications",
+      "Career advice",
+    ],
+  },
+  {
+    name: "Documents & Admin",
+    slug: "documents-admin",
+    icon: "DOCUMENTS",
+    description: "Forms, official letters, admin processes, applications and confusing documents.",
+    sortOrder: 50,
+    subcategories: [
+      "Understand a document",
+      "French administration",
+      "Application forms",
+      "Emails and letters",
+    ],
+  },
+  {
+    name: "Tech & Digital",
+    slug: "tech-digital",
+    icon: "TECH",
+    description: "Coding, websites, IT issues, digital tools, online setup and technical explanations.",
+    sortOrder: 60,
+    subcategories: [
+      "Coding help",
+      "Website advice",
+      "IT support",
+      "Digital tools",
+    ],
+  },
+  {
+    name: "Cooking",
+    slug: "cooking",
+    icon: "COOKING",
+    description: "Recipes, cooking basics, traditional dishes, meal ideas and kitchen confidence.",
+    sortOrder: 70,
+    subcategories: [
+      "Recipes",
+      "Cooking for beginners",
+      "Traditional dishes",
+      "Meal planning",
+    ],
+  },
+  {
+    name: "Faith & Religion",
+    slug: "faith-religion",
+    icon: "FAITH",
+    description: "Learn, ask questions and speak with knowledgeable people about faith and religion.",
+    sortOrder: 80,
+    subcategories: [
+      "Religious questions",
+      "Learn about Christianity",
+      "Learn about Islam",
+      "Learn about Judaism",
+      "Spiritual discussion",
+    ],
+  },
+  {
+    name: "Languages & Culture",
+    slug: "languages-culture",
+    icon: "LANGUAGES",
+    description: "Language practice, translation, cultural questions, local life and communication help.",
+    sortOrder: 90,
+    subcategories: [
+      "Language practice",
+      "Translation help",
+      "Message correction",
+      "Culture and local life",
+    ],
+  },
+  {
+    name: "Other Practical Help",
+    slug: "other-practical-help",
+    icon: "OTHER",
+    description: "Problems that do not fit yet. Use this carefully while SkillDrop learns new demand.",
+    sortOrder: 100,
+    subcategories: ["General request", "Not sure yet"],
+  },
+];
+
+function slugifyCategoryPart(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+}
+
+export async function seedOfficialCategoriesAction() {
+  const currentAdmin = await getCurrentAdmin();
+
+  await assertAdminRateLimit(currentAdmin.id, "seed-categories");
+
+  let createdOrUpdatedCategories = 0;
+  let createdOrUpdatedSubcategories = 0;
+
+  for (const category of OFFICIAL_SKILLDROP_CATEGORIES) {
+    const savedCategory = await prisma.category.upsert({
+      where: {
+        slug: category.slug,
+      },
+      create: {
+        name: category.name,
+        slug: category.slug,
+        icon: category.icon,
+        description: category.description,
+        sortOrder: category.sortOrder,
+        isActive: true,
+      },
+      update: {
+        name: category.name,
+        icon: category.icon,
+        description: category.description,
+        sortOrder: category.sortOrder,
+        isActive: true,
+      },
+    });
+
+    createdOrUpdatedCategories += 1;
+
+    for (const [index, subcategoryName] of category.subcategories.entries()) {
+      await prisma.subcategory.upsert({
+        where: {
+          categoryId_slug: {
+            categoryId: savedCategory.id,
+            slug: slugifyCategoryPart(subcategoryName),
+          },
+        },
+        create: {
+          categoryId: savedCategory.id,
+          name: subcategoryName,
+          slug: slugifyCategoryPart(subcategoryName),
+          sortOrder: (index + 1) * 10,
+          isActive: true,
+        },
+        update: {
+          name: subcategoryName,
+          sortOrder: (index + 1) * 10,
+          isActive: true,
+        },
+      });
+
+      createdOrUpdatedSubcategories += 1;
+    }
+  }
+
+  await createAdminAuditLog({
+    adminId: currentAdmin.id,
+    adminEmail: currentAdmin.email,
+    action: "OFFICIAL_CATEGORIES_SEEDED",
+    entityType: "Category",
+    message: "Official SkillDrop categories and subcategories were seeded.",
+    metadata: {
+      categories: createdOrUpdatedCategories,
+      subcategories: createdOrUpdatedSubcategories,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/categories");
+  revalidatePath("/admin");
+  revalidatePath("/admin/launch");
+  revalidatePath("/admin/category-requests");
+  revalidatePath("/expert/services");
+
+  redirect("/admin/launch?categoriesSeeded=1");
+}
+

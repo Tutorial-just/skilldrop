@@ -32,6 +32,9 @@ type ExpertsPageProps = {
     verified?: string;
     maxPrice?: string;
     language?: string;
+    category?: string;
+    helpType?: string;
+    urgency?: string;
     sort?: string;
     page?: string;
   }>;
@@ -148,7 +151,10 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       : null;
 
   const language = resolvedSearchParams.language?.trim().toLowerCase() ?? "";
-  const sort = resolvedSearchParams.sort ?? "best";
+  const categorySlug = resolvedSearchParams.category?.trim().toLowerCase() ?? "";
+  const helpType = resolvedSearchParams.helpType?.trim().toUpperCase() ?? "";
+  const urgency = resolvedSearchParams.urgency?.trim().toLowerCase() ?? "";
+  const sort = urgency === "today" ? "soonest" : resolvedSearchParams.sort ?? "best";
 
   const requestedPage = Number(resolvedSearchParams.page ?? 1);
   const page =
@@ -228,6 +234,27 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 },
               }
             : {}),
+          ...(helpType
+            ? {
+                helpType,
+              }
+            : {}),
+          ...(categorySlug
+            ? {
+                OR: [
+                  {
+                    category: {
+                      slug: categorySlug,
+                    },
+                  },
+                  {
+                    subcategory: {
+                      slug: categorySlug,
+                    },
+                  },
+                ],
+              }
+            : {}),
         },
       },
 
@@ -275,9 +302,31 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 },
               }
             : {}),
+          ...(helpType
+            ? {
+                helpType,
+              }
+            : {}),
+          ...(categorySlug
+            ? {
+                OR: [
+                  {
+                    category: {
+                      slug: categorySlug,
+                    },
+                  },
+                  {
+                    subcategory: {
+                      slug: categorySlug,
+                    },
+                  },
+                ],
+              }
+            : {}),
         },
         include: {
           category: true,
+          subcategory: true,
         },
         orderBy: {
           priceCents: "asc",
@@ -366,6 +415,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           title: service.title,
           description: service.description,
           category: service.category?.name ?? "",
+          subcategory: service.subcategory?.name ?? "",
+          helpType: service.helpType ?? "",
+          tags: service.tags,
         })),
       }),
     }));
@@ -432,6 +484,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     verifiedOnly ||
     Boolean(resolvedSearchParams.maxPrice) ||
     Boolean(language) ||
+    Boolean(categorySlug) ||
+    Boolean(helpType) ||
+    Boolean(urgency) ||
     sort !== "best";
 
   return (
@@ -454,10 +509,17 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </h1>
 
               <p className="mt-5 max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
-                Search with simple words and discover people who can help with
-                documents, career, languages, moving abroad, tech, studies or
-                practical everyday questions.
+                Search with simple words or come from the guided intake. SkillDrop
+                matches the problem with helpers, help types, categories, languages,
+                price and availability.
               </p>
+
+              <div className="mt-5">
+                <Link href="/help-me" className="btn btn-secondary">
+                  Guided problem intake
+                  <ArrowRight size={18} />
+                </Link>
+              </div>
 
               <div className="mt-6 flex flex-wrap gap-2">
                 <Badge variant="success">
@@ -555,6 +617,22 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   placeholder="Language"
                   className="min-h-12 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
                 />
+
+                <select
+                  name="helpType"
+                  defaultValue={helpType}
+                  className="min-h-12 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
+                >
+                  <option value="">Any help type</option>
+                  <option value="ADVICE">Advice</option>
+                  <option value="EXPLANATION">Explanation</option>
+                  <option value="TEACHING">Teaching</option>
+                  <option value="PRACTICAL_GUIDANCE">Practical guidance</option>
+                  <option value="PERSONAL_EXPERIENCE">Personal experience</option>
+                  <option value="EMOTIONAL_SUPPORT">Emotional support</option>
+                  <option value="RELIGIOUS_DISCUSSION">Religious discussion</option>
+                  <option value="BUSINESS_MENTORING">Business mentoring</option>
+                </select>
 
                 <select
                   name="sort"

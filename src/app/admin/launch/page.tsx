@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { requireRole } from "@/lib/auth/get-current-user";
+import { seedOfficialCategoriesAction } from "@/server/actions/admin.actions";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -31,12 +32,18 @@ export default async function AdminLaunchChecklistPage() {
     expertsCount,
     approvedExpertsCount,
     servicesCount,
+    categoriesCount,
+    activeCategoriesCount,
+    subcategoriesCount,
+    categoryRequestsCount,
+    pendingCategoryRequestsCount,
     openSlotsCount,
     bookingsCount,
     confirmedBookingsCount,
     completedBookingsCount,
     reviewsCount,
     notificationsCount,
+    callOutcomesCount,
     stripeConnectedExpertsCount,
   ] = await Promise.all([
     prisma.user.count(),
@@ -49,6 +56,23 @@ export default async function AdminLaunchChecklistPage() {
     prisma.service.count({
       where: {
         isActive: true,
+      },
+    }),
+    prisma.category.count(),
+    prisma.category.count({
+      where: {
+        isActive: true,
+      },
+    }),
+    prisma.subcategory.count({
+      where: {
+        isActive: true,
+      },
+    }),
+    prisma.categoryRequest.count(),
+    prisma.categoryRequest.count({
+      where: {
+        status: "PENDING",
       },
     }),
     prisma.availability.count({
@@ -72,6 +96,7 @@ export default async function AdminLaunchChecklistPage() {
     }),
     prisma.review.count(),
     prisma.notification.count(),
+    prisma.callOutcome.count(),
     prisma.expertProfile.count({
       where: {
         stripeAccountId: {
@@ -92,6 +117,9 @@ export default async function AdminLaunchChecklistPage() {
   const resendApiKeyReady = Boolean(process.env.RESEND_API_KEY);
   const resendFromEmailReady = Boolean(process.env.RESEND_FROM_EMAIL);
   const jitsiBaseUrlReady = Boolean(process.env.JITSI_BASE_URL);
+  const productionUrlReady =
+    Boolean(process.env.NEXT_PUBLIC_APP_URL) &&
+    !process.env.NEXT_PUBLIC_APP_URL?.includes("localhost");
 
   const envChecks = [
     {
@@ -160,6 +188,12 @@ export default async function AdminLaunchChecklistPage() {
       ready: jitsiBaseUrlReady,
       icon: Video,
     },
+    {
+      title: "Production app URL",
+      text: "NEXT_PUBLIC_APP_URL should be the final public domain, not localhost.",
+      ready: productionUrlReady,
+      icon: Globe2,
+    },
   ];
 
   const productChecks = [
@@ -186,6 +220,18 @@ export default async function AdminLaunchChecklistPage() {
       text: `${servicesCount} active service${servicesCount === 1 ? "" : "s"}.`,
       ready: servicesCount > 0,
       icon: FileText,
+    },
+    {
+      title: "Official categories",
+      text: `${activeCategoriesCount} active categor${activeCategoriesCount === 1 ? "y" : "ies"} and ${subcategoriesCount} active subcategor${subcategoriesCount === 1 ? "y" : "ies"}.`,
+      ready: activeCategoriesCount > 0 && subcategoriesCount > 0,
+      icon: FileText,
+    },
+    {
+      title: "Missing help request board",
+      text: `${categoryRequestsCount} request${categoryRequestsCount === 1 ? "" : "s"} captured, including ${pendingCategoryRequestsCount} pending moderation item${pendingCategoryRequestsCount === 1 ? "" : "s"}.`,
+      ready: true,
+      icon: ShieldCheck,
     },
     {
       title: "Open availability",
@@ -230,6 +276,12 @@ export default async function AdminLaunchChecklistPage() {
       icon: BadgeCheck,
     },
     {
+      title: "Action plans",
+      text: `${callOutcomesCount} post-call action plan${callOutcomesCount === 1 ? "" : "s"} created.`,
+      ready: callOutcomesCount > 0,
+      icon: FileText,
+    },
+    {
       title: "Notifications",
       text: `${notificationsCount} notification${notificationsCount === 1 ? "" : "s"} created.`,
       ready: notificationsCount > 0,
@@ -237,9 +289,15 @@ export default async function AdminLaunchChecklistPage() {
     },
     {
       title: "Legal pages reviewed",
-      text: "Terms, refund policy, safety and privacy pages should be checked manually before public launch.",
+      text: "Terms, refund policy, safety, privacy and Trust Center should be checked manually before public launch.",
       ready: Boolean(process.env.NEXT_PUBLIC_SUPPORT_EMAIL),
       icon: FileText,
+    },
+    {
+      title: "SEO files",
+      text: "robots.ts and sitemap.ts should exist so search engines can discover public pages.",
+      ready: true,
+      icon: Globe2,
     },
   ];
 
@@ -252,6 +310,7 @@ export default async function AdminLaunchChecklistPage() {
     databaseReady &&
     stripeSecretReady &&
     stripeWebhookReady &&
+    activeCategoriesCount > 0 &&
     supabaseUrlReady &&
     supabaseAnonReady &&
     resendApiKeyReady &&
@@ -294,9 +353,10 @@ export default async function AdminLaunchChecklistPage() {
             user flows before launching publicly.
           </p>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-3">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <LaunchStat label="Launch score" value={`${launchScore}%`} />
             <LaunchStat label="Checks ready" value={`${readyCount}/${totalCount}`} />
+            <LaunchStat label="Categories" value={`${activeCategoriesCount}/${categoriesCount}`} />
             <LaunchStat
               label="Status"
               value={canSoftLaunch ? "Soft launch ready" : "Needs work"}
@@ -369,6 +429,10 @@ export default async function AdminLaunchChecklistPage() {
                   ready={jitsiBaseUrlReady}
                 />
                 <DecisionRow label="Marketplace data" ready={expertsCount > 0} />
+                <DecisionRow
+                  label="Official categories"
+                  ready={activeCategoriesCount > 0 && subcategoriesCount > 0}
+                />
                 <DecisionRow label="Open slots" ready={openSlotsCount > 0} />
               </div>
             </Card>
@@ -385,10 +449,36 @@ export default async function AdminLaunchChecklistPage() {
                 <LaunchTip text="After test payment, confirm the booking becomes CONFIRMED automatically." />
                 <LaunchTip text="After refund from admin panel, confirm the booking becomes REFUNDED and both users receive notifications." />
                 <LaunchTip text="Test buyer review after completed call." />
-                <LaunchTip text="Check legal pages: terms, privacy, refunds, safety." />
+                <LaunchTip text="Check legal pages: terms, privacy, refunds, safety and Trust Center." />
+                <LaunchTip text="Open /robots.txt and /sitemap.xml in production after deployment." />
+                <LaunchTip text="Complete one post-call action plan after a completed test booking." />
                 <LaunchTip text="Use a real support email before public users arrive." />
               </div>
             </Card>
+
+            {activeCategoriesCount === 0 ? (
+              <Card className="p-5 md:p-6">
+                <Badge variant="accent">
+                  <FileText size={14} />
+                  Category setup
+                </Badge>
+
+                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                  Seed official categories.
+                </h2>
+
+                <p className="mt-3 text-sm font-bold leading-6 text-muted">
+                  Add the first clean SkillDrop categories and subcategories so
+                  helpers can create searchable offers.
+                </p>
+
+                <form action={seedOfficialCategoriesAction} className="mt-5">
+                  <button type="submit" className="btn btn-primary w-full">
+                    Seed categories
+                  </button>
+                </form>
+              </Card>
+            ) : null}
 
             <Card className="border-[var(--danger)]/20 bg-[var(--danger-soft)] p-5 md:p-6">
               <Badge>

@@ -177,6 +177,14 @@ const bioChecklist = [
   "Languages you can use",
 ];
 
+const positioningTips = [
+  "Use buyer language, not only professional titles",
+  "Mention real problems you can help with",
+  "Add languages and countries when relevant",
+  "Explain your call style: calm, direct, step-by-step",
+  "Promise clarity and next steps, not guaranteed outcomes",
+];
+
 export default async function ExpertProfilePage({
   searchParams,
 }: ExpertProfilePageProps) {

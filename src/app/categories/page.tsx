@@ -1,161 +1,227 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import {
+  ArrowRight,
+  Compass,
+  Lightbulb,
+  Search,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
-const categories = [
-  {
-    title: "CV Review",
-    slug: "cv-review",
-    description:
-      "Get direct feedback on your CV before sending applications.",
-    query: "CV Review",
-    icon: "📄",
-  },
-  {
-    title: "Mock Interview",
-    slug: "mock-interview",
-    description:
-      "Practice interviews with experienced experts and get clear feedback.",
-    query: "Mock Interview",
-    icon: "🎤",
-  },
-  {
-    title: "LinkedIn Review",
-    slug: "linkedin-review",
-    description:
-      "Improve your profile, headline and recruiter-facing positioning.",
-    query: "LinkedIn",
-    icon: "💼",
-  },
-  {
-    title: "Remote Jobs",
-    slug: "remote-jobs",
-    description:
-      "Build a better strategy for international and remote job opportunities.",
-    query: "Remote Jobs",
-    icon: "🌍",
-  },
-  {
-    title: "Portfolio Review",
-    slug: "portfolio-review",
-    description:
-      "Get feedback on your portfolio, UX case studies and presentation.",
-    query: "Portfolio Review",
-    icon: "🎨",
-  },
-  {
-    title: "React Interview",
-    slug: "react-interview",
-    description:
-      "Prepare for frontend interviews, React questions and code reviews.",
-    query: "React",
-    icon: "⚛️",
-  },
-  {
-    title: "Startup Advice",
-    slug: "startup-advice",
-    description:
-      "Validate your idea, positioning, offer and first acquisition channel.",
-    query: "Startup",
-    icon: "🚀",
-  },
-];
+import { prisma } from "@/lib/prisma";
+import { CategoryGrid } from "@/components/marketing/category-grid";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
+export const metadata = {
+  title: "Categories | SkillDrop",
+  description:
+    "Browse SkillDrop categories and find helpers for short 1:1 calls around everyday, career, business, relationship, cooking, faith, tech and admin problems.",
+};
 
 export default async function CategoriesPage() {
-  const experts = await prisma.expertProfile.findMany({
+  const categories = await prisma.category.findMany({
     where: {
-      status: "APPROVED",
+      isActive: true,
     },
     include: {
-      services: true,
+      subcategories: {
+        where: {
+          isActive: true,
+        },
+        orderBy: [
+          {
+            sortOrder: "asc",
+          },
+          {
+            name: "asc",
+          },
+        ],
+      },
+      services: {
+        where: {
+          isActive: true,
+          expert: {
+            status: "APPROVED",
+            stripeAccountId: {
+              not: null,
+            },
+          },
+        },
+        select: {
+          id: true,
+          expertId: true,
+        },
+      },
     },
+    orderBy: [
+      {
+        sortOrder: "asc",
+      },
+      {
+        name: "asc",
+      },
+    ],
   });
 
+  const categoriesForGrid = categories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    slug: category.slug,
+    description: category.description,
+    icon: category.icon,
+    servicesCount: category.services.length,
+    helpersCount: new Set(category.services.map((service) => service.expertId))
+      .size,
+  }));
+
+  const totalOffers = categories.reduce(
+    (sum, category) => sum + category.services.length,
+    0,
+  );
+
+  const totalHelpers = new Set(
+    categories.flatMap((category) =>
+      category.services.map((service) => service.expertId),
+    ),
+  ).size;
+
   return (
-    <main className="container-page py-10">
-      <section className="rounded-[2rem] bg-[#151515] p-6 text-white sm:rounded-[2.5rem] md:p-12">
-        <div className="max-w-3xl">
-          <p className="text-sm font-black text-[#f97316]">
-            SkillDrop categories
-          </p>
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-160px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
-          <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">
-            Choose the career problem you want to solve.
-          </h1>
+        <div className="relative p-6 md:p-8 lg:p-10">
+          <div className="grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
+            <div>
+              <Badge variant="primary">
+                <Sparkles size={14} />
+                SkillDrop categories
+              </Badge>
 
-          <p className="mt-5 text-lg leading-8 text-white/60">
-            Browse focused expert sessions by category. Start with a specific
-            problem, compare experts and book a short 1:1 session.
-          </p>
+              <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+                Start with the problem, then find the right person.
+              </h1>
+
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+                SkillDrop can grow around almost any problem, but categories
+                stay clean and controlled. Browse the official categories,
+                search in your own words, or request a missing type of help.
+              </p>
+
+              <form action="/experts" className="mt-7 max-w-3xl">
+                <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-sm)] backdrop-blur">
+                  <div className="flex flex-col gap-3 md:flex-row">
+                    <div className="relative flex-1">
+                      <Search
+                        size={18}
+                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                      />
+
+                      <input
+                        name="q"
+                        type="search"
+                        placeholder="Search: dating advice, cooking, religion, business, documents..."
+                        className="input min-h-[54px] border-transparent bg-[var(--background-soft)] pl-12 shadow-none"
+                      />
+                    </div>
+
+                    <button type="submit" className="btn btn-primary min-h-[54px]">
+                      Find help
+                      <ArrowRight size={18} />
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
+              <ButtonLink href="/experts">
+                <Compass size={18} />
+                Browse helpers
+              </ButtonLink>
+
+              <ButtonLink href="/help-request" variant="secondary">
+                Request missing help
+                <ArrowRight size={18} />
+              </ButtonLink>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-3 md:grid-cols-3">
+            <MetricCard label="Categories" value={String(categories.length)} />
+            <MetricCard label="Bookable offers" value={String(totalOffers)} />
+            <MetricCard label="Helpers" value={String(totalHelpers)} />
+          </div>
         </div>
       </section>
 
-      <section className="mt-8">
-        <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <h2 className="text-2xl font-black">Popular categories</h2>
-            <p className="mt-1 text-sm text-[#6f6a63]">
-              Focused sessions for common career moments.
+      <CategoryGrid
+        categories={categoriesForGrid}
+        title="Browse official categories"
+        subtitle="Choose a clean category, then explore helpers and focused offers inside it."
+      />
+
+      <section className="px-6 pb-12">
+        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-2">
+          <Card soft className="p-5 md:p-6">
+            <Badge variant="accent">
+              <Lightbulb size={14} />
+              Why categories are controlled
+            </Badge>
+
+            <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              Any problem, but not messy.
+            </h2>
+
+            <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+              Buyers can search for anything, but public categories should stay
+              clear. If everyone creates categories freely, the marketplace
+              becomes full of duplicates and unsafe topics.
             </p>
-          </div>
+          </Card>
 
-          <Link
-            href="/experts"
-            className="w-fit rounded-full bg-[#151515] px-5 py-3 text-sm font-black text-white transition hover:bg-[#2563eb]"
-          >
-            Browse all experts
-          </Link>
-        </div>
+          <Card className="p-5 md:p-6">
+            <Badge variant="primary">
+              <ShieldCheck size={14} />
+              Missing category?
+            </Badge>
 
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {categories.map((category) => {
-            const matchingExperts = experts.filter((expert) => {
-              const searchableText = [
-                ...expert.skills,
-                ...expert.services.map((service) => service.title),
-                ...expert.services.map((service) => service.description),
-              ]
-                .join(" ")
-                .toLowerCase();
+            <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              Request it instead of creating chaos.
+            </h2>
 
-              return searchableText.includes(category.query.toLowerCase());
-            });
+            <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+              If a buyer searches for something that does not exist yet, they
+              can leave a request. Admin can approve, merge or reject it later.
+            </p>
 
-            return (
-              <Link
-                key={category.slug}
-                href={`/categories/${category.slug}`}
-                className="card card-hover group rounded-[2rem] p-6"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eef4ff] text-2xl">
-                    {category.icon}
-                  </div>
-
-                  <span className="rounded-full bg-[#f7f4ef] px-3 py-1 text-xs font-black text-[#6f6a63]">
-                    {matchingExperts.length} experts
-                  </span>
-                </div>
-
-                <h3 className="mt-6 text-2xl font-black">{category.title}</h3>
-
-                <p className="mt-3 min-h-[84px] leading-7 text-[#6f6a63]">
-                  {category.description}
-                </p>
-
-                <div className="mt-6 flex items-center justify-between border-t border-[#e8e1d8] pt-5">
-                  <span className="text-sm font-black text-[#2563eb]">
-                    View category
-                  </span>
-
-                  <span className="rounded-full bg-[#151515] px-4 py-2 text-sm font-black text-white transition group-hover:bg-[#2563eb]">
-                    →
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
+            <div className="mt-5">
+              <ButtonLink href="/help-request" variant="secondary">
+                Request new help
+                <ArrowRight size={18} />
+              </ButtonLink>
+            </div>
+          </Card>
         </div>
       </section>
     </main>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Card soft className="p-5">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="mt-2 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+        {value}
+      </p>
+    </Card>
   );
 }

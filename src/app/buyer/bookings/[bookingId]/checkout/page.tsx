@@ -266,7 +266,7 @@ export default async function BookingCheckoutPage({
               What happens after payment
             </Badge>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="mt-6 grid gap-4 md:grid-cols-4">
               <Step
                 number="1"
                 title="Booking confirmed"
@@ -281,6 +281,12 @@ export default async function BookingCheckoutPage({
 
               <Step
                 number="3"
+                title="Action plan"
+                text="After a completed call, the helper can create clear next steps for you."
+              />
+
+              <Step
+                number="4"
                 title="Review after call"
                 text="After the call, you can leave feedback to keep SkillDrop trustworthy."
               />
@@ -313,6 +319,16 @@ export default async function BookingCheckoutPage({
                 title="Use your bookings page"
                 text="After payment, you can find the session from your buyer bookings page."
               />
+
+              <TrustPoint
+                title="Action plan after the call"
+                text="When the call is completed, the helper can add a structured summary and next steps."
+              />
+
+              <TrustPoint
+                title="Guidance, not guarantees"
+                text="SkillDrop helps you get human guidance, but helpers should not promise legal, medical, financial or personal outcomes."
+              />
             </div>
           </Card>
         </div>
@@ -329,7 +345,9 @@ export default async function BookingCheckoutPage({
 
           <p className="mt-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
             Secure payment through Stripe. The helper receives their earnings
-            through Stripe Connect after platform commission.
+            through Stripe Connect after platform commission. SkillDrop keeps
+            booking status, refunds, disputes, reviews and action plans linked
+            to the booking for safer follow-up.
           </p>
 
           <div className="mt-6 grid gap-3 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
@@ -382,6 +400,31 @@ export default async function BookingCheckoutPage({
               </div>
             </div>
           ) : null}
+
+          <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
+            <p className="text-sm font-bold text-[var(--foreground)]">
+              Protected by SkillDrop trust tools
+            </p>
+
+            <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+              Before paying, you can review how payments, refunds, disputes,
+              safety boundaries and action plans work.
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link href="/trust" className="text-sm font-bold text-[var(--primary-dark)]">
+                Trust Center
+              </Link>
+              <span className="text-sm font-bold text-[var(--muted-foreground)]">·</span>
+              <Link href="/legal/safety" className="text-sm font-bold text-[var(--primary-dark)]">
+                Safety Rules
+              </Link>
+              <span className="text-sm font-bold text-[var(--muted-foreground)]">·</span>
+              <Link href="/legal/refunds" className="text-sm font-bold text-[var(--primary-dark)]">
+                Refund Policy
+              </Link>
+            </div>
+          </div>
 
           {!helperCanReceivePayouts ? (
             <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold leading-6 text-[var(--danger)]">

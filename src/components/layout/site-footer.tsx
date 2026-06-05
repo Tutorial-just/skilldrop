@@ -11,12 +11,16 @@ import { Badge } from "@/components/ui/badge";
 
 const productLinks = [
   {
+    label: "Find help",
+    href: "/help-me",
+  },
+  {
     label: "Marketplace",
     href: "/experts",
   },
   {
-    label: "Create account",
-    href: "/sign-up",
+    label: "Categories",
+    href: "/categories",
   },
   {
     label: "Become a helper",
@@ -30,24 +34,36 @@ const productLinks = [
 
 const marketplaceLinks = [
   {
-    label: "Career help",
-    href: "/experts?q=career",
+    label: "Relationships",
+    href: "/experts?q=relationship%20advice",
+  },
+  {
+    label: "Business",
+    href: "/experts?q=business%20first%20clients",
   },
   {
     label: "Documents",
     href: "/experts?q=documents",
   },
   {
-    label: "Translation",
-    href: "/experts?q=translation",
+    label: "Faith & religion",
+    href: "/experts?q=religion%20questions",
   },
   {
-    label: "Moving abroad",
-    href: "/experts?q=moving%20abroad",
+    label: "Cooking",
+    href: "/experts?q=cooking%20recipe",
+  },
+  {
+    label: "Tech help",
+    href: "/experts?q=tech%20help",
   },
 ];
 
 const trustLinks = [
+  {
+    label: "Trust Center",
+    href: "/trust",
+  },
   {
     label: "Safety",
     href: "/legal/safety",
@@ -83,15 +99,15 @@ export function SiteFooter() {
                 </p>
 
                 <p className="text-xs font-bold text-muted">
-                  Practical help in short 1:1 calls
+                  Real people. Real answers. Short calls.
                 </p>
               </div>
             </Link>
 
             <p className="mt-5 max-w-sm text-sm font-semibold leading-6 text-muted">
-              Book short 1:1 calls with real people who can help with
-              documents, career, languages, tech, relocation, studies and
-              everyday decisions.
+              Get help with almost any problem in a short 1:1 call. Talk to real
+              people for advice, explanation, teaching, practical guidance and
+              clear next steps.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -120,7 +136,7 @@ export function SiteFooter() {
         <div className="mt-10 flex flex-col justify-between gap-4 border-t border-[var(--border)] pt-6 md:flex-row md:items-center">
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-muted">
             <span>© {new Date().getFullYear()} SkillDrop.</span>
-            <span>Built for practical human help.</span>
+            <span>Built for practical human help and clear next steps.</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-muted">
@@ -128,6 +144,13 @@ export function SiteFooter() {
               <BadgeCheck size={14} />
               Trust & safety foundation
             </span>
+
+            <Link
+              href="/trust"
+              className="hover-scale text-[var(--primary-dark)]"
+            >
+              Trust
+            </Link>
 
             <Link
               href="/legal/safety"

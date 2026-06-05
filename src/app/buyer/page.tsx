@@ -40,40 +40,52 @@ import { UnreadNotificationsCard } from "@/components/notifications/unread-notif
 
 const problemCards = [
   {
-    title: "Improve my CV",
-    text: "Find someone who can review your CV, resume or LinkedIn.",
-    href: "/experts?q=CV resume LinkedIn job career",
+    title: "Relationships & dating",
+    text: "Talk about communication, confidence, first dates or social situations.",
+    href: "/experts?q=dating relationship confidence communication first date",
+    icon: MessageCircle,
+  },
+  {
+    title: "Business & first clients",
+    text: "Get practical guidance on ideas, pricing, marketing and starting a company.",
+    href: "/experts?q=business startup first clients pricing marketing company",
     icon: WalletCards,
   },
   {
-    title: "Understand a document",
-    text: "Get help with forms, letters, admin papers or applications.",
-    href: "/experts?q=documents forms admin letter application",
+    title: "Career & studies",
+    text: "Improve a CV, prepare an interview, write a letter or plan your studies.",
+    href: "/experts?q=CV interview motivation letter job studies application",
+    icon: GraduationCap,
+  },
+  {
+    title: "Documents & admin",
+    text: "Understand forms, official letters, applications and daily admin problems.",
+    href: "/experts?q=documents forms admin letter application official message",
     icon: FileText,
   },
   {
-    title: "Practice a language",
-    text: "Translate, correct a message or practice speaking.",
-    href: "/experts?q=translation language speaking practice message",
-    icon: Languages,
-  },
-  {
-    title: "Moving abroad",
-    text: "Ask about relocation, first steps, housing and local life.",
-    href: "/experts?q=moving abroad relocation housing local guidance",
+    title: "Faith & religion",
+    text: "Ask respectful questions and learn from someone knowledgeable.",
+    href: "/experts?q=religion faith spiritual questions practices",
     icon: Globe2,
   },
   {
-    title: "Tech help",
+    title: "Cooking & practical skills",
+    text: "Learn a recipe, a daily skill or a step-by-step practical method.",
+    href: "/experts?q=cooking recipe practical skill step by step",
+    icon: Lightbulb,
+  },
+  {
+    title: "Tech & digital",
     text: "Find help with coding, websites, IT issues or digital tools.",
-    href: "/experts?q=tech coding website IT support",
+    href: "/experts?q=tech coding website IT support digital tools",
     icon: Code2,
   },
   {
-    title: "Study application",
-    text: "Get help with motivation letters, school choices and study plans.",
-    href: "/experts?q=study application university motivation letter",
-    icon: GraduationCap,
+    title: "Life & everyday problems",
+    text: "Ask for human advice when search results are too generic.",
+    href: "/experts?q=life advice everyday problem personal guidance",
+    icon: Compass,
   },
 ];
 
@@ -356,13 +368,11 @@ const bookings = Array.from(bookingsMap.values());
               </Badge>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                What do you need help with today, {buyer.name ?? "friend"}?
+                Describe your problem, {buyer.name ?? "friend"}.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-                Search for a problem, find the right helper, book a short 1:1
-                call and keep your bookings, saved helpers and reviews in one
-                place.
+                Start with any problem: everyday life, relationships, religion, cooking, career, business, documents or tech. SkillDrop helps you find a real person for a short 1:1 call.
               </p>
 
               <form action="/experts" className="mt-7 max-w-3xl">
@@ -377,13 +387,13 @@ const bookings = Array.from(bookingsMap.values());
                       <input
                         name="q"
                         type="search"
-                        placeholder="Try “CV review”, “visa documents”, “coding help”, “language practice”..."
+                        placeholder="Try “how to meet a girl”, “start a company”, “learn a recipe”, “religion question”..."
                         className="input min-h-[54px] border-transparent bg-[var(--background-soft)] pl-12 shadow-none"
                       />
                     </div>
 
                     <button type="submit" className="btn btn-primary min-h-[54px]">
-                      Find help
+                      Describe problem
                       <ArrowRight size={18} />
                     </button>
                   </div>
@@ -392,7 +402,12 @@ const bookings = Array.from(bookingsMap.values());
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
-              <ButtonLink href="/experts">
+              <ButtonLink href="/help-me">
+                <Search size={18} />
+                Describe problem
+              </ButtonLink>
+
+              <ButtonLink href="/experts" variant="secondary">
                 <Search size={18} />
                 Browse helpers
               </ButtonLink>
@@ -471,13 +486,11 @@ const bookings = Array.from(bookingsMap.values());
                 </Badge>
 
                 <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                  Start with what you need.
+                  Start with the problem, not with the category.
                 </h2>
 
                 <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-                  Choose a common problem or search with your own words. SkillDrop
-                  will match you with helpers by title, description, skills,
-                  tags, languages and services.
+                  Choose a common problem or search with your own words. If SkillDrop cannot find the right category yet, the next step will be to request that help so we can bring the right helpers.
                 </p>
               </div>
 

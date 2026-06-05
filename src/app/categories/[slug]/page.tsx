@@ -1,79 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  CalendarDays,
+  Clock3,
+  Euro,
+  FileText,
+  Lightbulb,
+  Search,
+  Sparkles,
+  Star,
+} from "lucide-react";
 
-const categories = [
-  {
-    title: "CV Review",
-    slug: "cv-review",
-    description:
-      "Get direct feedback on your CV before sending applications.",
-    query: "CV Review",
-    icon: "📄",
-    longDescription:
-      "A CV review session helps you understand what recruiters see first, what looks weak, and what should be rewritten before you apply.",
-  },
-  {
-    title: "Mock Interview",
-    slug: "mock-interview",
-    description:
-      "Practice interviews with experienced experts and get clear feedback.",
-    query: "Mock Interview",
-    icon: "🎤",
-    longDescription:
-      "Mock interviews help you practice under pressure, improve your answers and get practical feedback before the real interview.",
-  },
-  {
-    title: "LinkedIn Review",
-    slug: "linkedin-review",
-    description:
-      "Improve your profile, headline and recruiter-facing positioning.",
-    query: "LinkedIn",
-    icon: "💼",
-    longDescription:
-      "A LinkedIn review helps improve how recruiters and hiring managers understand your experience, skills and target role.",
-  },
-  {
-    title: "Remote Jobs",
-    slug: "remote-jobs",
-    description:
-      "Build a better strategy for international and remote job opportunities.",
-    query: "Remote Jobs",
-    icon: "🌍",
-    longDescription:
-      "Remote job strategy sessions help you choose better target roles, position yourself for international companies and avoid unfocused applications.",
-  },
-  {
-    title: "Portfolio Review",
-    slug: "portfolio-review",
-    description:
-      "Get feedback on your portfolio, UX case studies and presentation.",
-    query: "Portfolio Review",
-    icon: "🎨",
-    longDescription:
-      "Portfolio reviews help designers, developers and creators present their work more clearly and make stronger first impressions.",
-  },
-  {
-    title: "React Interview",
-    slug: "react-interview",
-    description:
-      "Prepare for frontend interviews, React questions and code reviews.",
-    query: "React",
-    icon: "⚛️",
-    longDescription:
-      "React interview sessions help frontend developers prepare for technical questions, architecture discussions and code review tasks.",
-  },
-  {
-    title: "Startup Advice",
-    slug: "startup-advice",
-    description:
-      "Validate your idea, positioning, offer and first acquisition channel.",
-    query: "Startup",
-    icon: "🚀",
-    longDescription:
-      "Startup advice sessions help founders and builders clarify their idea, customer, offer and first realistic growth channel.",
-  },
-];
+import { prisma } from "@/lib/prisma";
+import {
+  calculatePricingBreakdown,
+  formatMoneyFromCents,
+} from "@/config/pricing";
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 type CategoryPageProps = {
   params: Promise<{
@@ -81,229 +29,491 @@ type CategoryPageProps = {
   }>;
 };
 
+export async function generateMetadata({ params }: CategoryPageProps) {
+  const { slug } = await params;
+
+  const category = await prisma.category.findUnique({
+    where: {
+      slug,
+    },
+    select: {
+      name: true,
+      description: true,
+    },
+  });
+
+  if (!category) {
+    return {
+      title: "Category not found | SkillDrop",
+    };
+  }
+
+  return {
+    title: `${category.name} | SkillDrop`,
+    description:
+      category.description ??
+      `Find SkillDrop helpers for ${category.name} and book a short 1:1 call.`,
+  };
+}
+
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { slug } = await params;
 
-  const category = categories.find((item) => item.slug === slug);
-
-  if (!category) {
-    notFound();
-  }
-
-  const experts = await prisma.expertProfile.findMany({
+  const category = await prisma.category.findFirst({
     where: {
-      status: "APPROVED",
+      slug,
+      isActive: true,
     },
     include: {
-      user: true,
+      subcategories: {
+        where: {
+          isActive: true,
+        },
+        orderBy: [
+          {
+            sortOrder: "asc",
+          },
+          {
+            name: "asc",
+          },
+        ],
+      },
       services: {
         where: {
           isActive: true,
+          expert: {
+            status: "APPROVED",
+          },
+        },
+        include: {
+          subcategory: true,
+          expert: {
+            include: {
+              user: true,
+              availability: {
+                where: {
+                  startTime: {
+                    gte: new Date(),
+                  },
+                  isActive: true,
+                },
+                orderBy: {
+                  startTime: "asc",
+                },
+                take: 1,
+              },
+              reviews: {
+                select: {
+                  problemSolved: true,
+                },
+                take: 100,
+              },
+            },
+          },
         },
         orderBy: {
           priceCents: "asc",
         },
       },
     },
-    orderBy: {
-      rating: "desc",
-    },
   });
 
-  const filteredExperts = experts.filter((expert) => {
-    const searchableText = [
-      expert.user.name,
-      expert.headline,
-      expert.bio,
-      expert.country,
-      expert.timezone,
-      ...expert.skills,
-      ...expert.languages,
-      ...expert.services.map((service) => service.title),
-      ...expert.services.map((service) => service.description),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+  if (!category) {
+    notFound();
+  }
 
-    return searchableText.includes(category.query.toLowerCase());
+  const services = category.services;
+  const helpersMap = new Map<string, (typeof services)[number]["expert"]>();
+
+  services.forEach((service) => {
+    helpersMap.set(service.expert.id, service.expert);
   });
+
+  const helpers = Array.from(helpersMap.values()).sort((a, b) => {
+    if (a.isVerified !== b.isVerified) {
+      return Number(b.isVerified) - Number(a.isVerified);
+    }
+
+    if (a.rating !== b.rating) {
+      return b.rating - a.rating;
+    }
+
+    return b.totalSessions - a.totalSessions;
+  });
+
+  const lowestPrice =
+    services.length > 0
+      ? Math.min(...services.map((service) => service.priceCents))
+      : null;
+
+  const searchableQuery = category.name;
 
   return (
-    <main className="container-page py-10">
-      <Link
-        href="/categories"
-        className="inline-flex rounded-full border border-[#e8e1d8] bg-white px-4 py-2 text-sm font-bold text-[#6f6a63] transition hover:text-[#151515]"
-      >
-        ← Back to categories
-      </Link>
+    <main>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <div className="surface-grid absolute inset-0 opacity-40" />
+        <div className="absolute left-[-160px] top-[-180px] h-[420px] w-[420px] rounded-full bg-[var(--primary)]/10 blur-3xl" />
+        <div className="absolute bottom-[-220px] right-[-160px] h-[420px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-3xl" />
 
-      <section className="mt-6 rounded-[2rem] bg-[#151515] p-6 text-white sm:rounded-[2.5rem] md:p-12">
-        <div className="grid gap-8 lg:grid-cols-[1fr_320px] lg:items-end">
-          <div>
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-3xl">
-              {category.icon}
+        <div className="relative p-6 md:p-8 lg:p-10">
+          <Link
+            href="/categories"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]"
+          >
+            <ArrowLeft size={16} />
+            Back to categories
+          </Link>
+
+          <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_360px] xl:items-end">
+            <div>
+              <Badge variant="primary">
+                <Sparkles size={14} />
+                SkillDrop category
+              </Badge>
+
+              <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+                {category.name}
+              </h1>
+
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+                {category.description ??
+                  "Find people who can explain, advise, teach or guide you through this problem area."}
+              </p>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <ButtonLink href={`/experts?category=${category.slug}`}>
+                  Search helpers
+                  <Search size={18} />
+                </ButtonLink>
+
+                <ButtonLink
+                  href={`/help-request?query=${encodeURIComponent(category.name)}`}
+                  variant="secondary"
+                >
+                  Request specific help
+                  <ArrowRight size={18} />
+                </ButtonLink>
+              </div>
             </div>
 
-            <p className="mt-6 text-sm font-black text-[#f97316]">
-              SkillDrop category
-            </p>
+            <Card className="p-5 md:p-6">
+              <Badge variant="accent">
+                <FileText size={14} />
+                Category stats
+              </Badge>
 
-            <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">
-              {category.title}
-            </h1>
-
-            <p className="mt-5 max-w-3xl text-lg leading-8 text-white/60">
-              {category.longDescription}
-            </p>
-          </div>
-
-          <div className="rounded-[2rem] bg-white p-5 text-[#151515]">
-            <p className="text-sm font-black text-[#2563eb]">
-              Experts available
-            </p>
-            <p className="mt-2 text-5xl font-black">
-              {filteredExperts.length}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[#6f6a63]">
-              Experts matching this category.
-            </p>
+              <div className="mt-5 grid gap-3">
+                <InfoRow label="Helpers" value={String(helpers.length)} />
+                <InfoRow label="Offers" value={String(services.length)} />
+                <InfoRow
+                  label="Starting price"
+                  value={lowestPrice ? formatMoney(lowestPrice) : "—"}
+                />
+              </div>
+            </Card>
           </div>
         </div>
       </section>
 
-      <section className="mt-8">
-        <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <h2 className="text-2xl font-black">Recommended experts</h2>
-            <p className="mt-1 text-sm text-[#6f6a63]">
-              Experts ranked by rating and relevance.
-            </p>
-          </div>
+      <section className="p-6 md:p-8 lg:p-10">
+        <div className="grid gap-6">
+          {category.subcategories.length > 0 ? (
+            <Card className="p-5 md:p-6">
+              <Badge variant="accent">
+                <Lightbulb size={14} />
+                Subcategories
+              </Badge>
 
-          <Link
-            href={`/experts?category=${encodeURIComponent(category.query)}`}
-            className="w-fit rounded-full bg-[#151515] px-5 py-3 text-sm font-black text-white transition hover:bg-[#2563eb]"
-          >
-            Search marketplace
-          </Link>
-        </div>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                More specific problems inside {category.name}.
+              </h2>
 
-        {filteredExperts.length === 0 ? (
-          <div className="card rounded-[2rem] p-10 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eef4ff] text-2xl">
-              🔎
+              <div className="mt-6 flex flex-wrap gap-3">
+                {category.subcategories.map((subcategory) => (
+                  <Link
+                    key={subcategory.id}
+                    href={`/experts?category=${category.slug}&subcategory=${subcategory.slug}`}
+                    className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2 text-sm font-bold text-[var(--muted-foreground)] transition hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)] hover:text-[var(--foreground)]"
+                  >
+                    {subcategory.name}
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+              <Badge variant="primary">
+                <BadgeCheck size={14} />
+                Matching helpers
+              </Badge>
+
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+                Helpers in this category.
+              </h2>
+
+              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+                Ranked by verification, rating and sessions. Open a profile to
+                choose an offer and book a short call.
+              </p>
             </div>
 
-            <h3 className="mt-5 text-2xl font-black">
-              No experts in this category yet
-            </h3>
-
-            <p className="mx-auto mt-3 max-w-md leading-7 text-[#6f6a63]">
-              Try browsing all experts or come back later as the marketplace
-              grows.
-            </p>
-
             <Link
-              href="/experts"
-              className="mt-6 inline-flex rounded-full bg-[#2563eb] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1d4ed8]"
+              href={`/experts?q=${encodeURIComponent(searchableQuery)}`}
+              className="btn btn-secondary w-fit"
             >
-              Browse experts
+              Search marketplace
             </Link>
           </div>
-        ) : (
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {filteredExperts.map((expert) => {
-              const minPrice =
-                expert.services.length > 0
-                  ? Math.min(
-                      ...expert.services.map((service) => service.priceCents),
-                    )
-                  : null;
 
-              const topServices = expert.services.slice(0, 2);
+          {helpers.length > 0 ? (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {helpers.map((helper) => {
+                const helperServices = services
+                  .filter((service) => service.expertId === helper.id)
+                  .slice(0, 3);
 
-              return (
-                <Link
-                  key={expert.id}
-                  href={`/experts/${expert.id}`}
-                  className="card card-hover group flex min-h-[360px] flex-col rounded-[2rem] p-6"
+                return (
+                  <HelperCategoryCard
+                    key={helper.id}
+                    helper={helper}
+                    services={helperServices}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="p-8 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                <Search size={24} />
+              </div>
+
+              <h3 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+                No helpers in this category yet
+              </h3>
+
+              <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+                This category exists, but there are no bookable helpers yet.
+                Request this help so SkillDrop can understand demand.
+              </p>
+
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <ButtonLink
+                  href={`/help-request?query=${encodeURIComponent(category.name)}`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f97316] text-2xl font-black text-white">
-                      {expert.user.name?.charAt(0) ?? "E"}
-                    </div>
+                  Request this help
+                  <ArrowRight size={18} />
+                </ButtonLink>
 
-                    <div className="rounded-full bg-[#eef4ff] px-3 py-1.5 text-sm font-black text-[#2563eb]">
-                      ⭐ {expert.rating.toFixed(1)}
-                    </div>
-                  </div>
-
-                  <div className="mt-6">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-xl font-black tracking-tight">
-                        {expert.user.name}
-                      </h3>
-
-                      {expert.isVerified ? (
-                        <span className="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-black text-green-700">
-                          VERIFIED
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <p className="mt-2 min-h-[48px] text-sm leading-6 text-[#6f6a63]">
-                      {expert.headline}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {expert.skills.slice(0, 3).map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full bg-[#f7f4ef] px-3 py-1 text-xs font-bold text-[#6f6a63]"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="mt-6 space-y-2">
-                    {topServices.map((service) => (
-                      <div
-                        key={service.id}
-                        className="flex items-center justify-between rounded-2xl bg-[#f7f4ef] px-4 py-3"
-                      >
-                        <span className="truncate text-sm font-bold">
-                          {service.title}
-                        </span>
-                        <span className="ml-3 shrink-0 text-sm font-black text-[#2563eb]">
-                          €{service.priceCents / 100}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-auto flex items-center justify-between border-t border-[#e8e1d8] pt-5">
-                    <div>
-                      <p className="text-xs font-bold text-[#6f6a63]">
-                        Starting from
-                      </p>
-                      <p className="text-xl font-black">
-                        {minPrice ? `€${minPrice / 100}` : "—"}
-                      </p>
-                    </div>
-
-                    <span className="rounded-full bg-[#151515] px-5 py-2.5 text-sm font-black text-white transition group-hover:bg-[#2563eb]">
-                      View profile
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                <ButtonLink href="/experts" variant="secondary">
+                  Browse all helpers
+                </ButtonLink>
+              </div>
+            </Card>
+          )}
+        </div>
       </section>
     </main>
   );
+}
+
+function HelperCategoryCard({
+  helper,
+  services,
+}: {
+  helper: {
+    id: string;
+    headline: string;
+    rating: number;
+    totalReviews: number;
+    totalSessions: number;
+    isVerified: boolean;
+    skills: string[];
+    user: {
+      name: string | null;
+      email: string;
+    };
+    availability: {
+      id: string;
+      startTime: Date;
+    }[];
+    reviews: {
+      problemSolved: string | null;
+    }[];
+  };
+  services: {
+    id: string;
+    title: string;
+    priceCents: number;
+    durationMinutes: number;
+    helpType: string;
+    subcategory: {
+      name: string;
+    } | null;
+  }[];
+}) {
+  const startingPrice =
+    services.length > 0
+      ? Math.min(...services.map((service) => service.priceCents))
+      : null;
+
+  const startingTotal = startingPrice
+    ? calculatePricingBreakdown(startingPrice).clientTotalCents
+    : null;
+
+  const helperName = helper.user.name ?? helper.user.email;
+  const solvedReviews = helper.reviews.filter(
+    (review) => review.problemSolved === "YES",
+  ).length;
+  const knownOutcomeReviews = helper.reviews.filter((review) =>
+    ["YES", "PARTIALLY", "NO"].includes(review.problemSolved ?? ""),
+  ).length;
+  const solvedRate =
+    knownOutcomeReviews > 0
+      ? Math.round((solvedReviews / knownOutcomeReviews) * 100)
+      : null;
+
+  return (
+    <Link href={`/experts/${helper.id}`} className="group">
+      <Card className="flex h-full flex-col p-5 transition group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)]">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-[var(--primary)] text-xl font-black text-white">
+            {helperName.charAt(0).toUpperCase()}
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-2">
+            {helper.isVerified ? (
+              <Badge variant="success">
+                <BadgeCheck size={14} />
+                Verified
+              </Badge>
+            ) : (
+              <Badge variant="accent">New</Badge>
+            )}
+
+            {solvedRate !== null ? (
+              <Badge variant={solvedRate >= 70 ? "success" : "accent"}>
+                {solvedRate}% solved
+              </Badge>
+            ) : null}
+          </div>
+        </div>
+
+        <h3 className="mt-5 text-2xl font-black tracking-[-0.04em]">
+          {helperName}
+        </h3>
+
+        <p className="mt-2 line-clamp-2 min-h-[48px] text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+          {helper.headline}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <SmallPill icon={Star} text={`${helper.rating.toFixed(1)} rating`} />
+          <SmallPill icon={Clock3} text={`${helper.totalSessions} sessions`} />
+          {helper.availability[0] ? (
+            <SmallPill
+              icon={CalendarDays}
+              text={`Next: ${formatDate(helper.availability[0].startTime)}`}
+            />
+          ) : null}
+        </div>
+
+        <div className="mt-5 grid gap-2">
+          {services.map((service) => (
+            <div
+              key={service.id}
+              className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="line-clamp-1 text-sm font-bold text-[var(--foreground)]">
+                  {service.title}
+                </p>
+
+                <p className="shrink-0 text-sm font-black text-[var(--primary-dark)]">
+                  {formatMoney(service.priceCents)}
+                </p>
+              </div>
+
+              <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-[var(--muted-foreground)]">
+                <span>{formatHelpType(service.helpType)}</span>
+                <span>·</span>
+                <span>{service.durationMinutes} min</span>
+                {service.subcategory ? (
+                  <>
+                    <span>·</span>
+                    <span>{service.subcategory.name}</span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-auto flex items-center justify-between border-t border-[var(--border)] pt-5">
+          <div>
+            <p className="text-xs font-bold text-[var(--muted-foreground)]">
+              Starting total
+            </p>
+            <p className="text-xl font-black">
+              {startingTotal ? formatMoney(startingTotal) : "—"}
+            </p>
+          </div>
+
+          <span className="btn btn-secondary">
+            View profile
+            <ArrowRight size={17} />
+          </span>
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
+      <p className="text-sm font-medium text-[var(--muted-foreground)]">
+        {label}
+      </p>
+
+      <p className="text-right text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function SmallPill({
+  icon: Icon,
+  text,
+}: {
+  icon: typeof Star;
+  text: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1.5 text-xs font-bold text-[var(--muted-foreground)]">
+      <Icon size={13} />
+      {text}
+    </span>
+  );
+}
+
+function formatMoney(cents: number) {
+  return formatMoneyFromCents(cents);
+}
+
+function formatDate(date: Date) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatHelpType(helpType: string) {
+  return helpType
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

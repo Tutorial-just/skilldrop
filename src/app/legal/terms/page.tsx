@@ -53,6 +53,10 @@ export default function TermsPage() {
           <ButtonLink href="/legal/safety" variant="secondary">
             Safety rules
           </ButtonLink>
+
+          <ButtonLink href="/trust" variant="secondary">
+            Trust center
+          </ButtonLink>
         </div>
       </section>
 

@@ -62,6 +62,10 @@ export default function PrivacyPage() {
           <ButtonLink href="/legal/refunds" variant="secondary">
             Refunds
           </ButtonLink>
+
+          <ButtonLink href="/trust" variant="secondary">
+            Trust center
+          </ButtonLink>
         </div>
       </section>
 

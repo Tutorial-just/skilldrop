@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -11,80 +10,67 @@ import {
   Euro,
   Eye,
   FileText,
-  Globe2,
   Layers3,
   Lightbulb,
   Plus,
+  Power,
   Search,
   ShieldCheck,
   Sparkles,
+  Tags,
   Target,
+  Trash2,
   WalletCards,
+  type LucideIcon,
 } from "lucide-react";
 
-import { createProviderServiceAction } from "@/server/actions/expert.actions";
+import {
+  createServiceAction,
+  deleteServiceAction,
+  toggleServiceStatusAction,
+} from "@/server/actions/service.actions";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import {
   calculatePricingBreakdown,
   formatMoneyFromCents,
 } from "@/config/pricing";
-import { ServiceOfferCard } from "@/components/expert/service-offer-card";
-import { PricingPreview } from "@/components/pricing/pricing-preview";
+import { ServiceEditModal } from "@/components/expert/service-edit-modal";
+import { ServiceForm } from "@/components/forms/service-form";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+
+const helpTypeLabels: Record<string, string> = {
+  ADVICE: "Advice",
+  EXPLANATION: "Explanation",
+  TEACHING: "Teaching",
+  PRACTICAL_GUIDANCE: "Practical guidance",
+  PERSONAL_EXPERIENCE: "Personal experience",
+  EMOTIONAL_SUPPORT: "Emotional support",
+  RELIGIOUS_DISCUSSION: "Religious discussion",
+  BUSINESS_MENTORING: "Business mentoring",
+  OTHER: "Other",
+};
 
 type ExpertServicesPageProps = {
   searchParams?: Promise<{
     error?: string;
     created?: string;
     updated?: string;
+    deleted?: string;
+    archived?: string;
+    saved?: string;
   }>;
 };
 
-const categoryOptions = [
-  "Career & Jobs",
-  "Documents & Admin Help",
-  "Translation & Languages",
-  "Moving Abroad",
-  "Study & Applications",
-  "Tech Help",
-  "Business & Freelance",
-  "Local Help",
-  "Life Advice",
-  "Family & Relationships",
-  "Cooking & Daily Skills",
-  "Psychology & Support",
-  "Other Practical Help",
-];
-
-const durationOptions = [15, 30, 45, 60];
-
-const offerTitleExamples = [
-  "Review your CV and give clear next steps",
-  "Help you understand an official document",
-  "Practice a job interview with feedback",
-  "Translate or correct an important message",
-  "Help you prepare a university application",
-  "Explain a website or coding problem",
-];
-
-const offerDescriptionChecklist = [
-  "Who this offer is for",
-  "What problem you help with",
-  "What happens during the call",
-  "What the buyer gets by the end",
-  "What the buyer should prepare before the call",
-];
-
 const keywordExamples = [
-  "CV, resume, interview, job search",
-  "visa, documents, forms, admin help",
-  "translation, message correction, language practice",
-  "coding, website, tech help, IT support",
-  "study application, motivation letter, university",
-  "moving abroad, housing, local guidance, relocation",
+  "dating, confidence, communication, first date",
+  "business, first clients, pricing, marketing",
+  "CV, interview, job search, motivation letter",
+  "documents, forms, admin help, official message",
+  "cooking, recipe, beginner, step by step",
+  "religion, faith, spiritual questions, practices",
 ];
 
 export default async function ExpertServicesPage({
@@ -93,23 +79,16 @@ export default async function ExpertServicesPage({
   const { user } = await requireRole(["expert", "admin"]);
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
-  const email = user.email?.toLowerCase();
-
-  if (!email) {
-    redirect("/sign-in");
-  }
-
-  const expert = await prisma.expertProfile.findFirst({
+  const expert = await prisma.expertProfile.findUnique({
     where: {
-      user: {
-        email,
-      },
+      userId: user.id,
     },
     include: {
       user: true,
       services: {
         include: {
           category: true,
+          subcategory: true,
         },
         orderBy: {
           createdAt: "desc",
@@ -175,7 +154,6 @@ export default async function ExpertServicesPage({
 
   const estimatedActiveProviderNet = activeServices.reduce((sum, service) => {
     const pricing = calculatePricingBreakdown(service.priceCents);
-
     return sum + pricing.providerNetCents;
   }, 0);
 
@@ -191,6 +169,7 @@ export default async function ExpertServicesPage({
     hasStrongDescriptions: expert.services.some(
       (service) => service.description.length >= 80,
     ),
+    hasSearchTags: expert.services.some((service) => service.tags.length > 0),
   });
 
   const isBookable =
@@ -221,23 +200,7 @@ export default async function ExpertServicesPage({
                 Back to dashboard
               </Link>
 
-              {resolvedSearchParams.created ? (
-                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
-                  Offer created successfully.
-                </div>
-              ) : null}
-
-              {resolvedSearchParams.updated ? (
-                <div className="mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]">
-                  Offer updated successfully.
-                </div>
-              ) : null}
-
-              {resolvedSearchParams.error ? (
-                <div className="mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
-                  {formatServiceError(resolvedSearchParams.error)}
-                </div>
-              ) : null}
+              <PageNotice searchParams={resolvedSearchParams} />
 
               <div className="mt-6">
                 <Badge variant="primary">
@@ -247,12 +210,13 @@ export default async function ExpertServicesPage({
               </div>
 
               <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Create offers people can understand, find and book.
+                Create help offers for real problems people search for.
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-                Each offer should solve one clear problem. Explain who it is for,
-                what happens during the call and what the buyer gets by the end.
+                Each offer should explain the problem, the type of help, and the
+                result the buyer gets after a short call. Categories stay clean,
+                while tags make your offer easier to find.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2">
@@ -321,7 +285,7 @@ export default async function ExpertServicesPage({
               icon={Target}
               label="Offer health"
               value={`${offerHealth}%`}
-              text="Commercial readiness"
+              text="Readiness"
             />
 
             <MiniStat
@@ -336,63 +300,7 @@ export default async function ExpertServicesPage({
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-6">
-          {!isBookable ? (
-            <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
-              <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--warning)]">
-                  <Lightbulb size={24} />
-                </div>
-
-                <div>
-                  <h2 className="text-2xl font-black tracking-[-0.04em]">
-                    Your offers are not fully ready for paid bookings yet.
-                  </h2>
-
-                  <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
-                    You need at least one active offer, open availability and
-                    Stripe payouts connected before buyers can book smoothly.
-                  </p>
-                </div>
-
-                <ButtonLink
-                  href={
-                    activeServices.length === 0
-                      ? "#add-offer"
-                      : expert.availability.length === 0
-                        ? "/expert/availability"
-                        : "/expert/earnings"
-                  }
-                >
-                  Continue setup
-                  <ArrowRight size={18} />
-                </ButtonLink>
-              </div>
-            </Card>
-          ) : (
-            <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6">
-              <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--success)]">
-                  <CheckCircle2 size={24} />
-                </div>
-
-                <div>
-                  <h2 className="text-2xl font-black tracking-[-0.04em]">
-                    Your profile can accept bookings.
-                  </h2>
-
-                  <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
-                    You have active offers, open slots and payout setup. Keep
-                    your offers clear, searchable and easy to book.
-                  </p>
-                </div>
-
-                <ButtonLink href={`/experts/${expert.id}`}>
-                  View profile
-                  <Eye size={18} />
-                </ButtonLink>
-              </div>
-            </Card>
-          )}
+          {!isBookable ? <SetupNeededCard expert={expert} activeServices={activeServices.length} /> : <ReadyCard expertId={expert.id} />}
 
           <div className="grid gap-6 xl:grid-cols-[0.84fr_1.16fr] xl:items-start">
             <div className="grid gap-6">
@@ -412,31 +320,11 @@ export default async function ExpertServicesPage({
                 </p>
 
                 <div className="mt-6 grid gap-3">
-                  <InfoRow
-                    label="Lowest price"
-                    value={lowestPrice ? formatMoney(lowestPrice) : "—"}
-                  />
-
-                  <InfoRow
-                    label="Highest price"
-                    value={highestPrice ? formatMoney(highestPrice) : "—"}
-                  />
-
-                  <InfoRow
-                    label="Average price"
-                    value={averagePrice ? formatMoney(averagePrice) : "—"}
-                  />
-
-                  <InfoRow
-                    label="Estimated active net"
-                    value={formatMoney(estimatedActiveProviderNet)}
-                    strong
-                  />
-
-                  <InfoRow
-                    label="Best offer"
-                    value={bestService?.title ?? "Not enough data"}
-                  />
+                  <InfoRow label="Lowest price" value={lowestPrice ? formatMoney(lowestPrice) : "—"} />
+                  <InfoRow label="Highest price" value={highestPrice ? formatMoney(highestPrice) : "—"} />
+                  <InfoRow label="Average price" value={averagePrice ? formatMoney(averagePrice) : "—"} />
+                  <InfoRow label="Estimated active net" value={formatMoney(estimatedActiveProviderNet)} strong />
+                  <InfoRow label="Best offer" value={bestService?.title ?? "Not enough data"} />
                 </div>
               </Card>
 
@@ -447,54 +335,33 @@ export default async function ExpertServicesPage({
                 </Badge>
 
                 <div className="mt-5 grid gap-3">
-                  <CheckRow
-                    done={activeServices.length > 0}
-                    text="At least one active offer"
-                  />
-                  <CheckRow
-                    done={expert.services.some(
-                      (service) => service.title.length >= 8,
-                    )}
-                    text="Clear problem-focused title"
-                  />
-                  <CheckRow
-                    done={expert.services.some(
-                      (service) => service.description.length >= 80,
-                    )}
-                    text="Detailed description"
-                  />
-                  <CheckRow
-                    done={expert.services.some(
-                      (service) =>
-                        service.durationMinutes === 15 ||
-                        service.durationMinutes === 30,
-                    )}
-                    text="Short, easy-to-book duration"
-                  />
-                  <CheckRow
-                    done={expert.availability.length > 0}
-                    text="Open availability added"
-                  />
-                  <CheckRow
-                    done={Boolean(expert.stripeAccountId)}
-                    text="Stripe payouts connected"
-                  />
+                  <CheckRow done={activeServices.length > 0} text="At least one active offer" />
+                  <CheckRow done={expert.services.some((service) => service.title.length >= 8)} text="Clear problem-focused title" />
+                  <CheckRow done={expert.services.some((service) => service.description.length >= 80)} text="Detailed description" />
+                  <CheckRow done={expert.services.some((service) => service.tags.length > 0)} text="Search tags added" />
+                  <CheckRow done={expert.services.some((service) => service.durationMinutes === 15 || service.durationMinutes === 30)} text="Short, easy-to-book duration" />
+                  <CheckRow done={expert.availability.length > 0} text="Open availability added" />
+                  <CheckRow done={Boolean(expert.stripeAccountId)} text="Stripe payouts connected" />
                 </div>
               </Card>
 
-              <Card className="p-5 md:p-6">
+              <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
                 <Badge variant="accent">
-                  <Lightbulb size={14} />
-                  Tips for better offers
+                  <ShieldCheck size={14} />
+                  Safety boundary
                 </Badge>
 
-                <div className="mt-5 grid gap-3">
-                  <Tip text="Use titles that start with the buyer’s problem: “Review your CV”, “Understand a document”, “Fix a website issue”." />
-                  <Tip text="Explain exactly what happens during the call and what result the buyer gets." />
-                  <Tip text="Use words buyers might search for: visa, CV, coding, translation, interview, study, relocation." />
-                  <Tip text="Start with simple 15 or 30 minute offers to reduce buyer hesitation." />
-                  <Tip text="Create 2–3 focused offers instead of one vague offer for everything." />
-                </div>
+                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                  Broad help does not mean unsafe help.
+                </h2>
+
+                <p className="mt-3 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+                  Your offers can cover relationships, faith, business, cooking,
+                  documents, tech or life advice — but they must not include
+                  illegal help, fake documents, scams, manipulation, harmful
+                  instructions or guaranteed medical, legal or financial
+                  outcomes.
+                </p>
               </Card>
 
               <Card className="p-5 md:p-6">
@@ -504,13 +371,12 @@ export default async function ExpertServicesPage({
                 </Badge>
 
                 <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                  Your offer title and description help buyers find you.
+                  Buyers search by problems, not by professional titles.
                 </h2>
 
                 <p className="mt-3 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
-                  SkillDrop search reads your profile, skills, tags and service
-                  details. Add simple words people would type when they need
-                  help.
+                  Add category, subcategory, help type and tags so SkillDrop can
+                  connect a buyer problem with the right helper.
                 </p>
 
                 <div className="mt-5 grid gap-3">
@@ -568,118 +434,15 @@ export default async function ExpertServicesPage({
                         </p>
 
                         <p className="mt-1 text-sm font-medium leading-6 text-[var(--primary-dark)]/80">
-                          A good offer answers four questions: what problem do
-                          you solve, who is it for, what happens during the
-                          call, and what result does the buyer get?
+                          Good offers answer: what problem you solve, who it is
+                          for, what happens during the call, and what result the
+                          buyer gets.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <form action={createProviderServiceAction} className="grid gap-5">
-                    <div className="grid gap-5 lg:grid-cols-2">
-                      <Field label="Category" htmlFor="category-new">
-                        <select
-                          id="category-new"
-                          name="category"
-                          required
-                          className="input mt-2"
-                          defaultValue=""
-                        >
-                          <option value="" disabled>
-                            Choose a category
-                          </option>
-
-                          {categoryOptions.map((category) => (
-                            <option key={category} value={category}>
-                              {category}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-
-                      <Field label="Offer title" htmlFor="title-new">
-                        <input
-                          id="title-new"
-                          name="title"
-                          type="text"
-                          required
-                          minLength={4}
-                          maxLength={120}
-                          className="input mt-2"
-                          placeholder="Review your CV and give clear next steps"
-                        />
-                      </Field>
-                    </div>
-
-                    <ExampleBox
-                      title="Strong offer title examples"
-                      items={offerTitleExamples}
-                    />
-
-                    <Field label="Description" htmlFor="description-new">
-                      <textarea
-                        id="description-new"
-                        name="description"
-                        required
-                        rows={6}
-                        minLength={30}
-                        maxLength={800}
-                        className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-[var(--background-soft)] p-4 text-sm font-medium leading-7 outline-none transition focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
-                        placeholder="Explain who this is for, what problem you solve, what happens during the call, and what the buyer gets by the end. Add searchable words like CV, visa, documents, coding, interview, translation, study or relocation when relevant."
-                      />
-                    </Field>
-
-                    <ExampleBox
-                      title="Your offer description should mention"
-                      items={offerDescriptionChecklist}
-                    />
-
-                    <div className="grid gap-5 md:grid-cols-[1fr_1fr_auto] md:items-end">
-                      <Field label="Duration" htmlFor="duration-new">
-                        <select
-                          id="duration-new"
-                          name="durationMinutes"
-                          required
-                          className="input mt-2"
-                          defaultValue="30"
-                        >
-                          {durationOptions.map((duration) => (
-                            <option key={duration} value={duration}>
-                              {duration} minutes
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-
-                      <Field label="Price in EUR" htmlFor="price-new">
-                        <div className="relative mt-2">
-                          <Euro
-                            size={17}
-                            className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-                          />
-
-                          <input
-                            id="price-new"
-                            name="price"
-                            type="number"
-                            min="1"
-                            step="1"
-                            required
-                            className="input pl-12"
-                            placeholder="30"
-                          />
-                        </div>
-                      </Field>
-
-                      <button type="submit" className="btn btn-primary">
-                        Create
-                        <ArrowRight size={18} />
-                      </button>
-                    </div>
-
-                    <PricingPreview inputId="price-new" />
-                  </form>
+                  <ServiceForm action={createServiceAction} />
                 </div>
               </details>
 
@@ -696,8 +459,8 @@ export default async function ExpertServicesPage({
                     </h2>
 
                     <p className="mt-3 max-w-2xl leading-7 text-[var(--muted-foreground)]">
-                      Active offers appear on your public profile. Edit opens
-                      inside the page and shows a price breakdown before saving.
+                      Active offers appear on your public profile. Edit category,
+                      subcategory, help type and tags to improve matching.
                     </p>
                   </div>
 
@@ -707,7 +470,7 @@ export default async function ExpertServicesPage({
                 <div className="mt-7 grid gap-4">
                   {expert.services.length > 0 ? (
                     expert.services.map((service) => (
-                      <ServiceOfferCard
+                      <ServiceCard
                         key={service.id}
                         service={{
                           id: service.id,
@@ -716,7 +479,12 @@ export default async function ExpertServicesPage({
                           durationMinutes: service.durationMinutes,
                           price: service.priceCents / 100,
                           isActive: service.isActive,
-                          categoryName: service.category?.name ?? "",
+                          categoryName: service.category?.name ?? "Category",
+                          categorySlug: service.category?.slug ?? null,
+                          subcategoryName: service.subcategory?.name ?? null,
+                          subcategorySlug: service.subcategory?.slug ?? null,
+                          helpType: service.helpType,
+                          tags: service.tags,
                         }}
                       />
                     ))
@@ -733,13 +501,223 @@ export default async function ExpertServicesPage({
   );
 }
 
+function ServiceCard({
+  service,
+}: {
+  service: {
+    id: string;
+    title: string;
+    description: string;
+    durationMinutes: number;
+    price: number;
+    isActive: boolean;
+    categoryName: string;
+    categorySlug?: string | null;
+    subcategoryName?: string | null;
+    subcategorySlug?: string | null;
+    helpType?: string | null;
+    tags: string[];
+  };
+}) {
+  return (
+    <div className="rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={service.isActive ? "success" : "accent"}>
+              {service.isActive ? "Active" : "Inactive"}
+            </Badge>
+            <Badge>{service.categoryName}</Badge>
+            {service.subcategoryName ? <Badge>{service.subcategoryName}</Badge> : null}
+            <Badge>{helpTypeLabels[service.helpType ?? "ADVICE"] ?? "Advice"}</Badge>
+            <Badge>
+              <Clock3 size={14} />
+              {service.durationMinutes} min
+            </Badge>
+          </div>
+
+          <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+            Buyer problem / offer
+          </p>
+
+          <h3 className="mt-2 text-xl font-black tracking-[-0.03em] text-[var(--foreground)]">
+            {service.title}
+          </h3>
+
+          <p className="mt-2 line-clamp-3 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+            {service.description}
+          </p>
+
+          {service.tags.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {service.tags.slice(0, 8).map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-1 text-xs font-bold text-[var(--muted-foreground)]"
+                >
+                  <Tags size={12} />
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <MiniInfo icon={Target} label="Purpose" value="Problem-focused" />
+            <MiniInfo icon={Clock3} label="Duration" value={`${service.durationMinutes} min`} />
+            <MiniInfo icon={Euro} label="Price" value={`€${service.price}`} />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <ServiceEditModal service={service} />
+
+          <form action={toggleServiceStatusAction}>
+            <input type="hidden" name="serviceId" value={service.id} />
+            <button type="submit" className="btn btn-secondary">
+              <Power size={17} />
+              {service.isActive ? "Off" : "On"}
+            </button>
+          </form>
+
+          <form action={deleteServiceAction}>
+            <input type="hidden" name="serviceId" value={service.id} />
+            <button type="submit" className="btn btn-secondary">
+              <Trash2 size={17} />
+              Delete
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageNotice({
+  searchParams,
+}: {
+  searchParams: {
+    error?: string;
+    created?: string;
+    updated?: string;
+    deleted?: string;
+    archived?: string;
+    saved?: string;
+  };
+}) {
+  if (searchParams.created) {
+    return <Notice type="success" text="Offer created successfully." />;
+  }
+
+  if (searchParams.updated) {
+    return <Notice type="success" text="Offer updated successfully." />;
+  }
+
+  if (searchParams.deleted) {
+    return <Notice type="success" text="Offer deleted successfully." />;
+  }
+
+  if (searchParams.archived) {
+    return <Notice type="success" text="This offer has bookings, so it was archived instead of deleted." />;
+  }
+
+  if (searchParams.saved) {
+    return <Notice type="success" text="Changes saved successfully." />;
+  }
+
+  if (searchParams.error) {
+    return <Notice type="danger" text={formatServiceError(searchParams.error)} />;
+  }
+
+  return null;
+}
+
+function Notice({ type, text }: { type: "success" | "danger"; text: string }) {
+  const className =
+    type === "success"
+      ? "mt-6 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-4 text-sm font-bold text-[var(--success)]"
+      : "mt-6 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]";
+
+  return <div className={className}>{text}</div>;
+}
+
+function SetupNeededCard({
+  expert,
+  activeServices,
+}: {
+  expert: { availability: { id: string }[]; stripeAccountId: string | null };
+  activeServices: number;
+}) {
+  return (
+    <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
+      <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--warning)]">
+          <Lightbulb size={24} />
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-black tracking-[-0.04em]">
+            Your offers are not fully ready for paid bookings yet.
+          </h2>
+
+          <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
+            You need at least one active offer, open availability and Stripe
+            payouts connected before buyers can book smoothly.
+          </p>
+        </div>
+
+        <ButtonLink
+          href={
+            activeServices === 0
+              ? "#add-offer"
+              : expert.availability.length === 0
+                ? "/expert/availability"
+                : "/expert/earnings"
+          }
+        >
+          Continue setup
+          <ArrowRight size={18} />
+        </ButtonLink>
+      </div>
+    </Card>
+  );
+}
+
+function ReadyCard({ expertId }: { expertId: string }) {
+  return (
+    <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6">
+      <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--success)]">
+          <CheckCircle2 size={24} />
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-black tracking-[-0.04em]">
+            Your profile can accept bookings.
+          </h2>
+
+          <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
+            You have active offers, open slots and payout setup. Keep your offers
+            clear, searchable and easy to book.
+          </p>
+        </div>
+
+        <ButtonLink href={`/experts/${expertId}`}>
+          View profile
+          <Eye size={18} />
+        </ButtonLink>
+      </div>
+    </Card>
+  );
+}
+
 function MiniStat({
   icon: Icon,
   label,
   value,
   text,
 }: {
-  icon: typeof WalletCards;
+  icon: LucideIcon;
   label: string;
   value: string;
   text: string;
@@ -762,6 +740,31 @@ function MiniStat({
         {text}
       </p>
     </Card>
+  );
+}
+
+function MiniInfo({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-3">
+      <div className="flex items-center gap-2 text-[var(--primary-dark)]">
+        <Icon size={15} />
+        <p className="text-xs font-bold uppercase tracking-[0.12em]">
+          {label}
+        </p>
+      </div>
+
+      <p className="mt-2 text-sm font-bold text-[var(--foreground)]">
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -793,29 +796,6 @@ function InfoRow({
   );
 }
 
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <label
-        htmlFor={htmlFor}
-        className="text-sm font-bold text-[var(--foreground)]"
-      >
-        {label}
-      </label>
-
-      {children}
-    </div>
-  );
-}
-
 function CheckRow({ done, text }: { done: boolean; text: string }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
@@ -832,45 +812,6 @@ function CheckRow({ done, text }: { done: boolean; text: string }) {
       <p className="text-sm font-medium text-[var(--muted-foreground)]">
         {text}
       </p>
-    </div>
-  );
-}
-
-function Tip({ text }: { text: string }) {
-  return (
-    <div className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-      <BadgeCheck size={17} className="mt-0.5 shrink-0 text-[var(--success)]" />
-      {text}
-    </div>
-  );
-}
-
-function ExampleBox({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
-      <div className="flex gap-3">
-        <Lightbulb
-          size={18}
-          className="mt-0.5 shrink-0 text-[var(--accent)]"
-        />
-
-        <div>
-          <p className="text-sm font-bold text-[var(--foreground)]">
-            {title}
-          </p>
-
-          <div className="mt-3 grid gap-2">
-            {items.map((item) => (
-              <div
-                key={item}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]"
-              >
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -900,18 +841,21 @@ function calculateOfferHealth({
   hasOpenSlots,
   hasStripe,
   hasStrongDescriptions,
+  hasSearchTags,
 }: {
   activeServicesCount: number;
   servicesCount: number;
   hasOpenSlots: boolean;
   hasStripe: boolean;
   hasStrongDescriptions: boolean;
+  hasSearchTags: boolean;
 }) {
   const checks = [
     servicesCount > 0,
     activeServicesCount > 0,
     activeServicesCount >= 2,
     hasStrongDescriptions,
+    hasSearchTags,
     hasOpenSlots,
     hasStripe,
   ];
@@ -989,12 +933,20 @@ function formatServiceError(error: string) {
     return "Service was not found.";
   }
 
-  if (error === "title-too-short") {
+  if (error === "invalid-title" || error === "title-too-short") {
     return "Please enter a clearer offer title.";
   }
 
-  if (error === "description-too-short") {
-    return "Please describe your offer in at least 30 characters.";
+  if (error === "invalid-description" || error === "description-too-short") {
+    return "Please describe your offer in more detail.";
+  }
+
+  if (error === "invalid-category") {
+    return "Please choose a valid category.";
+  }
+
+  if (error === "invalid-subcategory") {
+    return "Please choose a valid subcategory.";
   }
 
   if (error === "invalid-duration") {
@@ -1003,6 +955,14 @@ function formatServiceError(error: string) {
 
   if (error === "invalid-price") {
     return "Please enter a valid price.";
+  }
+
+  if (error === "too-many-active-services") {
+    return "You already have the maximum number of active offers.";
+  }
+
+  if (error === "service-has-active-bookings") {
+    return "This offer has active future bookings. You can edit text, category and tags, but not duration or price.";
   }
 
   if (error === "not-signed-in") {

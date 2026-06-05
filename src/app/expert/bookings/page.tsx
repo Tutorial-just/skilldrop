@@ -136,6 +136,7 @@ export default async function ExpertBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "desc",
@@ -159,6 +160,7 @@ export default async function ExpertBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "asc",
@@ -216,6 +218,7 @@ export default async function ExpertBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "asc",
@@ -236,6 +239,7 @@ export default async function ExpertBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "asc",
@@ -256,6 +260,7 @@ export default async function ExpertBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         endTime: "desc",
@@ -653,6 +658,10 @@ type ExpertBooking = {
     rating: number;
     comment: string | null;
   } | null;
+  outcome: {
+    id: string;
+    isVisibleToBuyer: boolean;
+  } | null;
 };
 
 function NextBookingPanel({ booking }: { booking: ExpertBooking }) {
@@ -823,6 +832,15 @@ function BookingCard({
               </Badge>
             ) : null}
 
+            {booking.outcome ? (
+              <Badge variant="success">
+                <CheckCircle2 size={14} />
+                Action plan
+              </Badge>
+            ) : isCompleted ? (
+              <Badge variant="accent">Needs action plan</Badge>
+            ) : null}
+
             {isPending ? (
               <Badge variant="accent">
                 <Clock3 size={14} />
@@ -958,7 +976,17 @@ function BookingCard({
             />
           ) : null}
 
-        
+          {isCompleted && booking.outcome ? (
+            <StatusExplanation
+              variant="success"
+              text="Action plan created. The buyer can view the next steps from this call."
+            />
+          ) : isCompleted ? (
+            <StatusExplanation
+              variant="primary"
+              text="Create an action plan so the buyer leaves with clear next steps."
+            />
+          ) : null}
 
           {booking.review ? (
             <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
@@ -983,6 +1011,15 @@ function BookingCard({
           ) : null}
 
           {canComplete ? <CompleteCallForm bookingId={booking.id} /> : null}
+
+          {isCompleted ? (
+            <Link
+              href={`/expert/bookings/${booking.id}/outcome`}
+              className={booking.outcome ? "btn btn-secondary" : "btn btn-primary"}
+            >
+              {booking.outcome ? "Update action plan" : "Create action plan"}
+            </Link>
+          ) : null}
 
           {canCancel ? <CancelCallForm bookingId={booking.id} /> : null}
 
@@ -1075,6 +1112,9 @@ function StatusBadge({ status }: { status: string }) {
 
   if (status === "REFUNDED") {
     return <Badge variant="danger">Refunded</Badge>;
+  }
+  if (status === "EXPIRED") {
+    return <Badge variant="accent">Expired</Badge>;
   }
 
   if (status === "CONFIRMED") {

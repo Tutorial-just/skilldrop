@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { BookingStatus } from "@prisma/client";
+import { BookingStatus, CategoryRequestStatus } from "@prisma/client";
 import {
   AlertTriangle,
   CalendarDays,
+  ClipboardList,
   CheckCircle2,
   CircleDollarSign,
   MessageCircle,
@@ -53,6 +54,11 @@ export default async function AdminPage() {
     cancelledBookingsCount,
     disputedBookingsCount,
     refundedBookingsCount,
+    categoriesCount,
+    activeCategoriesCount,
+    categoryRequestsCount,
+    pendingCategoryRequestsCount,
+    approvedCategoryRequestsCount,
     reviewsCount,
     lowReviewsCount,
     notRecommendedReviewsCount,
@@ -141,6 +147,28 @@ export default async function AdminPage() {
     prisma.booking.count({
       where: {
         status: "REFUNDED",
+      },
+    }),
+
+    prisma.category.count(),
+
+    prisma.category.count({
+      where: {
+        isActive: true,
+      },
+    }),
+
+    prisma.categoryRequest.count(),
+
+    prisma.categoryRequest.count({
+      where: {
+        status: CategoryRequestStatus.PENDING,
+      },
+    }),
+
+    prisma.categoryRequest.count({
+      where: {
+        status: CategoryRequestStatus.APPROVED,
       },
     }),
 
@@ -356,6 +384,7 @@ export default async function AdminPage() {
 
   const hasUrgentWork =
     pendingExpertsCount > 0 ||
+    pendingCategoryRequestsCount > 0 ||
     disputedBookingsCount > 0 ||
     highRiskExperts.length > 0 ||
     lowReviewsCount > 0;
@@ -413,7 +442,7 @@ export default async function AdminPage() {
             </Card>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <AdminStat
               icon={UsersRound}
               label="Users"
@@ -433,6 +462,13 @@ export default async function AdminPage() {
               label="Bookings"
               value={String(bookingsCount)}
               hint={`${confirmedBookingsCount} confirmed · ${disputedBookingsCount} disputed`}
+            />
+
+            <AdminStat
+              icon={ClipboardList}
+              label="Help requests"
+              value={String(categoryRequestsCount)}
+              hint={`${pendingCategoryRequestsCount} pending · ${approvedCategoryRequestsCount} approved`}
             />
 
             <AdminStat
@@ -469,6 +505,13 @@ export default async function AdminPage() {
                   value={String(pendingExpertsCount)}
                   href="/admin/experts?status=pending"
                   danger={pendingExpertsCount > 0}
+                />
+
+                <WarningRow
+                  label="Missing help requests"
+                  value={String(pendingCategoryRequestsCount)}
+                  href="/admin/category-requests"
+                  danger={pendingCategoryRequestsCount > 0}
                 />
 
                 <WarningRow
@@ -530,6 +573,14 @@ export default async function AdminPage() {
                 <StatusRow
                   label="Rejected experts"
                   value={String(rejectedExpertsCount)}
+                />
+                <StatusRow
+                  label="Active categories"
+                  value={`${activeCategoriesCount}/${categoriesCount}`}
+                />
+                <StatusRow
+                  label="Missing help requests"
+                  value={`${pendingCategoryRequestsCount} pending / ${categoryRequestsCount} total`}
                 />
                 <StatusRow
                   label="Pending bookings"
@@ -629,6 +680,12 @@ export default async function AdminPage() {
                   href="/admin/bookings"
                   title="Bookings"
                   text="Monitor pending, paid, confirmed, disputed and refunded calls."
+                />
+
+                <AdminLink
+                  href="/admin/category-requests"
+                  title="Category requests"
+                  text="Review missing help requests and decide which categories SkillDrop should add next."
                 />
 
                 <AdminLink

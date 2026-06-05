@@ -150,6 +150,7 @@ export default async function BuyerBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "desc",
@@ -177,6 +178,7 @@ export default async function BuyerBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "asc",
@@ -261,6 +263,7 @@ export default async function BuyerBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "asc",
@@ -285,6 +288,7 @@ export default async function BuyerBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "asc",
@@ -309,6 +313,7 @@ export default async function BuyerBookingsPage({
         service: true,
         callRoom: true,
         review: true,
+      outcome: true,
       },
       orderBy: {
         startTime: "desc",
@@ -839,6 +844,10 @@ type BookingCardBooking = {
     id: string;
     rating: number;
   } | null;
+  outcome: {
+    id: string;
+    isVisibleToBuyer: boolean;
+  } | null;
 };
 
 function BookingCard({
@@ -928,6 +937,15 @@ function BookingCard({
                 Reviewed {booking.review.rating}/5
               </Badge>
             ) : null}
+
+            {booking.outcome?.isVisibleToBuyer ? (
+              <Badge variant="success">
+                <CheckCircle2 size={14} />
+                Action plan ready
+              </Badge>
+            ) : isCompleted ? (
+              <Badge variant="accent">Action plan pending</Badge>
+            ) : null}
           </div>
 
           <h3 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
@@ -994,6 +1012,18 @@ function BookingCard({
             <StatusExplanation
               variant="primary"
               text="Payment was received. This booking is waiting for final confirmation."
+            />
+          ) : null}
+
+          {isCompleted && booking.outcome?.isVisibleToBuyer ? (
+            <StatusExplanation
+              variant="success"
+              text="Your helper added an action plan with the key points and next steps from the call."
+            />
+          ) : isCompleted ? (
+            <StatusExplanation
+              variant="primary"
+              text="This call is completed. The helper can still add an action plan with your next steps."
             />
           ) : null}
 
@@ -1064,6 +1094,15 @@ function BookingCard({
           {isCompleted && booking.review ? (
             <Link href="/buyer/reviews" className="btn btn-secondary">
               View review
+            </Link>
+          ) : null}
+
+          {isCompleted && booking.outcome?.isVisibleToBuyer ? (
+            <Link
+              href={`/buyer/bookings/${booking.id}/outcome`}
+              className="btn btn-primary"
+            >
+              View action plan
             </Link>
           ) : null}
 

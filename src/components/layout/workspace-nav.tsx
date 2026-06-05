@@ -14,23 +14,30 @@ type NavItem = {
 
 const expertLinks: NavItem[] = [
   { href: "/expert", label: "Overview" },
-  { href: "/expert/bookings", label: "Bookings" },
+  { href: "/expert/services", label: "Offers" },
   { href: "/expert/availability", label: "Availability" },
+  { href: "/expert/bookings", label: "Bookings" },
+  { href: "/expert/outcomes", label: "Action plans" },
   { href: "/expert/earnings", label: "Earnings" },
   { href: "/expert/settings", label: "Settings" },
 ];
 
 const buyerLinks: NavItem[] = [
   { href: "/buyer", label: "Overview" },
+  { href: "/help-me", label: "Describe problem" },
+  { href: "/experts", label: "Find helpers" },
   { href: "/buyer/bookings", label: "Bookings" },
+  { href: "/buyer/outcomes", label: "Action plans" },
   { href: "/buyer/settings", label: "Settings" },
 ];
 
 const adminLinks: NavItem[] = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/experts", label: "Experts" },
+  { href: "/admin/category-requests", label: "Help requests" },
   { href: "/admin/metrics", label: "Metrics" },
   { href: "/admin/disputes", label: "Disputes" },
+  { href: "/admin/launch", label: "Launch" },
   { href: "/admin/health", label: "Health" },
 ];
 
@@ -49,7 +56,12 @@ export function WorkspaceNav({ role }: WorkspaceNavProps) {
   ) {
     title = "Helper workspace";
     links = expertLinks;
-  } else if (pathname.startsWith("/buyer") && role) {
+  } else if (
+    (pathname.startsWith("/buyer") ||
+      pathname.startsWith("/help-me") ||
+      pathname.startsWith("/experts")) &&
+    role
+  ) {
     title = "Buyer workspace";
     links = buyerLinks;
   }

@@ -451,6 +451,23 @@ export default async function ExpertAvailabilityPage({
             )}
           </Card>
 
+          <Card className="border-[var(--primary)]/20 bg-[var(--primary-soft)] p-5">
+            <Badge variant="primary">
+              <Video size={14} />
+              How buyers book inside your window
+            </Badge>
+
+            <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+              You create open windows. Buyers choose exact call times inside them.
+            </h2>
+
+            <p className="mt-2 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+              Example: if you open 18:00–22:00 and your offer is 30 minutes, a
+              buyer can book one available 30 minute slot inside that window.
+              Keep windows fresh every week so your profile stays bookable.
+            </p>
+          </Card>
+
           <Card className="border-[var(--primary)]/15 bg-[var(--primary-soft)] p-5">
             <Badge variant="primary">
               <Globe2 size={14} />

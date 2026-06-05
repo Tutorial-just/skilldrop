@@ -15,14 +15,16 @@ model User {
   avatarUrl String?
   role      UserRole @default(BUYER)
 
-  expertProfile  ExpertProfile?
-  bookings       Booking[]       @relation("BuyerBookings")
-  reviews        Review[]
-  savedExperts   SavedExpert[]
-  buyerSettings  BuyerSettings?
-  notifications  Notification[]
-  adminAuditLogs AdminAuditLog[]
-  bookingReports BookingReport[]
+  expertProfile    ExpertProfile?
+  bookings         Booking[]         @relation("BuyerBookings")
+  reviews          Review[]
+  savedExperts     SavedExpert[]
+  buyerSettings    BuyerSettings?
+  notifications    Notification[]
+  adminAuditLogs   AdminAuditLog[]
+  bookingReports   BookingReport[]
+  categoryRequests CategoryRequest[]
+  buyerCallOutcomes CallOutcome[] @relation("BuyerCallOutcomes")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -77,6 +79,7 @@ model ExpertProfile {
 
   documents ExpertDocument[]
   settings  ExpertSettings?
+  expertCallOutcomes CallOutcome[] @relation("ExpertCallOutcomes")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -109,14 +112,42 @@ model Category {
   description String?
   icon        String?
   isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
 
-  services Service[]
+  subcategories Subcategory[]
+  services      Service[]
+  requests      CategoryRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([slug])
   @@index([isActive])
+  @@index([sortOrder])
+  @@index([createdAt])
+}
+
+model Subcategory {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  name        String
+  slug        String
+  description String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  services Service[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([categoryId, slug])
+  @@index([categoryId])
+  @@index([slug])
+  @@index([isActive])
+  @@index([sortOrder])
   @@index([createdAt])
 }
 
@@ -127,6 +158,12 @@ model Service {
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  subcategoryId String?
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+
+  helpType HelpType @default(ADVICE)
+  tags     String[] @default([])
 
   title           String
   description     String
@@ -142,11 +179,43 @@ model Service {
 
   @@index([expertId])
   @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([helpType])
   @@index([isActive])
   @@index([priceCents])
   @@index([durationMinutes])
   @@index([createdAt])
   @@index([expertId, isActive])
+  @@index([categoryId, isActive])
+  @@index([subcategoryId, isActive])
+  @@index([helpType, isActive])
+}
+
+model CategoryRequest {
+  id String @id @default(cuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  query         String
+  suggestedName String?
+  description   String?
+
+  status CategoryRequestStatus @default(PENDING)
+
+  adminNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 model Availability {
@@ -225,6 +294,7 @@ model Booking {
   reports                 BookingReport[]
   review                  Review?
   callRoom                CallRoom?
+  outcome                 CallOutcome?
 
   note String?
 
@@ -320,6 +390,39 @@ model CallRoom {
   @@index([status])
   @@index([startsAt])
   @@index([createdAt])
+}
+
+model CallOutcome {
+  id String @id @default(cuid())
+
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  buyerId String
+  buyer   User @relation("BuyerCallOutcomes", fields: [buyerId], references: [id], onDelete: Cascade)
+
+  expertId String
+  expert   ExpertProfile @relation("ExpertCallOutcomes", fields: [expertId], references: [id], onDelete: Cascade)
+
+  problemSummary String
+  discussionNotes String?
+  nextSteps String
+  usefulLinks String[] @default([])
+
+  followUpRecommended Boolean @default(false)
+  followUpNote        String?
+
+  isVisibleToBuyer Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([buyerId])
+  @@index([expertId])
+  @@index([createdAt])
+  @@index([buyerId, createdAt])
+  @@index([expertId, createdAt])
 }
 
 enum CallRoomStatus {
@@ -531,4 +634,23 @@ model ExpertDocument {
 enum ExpertDocumentType {
   CV
   PORTFOLIO
+}
+
+enum HelpType {
+  ADVICE
+  EXPLANATION
+  TEACHING
+  PRACTICAL_GUIDANCE
+  PERSONAL_EXPERIENCE
+  EMOTIONAL_SUPPORT
+  RELIGIOUS_DISCUSSION
+  BUSINESS_MENTORING
+  OTHER
+}
+
+enum CategoryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  MERGED
 }

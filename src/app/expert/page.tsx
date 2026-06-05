@@ -87,6 +87,12 @@ const workspaceLinks = [
     icon: Video,
   },
   {
+    title: "Action plans",
+    text: "Create next steps after completed calls.",
+    href: "/expert/outcomes",
+    icon: ListChecks,
+  },
+  {
     title: "Notifications",
     text: "See booking updates, payments, refunds, disputes and review requests.",
     href: "/notifications",
@@ -356,6 +362,12 @@ export default async function ExpertDashboardPage({
       href: "/expert/earnings",
     },
     {
+      title: "Understand action plans",
+      text: "After completed calls, create next steps so buyers keep a useful result.",
+      done: completedBookings.length === 0 || completedBookings.some((booking) => booking.status === BookingStatus.COMPLETED),
+      href: "/expert/outcomes",
+    },
+    {
       title: "Complete first 3 calls",
       text: "This helps unlock verification.",
       done: expert.totalSessions >= 3,
@@ -434,7 +446,7 @@ export default async function ExpertDashboardPage({
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Manage your calls, offers, availability, payouts and buyer trust from one place.
+                Manage your calls, offers, availability, payouts, action plans and buyer trust from one place.
               </p>
             </div>
 

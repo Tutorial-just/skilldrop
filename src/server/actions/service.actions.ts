@@ -15,11 +15,13 @@ import {
   calculatePricingBreakdown,
   validateServicePrice,
 } from "@/config/pricing";
+import {
+  SERVICE_CATEGORY_OPTIONS,
+  getCategoryOption,
+  getSubcategoryOption,
+  serviceFormSchema,
+} from "@/server/validators/service.schema";
 
-const MAX_TITLE_LENGTH = 90;
-const MAX_DESCRIPTION_LENGTH = 1200;
-const MIN_DESCRIPTION_LENGTH = 20;
-const ALLOWED_DURATIONS = [15, 30, 45, 60];
 const MAX_ACTIVE_SERVICES = 12;
 
 function getStringValue(formData: FormData, key: string) {
@@ -34,35 +36,6 @@ function getStringValue(formData: FormData, key: string) {
 
 function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim();
-}
-
-function parseDuration(value: string) {
-  const duration = Number(value);
-
-  if (!Number.isInteger(duration) || !ALLOWED_DURATIONS.includes(duration)) {
-    return null;
-  }
-
-  return duration;
-}
-
-function parsePriceCents(value: string) {
-  const normalized = value.replace(",", ".").trim();
-  const priceEuros = Number(normalized);
-
-  if (!Number.isFinite(priceEuros)) {
-    return null;
-  }
-
-  const priceCents = Math.round(priceEuros * 100);
-
-  const validation = validateServicePrice(priceCents);
-
-  if (!validation.success) {
-    return null;
-  }
-
-  return priceCents;
 }
 
 function redirectWithSearch(
@@ -134,38 +107,161 @@ function revalidateServicePaths(expertId: string) {
   revalidatePath("/admin/experts");
 }
 
-function validateServiceInput({
-  title,
-  description,
-  durationMinutes,
-  priceCents,
-}: {
-  title: string;
-  description: string;
-  durationMinutes: number | null;
-  priceCents: number | null;
-}) {
-  if (!title || title.length > MAX_TITLE_LENGTH) {
-    return "invalid-title";
+function formDataToObject(formData: FormData) {
+  return {
+    serviceId: getStringValue(formData, "serviceId") || undefined,
+    categorySlug: getStringValue(formData, "categorySlug"),
+    subcategorySlug: getStringValue(formData, "subcategorySlug") || undefined,
+    helpType: getStringValue(formData, "helpType") || "ADVICE",
+    title: normalizeText(getStringValue(formData, "title")),
+    description: normalizeText(getStringValue(formData, "description")),
+    tags: getStringValue(formData, "tags"),
+    durationMinutes: getStringValue(formData, "durationMinutes"),
+    price: getStringValue(formData, "price"),
+  };
+}
+
+function getFirstValidationCode(errorMessage: string) {
+  if (errorMessage.toLowerCase().includes("category")) {
+    return "invalid-category";
   }
 
-  if (
-    !description ||
-    description.length < MIN_DESCRIPTION_LENGTH ||
-    description.length > MAX_DESCRIPTION_LENGTH
-  ) {
-    return "invalid-description";
-  }
-
-  if (!durationMinutes) {
+  if (errorMessage.toLowerCase().includes("duration")) {
     return "invalid-duration";
   }
 
-  if (priceCents === null) {
+  if (errorMessage.toLowerCase().includes("price")) {
     return "invalid-price";
   }
 
-  return null;
+  if (errorMessage.toLowerCase().includes("title")) {
+    return "invalid-title";
+  }
+
+  if (errorMessage.toLowerCase().includes("description")) {
+    return "invalid-description";
+  }
+
+  return "invalid-service";
+}
+
+async function getOrCreateCategory(categorySlug: string) {
+  const categoryOption = getCategoryOption(categorySlug);
+
+  if (!categoryOption) {
+    redirectWithError("/expert/services", "invalid-category");
+  }
+
+  const sortOrder = Math.max(
+    SERVICE_CATEGORY_OPTIONS.findIndex(
+      (category) => category.slug === categoryOption.slug,
+    ),
+    0,
+  );
+
+  return prisma.category.upsert({
+    where: {
+      slug: categoryOption.slug,
+    },
+    update: {
+      name: categoryOption.name,
+      description: categoryOption.description,
+      icon: categoryOption.icon,
+      isActive: true,
+    },
+    create: {
+      name: categoryOption.name,
+      slug: categoryOption.slug,
+      description: categoryOption.description,
+      icon: categoryOption.icon,
+      sortOrder,
+      isActive: true,
+    },
+  });
+}
+
+async function getOrCreateSubcategory({
+  categoryId,
+  categorySlug,
+  subcategorySlug,
+}: {
+  categoryId: string;
+  categorySlug: string;
+  subcategorySlug?: string | null;
+}) {
+  const subcategoryOption = getSubcategoryOption(categorySlug, subcategorySlug);
+
+  if (!subcategoryOption) {
+    return null;
+  }
+
+  return prisma.subcategory.upsert({
+    where: {
+      categoryId_slug: {
+        categoryId,
+        slug: subcategoryOption.slug,
+      },
+    },
+    update: {
+      name: subcategoryOption.name,
+      isActive: true,
+    },
+    create: {
+      categoryId,
+      name: subcategoryOption.name,
+      slug: subcategoryOption.slug,
+      isActive: true,
+    },
+  });
+}
+
+async function validateCategoryPair({
+  categoryId,
+  subcategoryId,
+}: {
+  categoryId: string;
+  subcategoryId: string | null;
+}) {
+  const category = await prisma.category.findFirst({
+    where: {
+      id: categoryId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!category) {
+    redirectWithError("/expert/services", "invalid-category");
+  }
+
+  if (!subcategoryId) {
+    return;
+  }
+
+  const subcategory = await prisma.subcategory.findFirst({
+    where: {
+      id: subcategoryId,
+      categoryId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!subcategory) {
+    redirectWithError("/expert/services", "invalid-subcategory");
+  }
+}
+
+function assertValidPrice(priceCents: number) {
+  const validation = validateServicePrice(priceCents);
+
+  if (!validation.success) {
+    redirectWithError("/expert/services", "invalid-price");
+  }
 }
 
 export async function createServiceAction(formData: FormData) {
@@ -173,22 +269,17 @@ export async function createServiceAction(formData: FormData) {
 
   await assertServiceRateLimit(user.id, "create");
 
-  const title = normalizeText(getStringValue(formData, "title"));
-  const description = normalizeText(getStringValue(formData, "description"));
-  const categoryId = getStringValue(formData, "categoryId") || null;
-  const durationMinutes = parseDuration(getStringValue(formData, "durationMinutes"));
-  const priceCents = parsePriceCents(getStringValue(formData, "price"));
+  const parsed = serviceFormSchema.safeParse(formDataToObject(formData));
 
-  const validationError = validateServiceInput({
-    title,
-    description,
-    durationMinutes,
-    priceCents,
-  });
-
-  if (validationError) {
-    redirectWithError("/expert/services", validationError);
+  if (!parsed.success) {
+    redirectWithError(
+      "/expert/services",
+      getFirstValidationCode(parsed.error.issues[0]?.message ?? ""),
+    );
   }
+
+  const input = parsed.data;
+  assertValidPrice(input.price);
 
   const activeServicesCount = await prisma.service.count({
     where: {
@@ -201,30 +292,29 @@ export async function createServiceAction(formData: FormData) {
     redirectWithError("/expert/services", "too-many-active-services");
   }
 
-  if (categoryId) {
-    const category = await prisma.category.findFirst({
-      where: {
-        id: categoryId,
-        isActive: true,
-      },
-      select: {
-        id: true,
-      },
-    });
+  const category = await getOrCreateCategory(input.categorySlug);
+  const subcategory = await getOrCreateSubcategory({
+    categoryId: category.id,
+    categorySlug: input.categorySlug,
+    subcategorySlug: input.subcategorySlug,
+  });
 
-    if (!category) {
-      redirectWithError("/expert/services", "invalid-category");
-    }
-  }
+  await validateCategoryPair({
+    categoryId: category.id,
+    subcategoryId: subcategory?.id ?? null,
+  });
 
   const createdService = await prisma.service.create({
     data: {
       expertId: expert.id,
-      categoryId,
-      title,
-      description,
-      durationMinutes: durationMinutes!,
-      priceCents: priceCents!,
+      categoryId: category.id,
+      subcategoryId: subcategory?.id ?? null,
+      helpType: input.helpType,
+      tags: input.tags,
+      title: input.title,
+      description: input.description,
+      durationMinutes: input.durationMinutes,
+      priceCents: input.price,
       currency: "EUR",
       isActive: true,
     },
@@ -236,6 +326,7 @@ export async function createServiceAction(formData: FormData) {
 
   redirectWithSearch("/expert/services", {
     saved: 1,
+    created: 1,
     service: createdService.id,
     clientTotalCents: pricing.clientTotalCents,
   });
@@ -246,29 +337,26 @@ export async function updateServiceAction(formData: FormData) {
 
   await assertServiceRateLimit(user.id, "update");
 
-  const serviceId = getStringValue(formData, "serviceId");
-  const title = normalizeText(getStringValue(formData, "title"));
-  const description = normalizeText(getStringValue(formData, "description"));
-  const categoryId = getStringValue(formData, "categoryId") || null;
-  const durationMinutes = parseDuration(getStringValue(formData, "durationMinutes"));
-  const priceCents = parsePriceCents(getStringValue(formData, "price"));
+  const parsed = serviceFormSchema.safeParse(formDataToObject(formData));
+
+  if (!parsed.success) {
+    redirectWithError(
+      "/expert/services",
+      getFirstValidationCode(parsed.error.issues[0]?.message ?? ""),
+      {
+        service: getStringValue(formData, "serviceId"),
+      },
+    );
+  }
+
+  const input = parsed.data;
+  const serviceId = input.serviceId;
 
   if (!serviceId) {
     redirectWithError("/expert/services", "service-not-found");
   }
 
-  const validationError = validateServiceInput({
-    title,
-    description,
-    durationMinutes,
-    priceCents,
-  });
-
-  if (validationError) {
-    redirectWithError("/expert/services", validationError, {
-      service: serviceId,
-    });
-  }
+  assertValidPrice(input.price);
 
   const existingService = await prisma.service.findFirst({
     where: {
@@ -281,23 +369,17 @@ export async function updateServiceAction(formData: FormData) {
     redirectWithError("/expert/services", "service-not-found");
   }
 
-  if (categoryId) {
-    const category = await prisma.category.findFirst({
-      where: {
-        id: categoryId,
-        isActive: true,
-      },
-      select: {
-        id: true,
-      },
-    });
+  const category = await getOrCreateCategory(input.categorySlug);
+  const subcategory = await getOrCreateSubcategory({
+    categoryId: category.id,
+    categorySlug: input.categorySlug,
+    subcategorySlug: input.subcategorySlug,
+  });
 
-    if (!category) {
-      redirectWithError("/expert/services", "invalid-category", {
-        service: serviceId,
-      });
-    }
-  }
+  await validateCategoryPair({
+    categoryId: category.id,
+    subcategoryId: subcategory?.id ?? null,
+  });
 
   const hasActiveFutureBookings = await prisma.booking.findFirst({
     where: {
@@ -316,8 +398,8 @@ export async function updateServiceAction(formData: FormData) {
 
   if (hasActiveFutureBookings) {
     const safeFieldsOnly =
-      existingService.durationMinutes === durationMinutes &&
-      existingService.priceCents === priceCents;
+      existingService.durationMinutes === input.durationMinutes &&
+      existingService.priceCents === input.price;
 
     if (!safeFieldsOnly) {
       redirectWithError("/expert/services", "service-has-active-bookings", {
@@ -331,11 +413,14 @@ export async function updateServiceAction(formData: FormData) {
       id: serviceId,
     },
     data: {
-      categoryId,
-      title,
-      description,
-      durationMinutes: durationMinutes!,
-      priceCents: priceCents!,
+      categoryId: category.id,
+      subcategoryId: subcategory?.id ?? null,
+      helpType: input.helpType,
+      tags: input.tags,
+      title: input.title,
+      description: input.description,
+      durationMinutes: input.durationMinutes,
+      priceCents: input.price,
       currency: "EUR",
     },
   });
@@ -346,6 +431,7 @@ export async function updateServiceAction(formData: FormData) {
 
   redirectWithSearch("/expert/services", {
     saved: 1,
+    updated: 1,
     service: updatedService.id,
     clientTotalCents: pricing.clientTotalCents,
   });
@@ -423,7 +509,6 @@ export async function deleteServiceAction(formData: FormData) {
       bookings: {
         select: {
           id: true,
-          status: true,
         },
         take: 1,
       },
@@ -464,3 +549,9 @@ export async function deleteServiceAction(formData: FormData) {
     deleted: 1,
   });
 }
+
+// Backward-compatible aliases, in case an old component still imports these names.
+export const createProviderServiceAction = createServiceAction;
+export const updateProviderServiceAction = updateServiceAction;
+export const toggleProviderServiceAction = toggleServiceStatusAction;
+export const deleteProviderServiceAction = deleteServiceAction;

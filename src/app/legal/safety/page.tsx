@@ -59,6 +59,10 @@ export default function SafetyPage() {
           <ButtonLink href="/legal/refunds" variant="secondary">
             Refund policy
           </ButtonLink>
+
+          <ButtonLink href="/trust" variant="secondary">
+            Trust center
+          </ButtonLink>
         </div>
       </section>
 
@@ -203,8 +207,18 @@ export default function SafetyPage() {
             />
 
             <Standard
-              title="Illegal or dangerous help"
-              text="SkillDrop should not be used for illegal activity, dangerous instructions or harmful services."
+              title="Illegal, dangerous or harmful help"
+              text="SkillDrop must not be used for illegal activity, dangerous instructions, fake documents, evasion, fraud, self-harm guidance or harmful services."
+            />
+
+            <Standard
+              title="No professional guarantees"
+              text="Calls can provide guidance and practical next steps, but helpers must not present themselves as doctors, lawyers or financial advisers unless legally qualified."
+            />
+
+            <Standard
+              title="No manipulation or exploitation"
+              text="Relationship, religion, business or personal advice must not be used to manipulate, pressure, exploit or radicalize another person."
             />
 
             <Standard

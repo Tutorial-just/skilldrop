@@ -235,7 +235,8 @@ export default async function BecomeExpertPage({
 
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
               Create a clear profile, add your first offer and become visible
-              in the marketplace after setup.
+              in the marketplace after setup. SkillDrop works best when helpers
+              offer clear, safe and practical help around real problems.
             </p>
           </div>
 
@@ -293,6 +294,28 @@ export default async function BecomeExpertPage({
                     </div>
                   ))}
                 </div>
+              </Card>
+
+              <Card className="p-6">
+                <Badge variant="accent">
+                  <ShieldCheck size={14} />
+                  Helper standard
+                </Badge>
+
+                <h2 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+                  Be specific, safe and useful
+                </h2>
+
+                <div className="mt-5 grid gap-3">
+                  <RuleItem value="1" label="Create offers around real problems buyers search for" />
+                  <RuleItem value="2" label="Explain what happens during the call and what the buyer gets after" />
+                  <RuleItem value="3" label="Avoid illegal, harmful, misleading or guaranteed outcomes" />
+                </div>
+
+                <p className="mt-4 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+                  SkillDrop is broad, but every helper profile must stay clear,
+                  honest and safe.
+                </p>
               </Card>
             </div>
 

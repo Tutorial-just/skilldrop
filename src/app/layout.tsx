@@ -20,12 +20,16 @@ export const metadata: Metadata = {
     template: "%s · SkillDrop",
   },
   description:
-    "Book short 1:1 calls with real people who can help with documents, career, languages, tech, relocation, studies and everyday decisions.",
+    "Get help with almost any problem in a short 1:1 call. Talk to real people for advice, explanation, teaching, practical guidance and clear next steps.",
   applicationName: "SkillDrop",
   keywords: [
     "SkillDrop",
     "short calls",
     "1:1 advice",
+    "relationship advice",
+    "religion questions",
+    "business mentoring",
+    "cooking help",
     "CV review",
     "translation help",
     "relocation advice",
@@ -33,6 +37,7 @@ export const metadata: Metadata = {
     "document help",
     "tech help",
     "online consultation",
+    "action plan",
   ],
   authors: [{ name: "SkillDrop" }],
   creator: "SkillDrop",
@@ -41,9 +46,9 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   openGraph: {
-    title: "SkillDrop — Practical help in short 1:1 calls.",
+    title: "SkillDrop — Get help with almost any problem in short 1:1 calls.",
     description:
-      "Book short 1:1 calls with real people who can help with documents, career, languages, tech, relocation, studies and everyday decisions.",
+      "Talk to real people for advice, explanation, teaching, practical guidance and clear next steps.",
     url: "/",
     siteName: "SkillDrop",
     type: "website",
@@ -51,9 +56,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SkillDrop — Practical help in short 1:1 calls.",
+    title: "SkillDrop — Get help with almost any problem in short 1:1 calls.",
     description:
-      "Book short 1:1 calls with real people who can help with documents, career, languages, tech, relocation, studies and everyday decisions.",
+      "Talk to real people for advice, explanation, teaching, practical guidance and clear next steps.",
   },
   robots: {
     index: true,
@@ -195,10 +200,24 @@ export default async function RootLayout({
 
               <nav className="flex items-center gap-2">
                 <Link
-                  href="/help"
+                  href="/help-me"
                   className="btn btn-secondary hidden md:inline-flex"
                 >
-                  Help
+                  Describe problem
+                </Link>
+
+                <Link
+                  href="/categories"
+                  className="btn btn-secondary hidden lg:inline-flex"
+                >
+                  Categories
+                </Link>
+
+                <Link
+                  href="/trust"
+                  className="btn btn-secondary hidden lg:inline-flex"
+                >
+                  Trust
                 </Link>
 
                 {user ? (
