@@ -408,6 +408,7 @@ model Notification {
 
   isRead Boolean   @default(false)
   readAt DateTime?
+  deletedAt DateTime?
 
   createdAt DateTime @default(now())
 

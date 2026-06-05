@@ -11,6 +11,7 @@ import {
   MessageCircle,
   ShieldAlert,
   Star,
+  Trash2,
   WalletCards,
   XCircle,
 } from "lucide-react";
@@ -18,12 +19,13 @@ import {
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import {
+  clearNotificationsAction,
+  deleteNotificationAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/server/actions/notification.actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-
 
 type NotificationsPageProps = {
   searchParams?: Promise<{
@@ -62,6 +64,7 @@ export default async function NotificationsPage({
       : 1;
 
   const notificationWhere = {
+    deletedAt: null,
     OR: [
       {
         userId: currentUser.id,
@@ -179,6 +182,16 @@ export default async function NotificationsPage({
                     <CheckCircle2 size={18} />
                   </button>
                 </form>
+              ) : null}
+
+              {totalNotificationsCount > 0 ? (
+                <form action={clearNotificationsAction}>
+                  <input type="hidden" name="returnTo" value="/notifications" />
+                  <button type="submit" className="btn btn-secondary w-full">
+                    Clear all
+                    <Trash2 size={18} />
+                  </button>
+                </form>
               ) : (
                 <Link href={backHref} className="btn btn-secondary">
                   Dashboard
@@ -197,7 +210,7 @@ export default async function NotificationsPage({
             <MetricCard
               label="Total"
               value={String(totalNotificationsCount)}
-              hint="All updates"
+              hint="Visible updates"
             />
 
             <MetricCard
@@ -229,7 +242,8 @@ export default async function NotificationsPage({
               </h2>
 
               <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-muted">
-                Open the related page or mark updates as read when you are done.
+                Open the related page, mark updates as read, or delete updates
+                you no longer need.
               </p>
             </div>
 
@@ -380,12 +394,21 @@ function NotificationCard({
 
             {serviceTitle || buyerName || disputeReason || resolution ? (
               <div className="mt-4 flex flex-wrap gap-2">
-                {serviceTitle ? <MetaPill label="Service" value={serviceTitle} /> : null}
-                {buyerName ? <MetaPill label="Buyer" value={buyerName} /> : null}
+                {serviceTitle ? (
+                  <MetaPill label="Service" value={serviceTitle} />
+                ) : null}
+
+                {buyerName ? (
+                  <MetaPill label="Buyer" value={buyerName} />
+                ) : null}
+
                 {disputeReason ? (
                   <MetaPill label="Dispute" value={disputeReason} />
                 ) : null}
-                {resolution ? <MetaPill label="Resolution" value={resolution} /> : null}
+
+                {resolution ? (
+                  <MetaPill label="Resolution" value={resolution} />
+                ) : null}
               </div>
             ) : null}
 
@@ -435,6 +458,23 @@ function NotificationCard({
               </button>
             </form>
           ) : null}
+
+          <form action={deleteNotificationAction}>
+            <input
+              type="hidden"
+              name="notificationId"
+              value={notification.id}
+            />
+            <input type="hidden" name="returnTo" value="/notifications" />
+
+            <button
+              type="submit"
+              className="btn btn-secondary w-full border-red-200 text-red-600 hover:bg-red-50"
+            >
+              Delete
+              <Trash2 size={17} />
+            </button>
+          </form>
         </div>
       </div>
     </div>
@@ -702,11 +742,17 @@ function formatNotificationType(type: string) {
 }
 
 function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
+  const dayPart = new Intl.DateTimeFormat("en", {
     weekday: "short",
     month: "short",
     day: "numeric",
+  }).format(date);
+
+  const timePart = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   }).format(date);
+
+  return `${dayPart} · ${timePart}`;
 }

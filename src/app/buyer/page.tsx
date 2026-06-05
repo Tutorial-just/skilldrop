@@ -1703,13 +1703,19 @@ function formatMoney(cents: number) {
 }
 
 function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
+  const dayPart = new Intl.DateTimeFormat("en", {
     weekday: "short",
     month: "short",
     day: "numeric",
+  }).format(date);
+
+  const timePart = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   }).format(date);
+
+  return `${dayPart} · ${timePart}`;
 }
 
 function formatStatus(status: string) {

@@ -27,6 +27,7 @@ export async function UnreadNotificationsCard({
   const notifications = await prisma.notification.findMany({
     where: {
       isRead: false,
+      deletedAt: null,
       OR: [
         {
           userId,
@@ -45,6 +46,7 @@ export async function UnreadNotificationsCard({
   const unreadCount = await prisma.notification.count({
     where: {
       isRead: false,
+      deletedAt: null,
       OR: [
         {
           userId,
@@ -168,10 +170,16 @@ function getNotificationIcon(type: string) {
 }
 
 function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
+  const dayPart = new Intl.DateTimeFormat("en", {
     month: "short",
     day: "numeric",
+  }).format(date);
+
+  const timePart = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   }).format(date);
+
+  return `${dayPart} · ${timePart}`;
 }

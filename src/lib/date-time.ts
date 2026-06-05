@@ -7,14 +7,21 @@ export function getUserTimezone(timezone?: string | null) {
 }
 
 export function formatDateTime(date: Date, timezone?: string) {
-  return new Intl.DateTimeFormat("en", {
+  const dayPart = new Intl.DateTimeFormat("en", {
     weekday: "short",
     month: "short",
     day: "numeric",
+    timeZone: timezone,
+  }).format(date);
+
+  const timePart = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: timezone || "Europe/Paris",
+    hour12: false,
+    timeZone: timezone,
   }).format(date);
+
+  return `${dayPart} · ${timePart}`;
 }
 
 export function formatShortDateTime(date: Date, timezone?: string) {
