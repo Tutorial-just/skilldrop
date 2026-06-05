@@ -17,6 +17,7 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
+import { HelpType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import {
@@ -84,6 +85,18 @@ const sortLabels: Record<string, string> = {
   soonest: "Soonest",
 };
 
+const validHelpTypes = new Set<string>(Object.values(HelpType));
+
+function parseHelpType(value?: string) {
+  const normalizedValue = value?.trim().toUpperCase();
+
+  if (!normalizedValue || !validHelpTypes.has(normalizedValue)) {
+    return undefined;
+  }
+
+  return normalizedValue as HelpType;
+}
+
 const EXPERTS_PAGE_SIZE = 20;
 const MAX_RAW_EXPERTS = 120;
 const MAX_CARD_REVIEWS = 8;
@@ -115,8 +128,22 @@ const synonymMap: Record<string, string[]> = {
   francais: ["france", "french", "translation", "language", "documents"],
   français: ["france", "french", "translation", "language", "documents"],
 
-  language: ["language", "translation", "speaking", "practice", "english", "french"],
-  languages: ["language", "translation", "speaking", "practice", "english", "french"],
+  language: [
+    "language",
+    "translation",
+    "speaking",
+    "practice",
+    "english",
+    "french",
+  ],
+  languages: [
+    "language",
+    "translation",
+    "speaking",
+    "practice",
+    "english",
+    "french",
+  ],
   traduction: ["translation", "language", "french", "english"],
   translation: ["translation", "language", "french", "english"],
 
@@ -151,10 +178,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       : null;
 
   const language = resolvedSearchParams.language?.trim().toLowerCase() ?? "";
-  const categorySlug = resolvedSearchParams.category?.trim().toLowerCase() ?? "";
-  const helpType = resolvedSearchParams.helpType?.trim().toUpperCase() ?? "";
+  const categorySlug =
+    resolvedSearchParams.category?.trim().toLowerCase() ?? "";
+  const helpType = parseHelpType(resolvedSearchParams.helpType);
   const urgency = resolvedSearchParams.urgency?.trim().toLowerCase() ?? "";
-  const sort = urgency === "today" ? "soonest" : resolvedSearchParams.sort ?? "best";
+  const sort =
+    urgency === "today" ? "soonest" : (resolvedSearchParams.sort ?? "best");
 
   const requestedPage = Number(resolvedSearchParams.page ?? 1);
   const page =
@@ -477,7 +506,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     0,
   );
 
-  const verifiedCount = visibleExperts.filter((expert) => expert.isVerified).length;
+  const verifiedCount = visibleExperts.filter(
+    (expert) => expert.isVerified,
+  ).length;
 
   const hasActiveFilters =
     Boolean(query) ||
@@ -509,9 +540,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               </h1>
 
               <p className="mt-5 max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
-                Search with simple words or come from the guided intake. SkillDrop
-                matches the problem with helpers, help types, categories, languages,
-                price and availability.
+                Search with simple words or come from the guided intake.
+                SkillDrop matches the problem with helpers, help types,
+                categories, languages, price and availability.
               </p>
 
               <div className="mt-5">
@@ -552,7 +583,10 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 />
                 <StatRow label="Verified" value={String(verifiedCount)} />
                 <StatRow label="Open times" value={String(totalOpenTimes)} />
-                <StatRow label="Sort" value={sortLabels[sort] ?? "Best match"} />
+                <StatRow
+                  label="Sort"
+                  value={sortLabels[sort] ?? "Best match"}
+                />
               </div>
             </Card>
           </div>
@@ -561,7 +595,10 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card-soft)] p-3 shadow-[var(--shadow-sm)] backdrop-blur">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-[var(--background-soft)] px-4">
-                  <Search size={18} className="text-[var(--muted-foreground)]" />
+                  <Search
+                    size={18}
+                    className="text-[var(--muted-foreground)]"
+                  />
 
                   <input
                     name="q"
@@ -620,7 +657,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
                 <select
                   name="helpType"
-                  defaultValue={helpType}
+                  defaultValue={helpType ?? ""}
                   className="min-h-12 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
                 >
                   <option value="">Any help type</option>
@@ -628,9 +665,13 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                   <option value="EXPLANATION">Explanation</option>
                   <option value="TEACHING">Teaching</option>
                   <option value="PRACTICAL_GUIDANCE">Practical guidance</option>
-                  <option value="PERSONAL_EXPERIENCE">Personal experience</option>
+                  <option value="PERSONAL_EXPERIENCE">
+                    Personal experience
+                  </option>
                   <option value="EMOTIONAL_SUPPORT">Emotional support</option>
-                  <option value="RELIGIOUS_DISCUSSION">Religious discussion</option>
+                  <option value="RELIGIOUS_DISCUSSION">
+                    Religious discussion
+                  </option>
                   <option value="BUSINESS_MENTORING">Business mentoring</option>
                 </select>
 
@@ -745,24 +786,24 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             </div>
 
             {visibleExperts.length > 0 ? (
-             <>
-              <div className="grid gap-5">
-                {visibleExperts.map((expert) => (
-                  <ExpertSearchCard key={expert.id} expert={expert} />
-                ))}
-              </div>
-              {totalMatchedExperts > EXPERTS_PAGE_SIZE ? (
-                <PaginationControls
-                  page={safePage}
-                  totalPages={totalPages}
-                  query={query}
-                  verifiedOnly={verifiedOnly}
-                  maxPrice={resolvedSearchParams.maxPrice ?? ""}
-                  language={language}
-                  sort={sort}
-                />
-              ) : null}
-            </>
+              <>
+                <div className="grid gap-5">
+                  {visibleExperts.map((expert) => (
+                    <ExpertSearchCard key={expert.id} expert={expert} />
+                  ))}
+                </div>
+                {totalMatchedExperts > EXPERTS_PAGE_SIZE ? (
+                  <PaginationControls
+                    page={safePage}
+                    totalPages={totalPages}
+                    query={query}
+                    verifiedOnly={verifiedOnly}
+                    maxPrice={resolvedSearchParams.maxPrice ?? ""}
+                    language={language}
+                    sort={sort}
+                  />
+                ) : null}
+              </>
             ) : (
               <EmptyState
                 title="No helpers found"
@@ -1037,7 +1078,9 @@ function ExpertSearchCard({
                 </Badge>
 
                 {problemSolvedRate !== null ? (
-                  <Badge variant={problemSolvedRate >= 70 ? "success" : "accent"}>
+                  <Badge
+                    variant={problemSolvedRate >= 70 ? "success" : "accent"}
+                  >
                     <Target size={14} />
                     {problemSolvedRate}% solved
                   </Badge>
@@ -1109,7 +1152,9 @@ function ExpertSearchCard({
 
               <SideRow
                 label="Solved"
-                value={problemSolvedRate !== null ? `${problemSolvedRate}%` : "—"}
+                value={
+                  problemSolvedRate !== null ? `${problemSolvedRate}%` : "—"
+                }
               />
 
               <SideRow label="Sessions" value={String(expert.totalSessions)} />
@@ -1184,7 +1229,11 @@ function AvatarPreview({
     <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-sm">
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+        <img
+          src={avatarUrl}
+          alt={name}
+          className="h-full w-full object-cover"
+        />
       ) : (
         fallbackLetter
       )}
@@ -1382,7 +1431,9 @@ function calculateSearchScore({
       score += 6;
     }
 
-    if (normalizedSkills.some((skill) => skill === term || skill.includes(term))) {
+    if (
+      normalizedSkills.some((skill) => skill === term || skill.includes(term))
+    ) {
       score += 18;
     }
 
@@ -1391,9 +1442,7 @@ function calculateSearchScore({
     }
 
     if (
-      normalizedLanguages.some(
-        (item) => item === term || item.includes(term),
-      )
+      normalizedLanguages.some((item) => item === term || item.includes(term))
     ) {
       score += 12;
     }
@@ -1439,8 +1488,7 @@ function calculateQualityScore({
     createdAt: Date;
   }[];
 }) {
-  const ratingScore =
-    totalReviews > 0 ? clamp((rating / 5) * 30, 0, 30) : 8;
+  const ratingScore = totalReviews > 0 ? clamp((rating / 5) * 30, 0, 30) : 8;
 
   const helpfulnessAvg = averageNullable(
     reviews.map((review) => review.helpfulness),
@@ -1544,7 +1592,9 @@ function averageNullable(values: (number | null)[]) {
     return null;
   }
 
-  return cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length;
+  return (
+    cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length
+  );
 }
 
 function clamp(value: number, min: number, max: number) {
