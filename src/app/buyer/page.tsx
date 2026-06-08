@@ -26,7 +26,7 @@ import {
   Video,
   WalletCards,
 } from "lucide-react";
-import { BookingStatus, Prisma } from "@prisma/client";
+import { BookingStatus, HelpRequestStatus, Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import {
@@ -37,56 +37,83 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UnreadNotificationsCard } from "@/components/notifications/unread-notifications-card";
+import { createHelpRequestAction } from "@/server/actions/help-request.actions";
 
 const problemCards = [
   {
-    title: "Relationships & dating",
-    text: "Talk about communication, confidence, first dates or social situations.",
-    href: "/experts?q=dating relationship confidence communication first date",
-    icon: MessageCircle,
-  },
-  {
-    title: "Business & first clients",
-    text: "Get practical guidance on ideas, pricing, marketing and starting a company.",
-    href: "/experts?q=business startup first clients pricing marketing company",
-    icon: WalletCards,
-  },
-  {
     title: "Career & studies",
-    text: "Improve a CV, prepare an interview, write a letter or plan your studies.",
-    href: "/experts?q=CV interview motivation letter job studies application",
+    text: "CV, interview preparation, motivation letters, school and career choices.",
+    href: "/experts?category=career&helpType=PRACTICAL_GUIDANCE&q=CV interview motivation letter job studies application",
     icon: GraduationCap,
   },
   {
     title: "Documents & admin",
     text: "Understand forms, official letters, applications and daily admin problems.",
-    href: "/experts?q=documents forms admin letter application official message",
+    href: "/experts?category=documents-admin&helpType=EXPLANATION&q=documents forms admin letter application official message",
     icon: FileText,
   },
   {
-    title: "Faith & religion",
-    text: "Ask respectful questions and learn from someone knowledgeable.",
-    href: "/experts?q=religion faith spiritual questions practices",
-    icon: Globe2,
-  },
-  {
-    title: "Cooking & practical skills",
-    text: "Learn a recipe, a daily skill or a step-by-step practical method.",
-    href: "/experts?q=cooking recipe practical skill step by step",
-    icon: Lightbulb,
+    title: "Business & first clients",
+    text: "Ideas, pricing, marketing, positioning and finding your first customers.",
+    href: "/experts?category=business&helpType=BUSINESS_MENTORING&q=business startup first clients pricing marketing company",
+    icon: WalletCards,
   },
   {
     title: "Tech & digital",
-    text: "Find help with coding, websites, IT issues or digital tools.",
-    href: "/experts?q=tech coding website IT support digital tools",
+    text: "Coding, websites, IT issues, digital tools and technical explanation.",
+    href: "/experts?category=tech&helpType=PRACTICAL_GUIDANCE&q=tech coding website IT support digital tools",
     icon: Code2,
   },
   {
+    title: "Languages & culture",
+    text: "Translation, conversation practice, moving abroad and cultural questions.",
+    href: "/experts?category=languages-culture&helpType=EXPLANATION&q=translation language message document French English",
+    icon: Languages,
+  },
+  {
     title: "Life & everyday problems",
-    text: "Ask for human advice when search results are too generic.",
-    href: "/experts?q=life advice everyday problem personal guidance",
+    text: "Human advice when search results are too generic or confusing.",
+    href: "/experts?category=life-everyday&helpType=ADVICE&q=life advice everyday problem personal guidance",
     icon: Compass,
   },
+];
+
+const problemCategoryOptions = [
+  { value: "", label: "Auto / not sure" },
+  { value: "career", label: "Career & studies" },
+  { value: "documents-admin", label: "Documents & admin" },
+  { value: "business", label: "Business & money" },
+  { value: "tech", label: "Tech & digital" },
+  { value: "languages-culture", label: "Languages & culture" },
+  { value: "life-everyday", label: "Life & everyday" },
+  { value: "faith-religion", label: "Faith & religion" },
+  { value: "cooking-skills", label: "Practical skills" },
+];
+
+const helpTypeOptions = [
+  { value: "ADVICE", label: "Advice" },
+  { value: "EXPLANATION", label: "Explanation" },
+  { value: "TEACHING", label: "Teaching" },
+  { value: "PRACTICAL_GUIDANCE", label: "Practical guidance" },
+  { value: "PERSONAL_EXPERIENCE", label: "Personal experience" },
+  { value: "EMOTIONAL_SUPPORT", label: "Emotional support" },
+  { value: "RELIGIOUS_DISCUSSION", label: "Religious discussion" },
+  { value: "BUSINESS_MENTORING", label: "Business mentoring" },
+];
+
+const urgencyOptions = [
+  { value: "", label: "Flexible" },
+  { value: "today", label: "Today" },
+  { value: "this-week", label: "This week" },
+];
+
+const languageOptions = [
+  { value: "", label: "Any language" },
+  { value: "english", label: "English" },
+  { value: "french", label: "French" },
+  { value: "russian", label: "Russian" },
+  { value: "spanish", label: "Spanish" },
+  { value: "arabic", label: "Arabic" },
 ];
 
 const DASHBOARD_BOOKING_LIMIT = 12;
@@ -153,6 +180,21 @@ export default async function BuyerDashboardPage() {
         },
         take: 3,
       },
+      helpRequests: {
+        where: {
+          status: {
+            in: [HelpRequestStatus.OPEN, HelpRequestStatus.MATCHED],
+          },
+        },
+        include: {
+          category: true,
+          subcategory: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 4,
+      },
     },
   });
 
@@ -161,89 +203,89 @@ export default async function BuyerDashboardPage() {
   }
 
   const bookingInclude = {
-  expert: {
-    include: {
-      user: true,
-    },
-  },
-  service: true,
-  callRoom: true,
-  review: true,
-} satisfies Prisma.BookingInclude;
-
-const [
-  activeBookings,
-  recentBookingRows,
-  completedWithoutReviewBookings,
-  totalBookedResult,
-] = await Promise.all([
-  prisma.booking.findMany({
-    where: {
-      buyerId: buyer.id,
-      startTime: {
-        gte: now,
-      },
-      status: {
-        in: buyerActiveBookingStatuses,
+    expert: {
+      include: {
+        user: true,
       },
     },
-    include: bookingInclude,
-    orderBy: {
-      startTime: "asc",
-    },
-    take: DASHBOARD_BOOKING_LIMIT,
-  }),
+    service: true,
+    callRoom: true,
+    review: true,
+  } satisfies Prisma.BookingInclude;
 
-  prisma.booking.findMany({
-    where: {
-      buyerId: buyer.id,
-    },
-    include: bookingInclude,
-    orderBy: {
-      updatedAt: "desc",
-    },
-    take: 4,
-  }),
-
-  prisma.booking.findMany({
-    where: {
-      buyerId: buyer.id,
-      status: BookingStatus.COMPLETED,
-      review: {
-        is: null,
+  const [
+    activeBookings,
+    recentBookingRows,
+    completedWithoutReviewBookings,
+    totalBookedResult,
+  ] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        buyerId: buyer.id,
+        startTime: {
+          gte: now,
+        },
+        status: {
+          in: buyerActiveBookingStatuses,
+        },
       },
-    },
-    include: bookingInclude,
-    orderBy: {
-      endTime: "desc",
-    },
-    take: 3,
-  }),
-
-  prisma.booking.aggregate({
-    where: {
-      buyerId: buyer.id,
-      status: {
-        in: paidBookingStatuses,
+      include: bookingInclude,
+      orderBy: {
+        startTime: "asc",
       },
-    },
-    _sum: {
-      clientTotalCents: true,
-    },
-  }),
-]);
+      take: DASHBOARD_BOOKING_LIMIT,
+    }),
 
-const bookingsMap = new Map<string, DashboardBooking>();
+    prisma.booking.findMany({
+      where: {
+        buyerId: buyer.id,
+      },
+      include: bookingInclude,
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 4,
+    }),
 
-for (const booking of [
-  ...activeBookings,
-  ...completedWithoutReviewBookings,
-  ...recentBookingRows,
-]) {
-  bookingsMap.set(booking.id, booking);
-}
+    prisma.booking.findMany({
+      where: {
+        buyerId: buyer.id,
+        status: BookingStatus.COMPLETED,
+        review: {
+          is: null,
+        },
+      },
+      include: bookingInclude,
+      orderBy: {
+        endTime: "desc",
+      },
+      take: 3,
+    }),
 
-const bookings = Array.from(bookingsMap.values());
+    prisma.booking.aggregate({
+      where: {
+        buyerId: buyer.id,
+        status: {
+          in: paidBookingStatuses,
+        },
+      },
+      _sum: {
+        clientTotalCents: true,
+      },
+    }),
+  ]);
+
+  const bookingsMap = new Map<string, DashboardBooking>();
+
+  for (const booking of [
+    ...activeBookings,
+    ...completedWithoutReviewBookings,
+    ...recentBookingRows,
+  ]) {
+    bookingsMap.set(booking.id, booking);
+  }
+
+  const bookings = Array.from(bookingsMap.values());
   const upcomingBookings = bookings.filter(
     (booking) =>
       booking.startTime >= now &&
@@ -372,28 +414,88 @@ const bookings = Array.from(bookingsMap.values());
               </h1>
 
               <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-                Start with any problem: everyday life, relationships, religion, cooking, career, business, documents or tech. SkillDrop helps you find a real person for a short 1:1 call.
+                Start with any problem: everyday life, relationships, religion,
+                cooking, career, business, documents or tech. SkillDrop helps
+                you find a real person for a short 1:1 call.
               </p>
 
-              <form action="/experts" className="mt-7 max-w-3xl">
-                <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-sm)] backdrop-blur">
-                  <div className="flex flex-col gap-3 md:flex-row">
-                    <div className="relative flex-1">
-                      <Search
-                        size={18}
-                        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-                      />
+              <form action={createHelpRequestAction} className="mt-7 max-w-4xl">
+                <div className="rounded-[30px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-sm)] backdrop-blur md:p-5">
+                  <label
+                    htmlFor="q"
+                    className="flex items-center gap-2 text-sm font-black text-[var(--foreground)]"
+                  >
+                    <Search size={16} className="text-[var(--primary-dark)]" />
+                    What problem do you want to solve?
+                  </label>
+
+                  <textarea
+                    id="q"
+                    name="q"
+                    required
+                    minLength={3}
+                    maxLength={260}
+                    rows={4}
+                    placeholder="Example: I need someone to explain a French document, prepare my interview or help me fix a website bug..."
+                    className="mt-3 w-full resize-none rounded-[24px] border border-[var(--border)] bg-[var(--background-soft)] p-4 text-sm font-medium leading-7 outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+                  />
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <DashboardSelect
+                      name="category"
+                      label="Category"
+                      options={problemCategoryOptions}
+                    />
+
+                    <DashboardSelect
+                      name="helpType"
+                      label="Help type"
+                      options={helpTypeOptions}
+                    />
+
+                    <DashboardSelect
+                      name="language"
+                      label="Language"
+                      options={languageOptions}
+                    />
+
+                    <DashboardSelect
+                      name="urgency"
+                      label="Urgency"
+                      options={urgencyOptions}
+                    />
+
+                    <div>
+                      <label
+                        htmlFor="maxPrice"
+                        className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted-foreground)]"
+                      >
+                        Max budget
+                      </label>
 
                       <input
-                        name="q"
-                        type="search"
-                        placeholder="Try “how to meet a girl”, “start a company”, “learn a recipe”, “religion question”..."
-                        className="input min-h-[54px] border-transparent bg-[var(--background-soft)] pl-12 shadow-none"
+                        id="maxPrice"
+                        name="maxPrice"
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="€"
+                        className="input mt-2 min-h-[46px] border-[var(--border)] bg-[var(--background-soft)] shadow-none"
                       />
                     </div>
+                  </div>
 
-                    <button type="submit" className="btn btn-primary min-h-[54px]">
-                      Describe problem
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs font-semibold leading-5 text-[var(--muted-foreground)]">
+                      Category is optional. The important part is your real
+                      problem.
+                    </p>
+
+                    <button
+                      type="submit"
+                      className="btn btn-primary min-h-[52px]"
+                    >
+                      Find matching helpers
                       <ArrowRight size={18} />
                     </button>
                   </div>
@@ -477,6 +579,10 @@ const bookings = Array.from(bookingsMap.values());
             )}
           </Card>
 
+          {buyer.helpRequests.length > 0 ? (
+            <ActiveHelpRequestsPanel helpRequests={buyer.helpRequests} />
+          ) : null}
+
           <Card className="p-5 md:p-6">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
@@ -490,7 +596,10 @@ const bookings = Array.from(bookingsMap.values());
                 </h2>
 
                 <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-                  Choose a common problem or search with your own words. If SkillDrop cannot find the right category yet, the next step will be to request that help so we can bring the right helpers.
+                  Choose a common problem or search with your own words. If
+                  SkillDrop cannot find the right category yet, the next step
+                  will be to request that help so we can bring the right
+                  helpers.
                 </p>
               </div>
 
@@ -505,7 +614,11 @@ const bookings = Array.from(bookingsMap.values());
                 const Icon = category.icon;
 
                 return (
-                  <Link key={category.title} href={category.href} className="group">
+                  <Link
+                    key={category.title}
+                    href={category.href}
+                    className="group"
+                  >
                     <div className="h-full rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
                       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
                         <Icon size={18} />
@@ -780,6 +893,133 @@ const bookings = Array.from(bookingsMap.values());
   );
 }
 
+function ActiveHelpRequestsPanel({
+  helpRequests,
+}: {
+  helpRequests: {
+    id: string;
+    query: string;
+    helpType: string | null;
+    urgency: string;
+    budgetMaxCents: number | null;
+    preferredLanguage: string | null;
+    createdAt: Date;
+    category: { name: string; slug: string } | null;
+    subcategory: { name: string; slug: string } | null;
+  }[];
+}) {
+  return (
+    <Card className="p-5 md:p-6">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <Badge variant="primary">
+            <Sparkles size={14} />
+            Active help requests
+          </Badge>
+
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+            Continue from the problem you already described.
+          </h2>
+
+          <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+            These requests are saved in your buyer workspace, so you can reopen
+            matching helpers without rewriting the same problem.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-3 md:grid-cols-2">
+        {helpRequests.map((request) => {
+          const params = new URLSearchParams({
+            requestId: request.id,
+            q: request.query,
+          });
+
+          const categorySlug = request.subcategory?.slug ?? request.category?.slug;
+
+          if (categorySlug) {
+            params.set("category", categorySlug);
+          }
+
+          if (request.helpType) {
+            params.set("helpType", request.helpType);
+          }
+
+          if (request.preferredLanguage) {
+            params.set("language", request.preferredLanguage);
+          }
+
+          if (request.budgetMaxCents) {
+            params.set("maxPrice", String(Math.round(request.budgetMaxCents / 100)));
+          }
+
+          return (
+            <Link key={request.id} href={`/experts?${params.toString()}`} className="group">
+              <div className="h-full rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="accent">
+                    {request.subcategory?.name ?? request.category?.name ?? "Auto category"}
+                  </Badge>
+                  {request.helpType ? <Badge>{request.helpType.replaceAll("_", " ")}</Badge> : null}
+                </div>
+
+                <h3 className="mt-4 line-clamp-2 font-bold tracking-[-0.02em]">
+                  {request.query}
+                </h3>
+
+                <p className="mt-2 text-sm font-semibold text-[var(--primary-dark)]">
+                  View matching helpers →
+                </p>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+type DashboardSelectOption = {
+  value: string;
+  label: string;
+};
+
+function DashboardSelect({
+  name,
+  label,
+  options,
+}: {
+  name: string;
+  label: string;
+  options: DashboardSelectOption[];
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={name}
+        className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted-foreground)]"
+      >
+        {label}
+      </label>
+
+      <select
+        id={name}
+        name={name}
+        className="input mt-2 min-h-[46px] border-[var(--border)] bg-[var(--background-soft)] shadow-none"
+      >
+        {options.map((option) => (
+          <option
+            key={`${name}-${option.value || "empty"}`}
+            value={option.value}
+          >
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 type DashboardBooking = {
   id: string;
   expertId: string;
@@ -880,9 +1120,7 @@ function MainActionPanel({ booking }: { booking: DashboardBooking }) {
           )}
         </Badge>
 
-        <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-          {title}
-        </h2>
+        <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">{title}</h2>
 
         <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
           {description}
@@ -990,13 +1228,14 @@ function StartPanel() {
         </h2>
 
         <p className="mt-3 max-w-xl leading-7 text-[var(--muted-foreground)]">
-          Search with your own words, compare helpers and book a short call when
-          you find the right person.
+          Describe your real problem first. SkillDrop will use your words,
+          category, help type, language and budget to send you to better
+          matches.
         </p>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <ButtonLink href="/experts">
-            Find help
+          <ButtonLink href="/help-me">
+            Describe problem
             <Search size={18} />
           </ButtonLink>
 
@@ -1017,19 +1256,19 @@ function StartPanel() {
           <OnboardingStep
             number="1"
             title="Describe your problem"
-            text="Search by topic, language, country, skill or keyword."
+            text="Write what you need in normal words. Do not start by guessing the perfect category."
           />
 
           <OnboardingStep
             number="2"
-            title="Choose a helper"
-            text="Compare profiles, services, price, reviews and availability."
+            title="Get matched"
+            text="Use category, help type, language, urgency and budget to narrow the best helpers."
           />
 
           <OnboardingStep
             number="3"
             title="Book a short call"
-            text="Ask one clear question and leave with next steps."
+            text="Choose a service, pay securely and leave the call with clear next steps."
           />
         </div>
       </div>
@@ -1094,7 +1333,10 @@ function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
               )} min`}
             />
 
-            <SmallPill icon={Euro} text={formatMoney(pricing.clientTotalCents)} />
+            <SmallPill
+              icon={Euro}
+              text={formatMoney(pricing.clientTotalCents)}
+            />
           </div>
 
           {bookingNote ? (
@@ -1129,7 +1371,10 @@ function SmallBookingCard({ booking }: { booking: DashboardBooking }) {
             </Link>
           ) : null}
 
-          <Link href={`/experts/${booking.expertId}`} className="btn btn-secondary">
+          <Link
+            href={`/experts/${booking.expertId}`}
+            className="btn btn-secondary"
+          >
             Helper
           </Link>
         </div>
@@ -1350,9 +1595,7 @@ function ExpertCard({
               ) : null}
             </div>
 
-            <h3 className="mt-3 font-bold tracking-[-0.02em]">
-              {helperName}
-            </h3>
+            <h3 className="mt-3 font-bold tracking-[-0.02em]">{helperName}</h3>
 
             <p className="mt-1 line-clamp-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
               {expert.headline}
@@ -1673,7 +1916,9 @@ function canJoinBooking(booking: {
   } | null;
 }) {
   const now = new Date();
-  const joinWindowStart = new Date(booking.startTime.getTime() - 10 * 60 * 1000);
+  const joinWindowStart = new Date(
+    booking.startTime.getTime() - 10 * 60 * 1000,
+  );
   const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
 
   return (

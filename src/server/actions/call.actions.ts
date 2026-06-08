@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { BookingStatus } from "@prisma/client";
 import { sendReviewRequestEmail } from "@/lib/booking-emails";
 import { refreshExpertVerification } from "@/lib/expert-verification";
+import { trackProductEvent } from "@/lib/product-analytics";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/server/services/notification.service";
@@ -239,6 +240,19 @@ export async function markCallCompletedAction(formData: FormData) {
       expertId: booking.expertId,
       serviceId: booking.serviceId,
       serviceTitle: booking.service?.title ?? "Booked call",
+    },
+  });
+
+  await trackProductEvent({
+    event: "CALL_COMPLETED",
+    userId: currentUser.id,
+    email: currentUser.email,
+    entityType: "Booking",
+    entityId: booking.id,
+    metadata: {
+      expertId: booking.expertId,
+      buyerId: booking.buyerId,
+      serviceId: booking.serviceId,
     },
   });
 

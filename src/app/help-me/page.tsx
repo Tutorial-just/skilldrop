@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { createHelpRequestAction } from "@/server/actions/help-request.actions";
 
 export const metadata = {
   title: "Describe your problem | SkillDrop",
@@ -169,7 +170,7 @@ export default function HelpMePage() {
               needs a human explanation.
             </p>
 
-            <form action="/experts" className="mt-6 grid gap-6">
+            <form action={createHelpRequestAction} className="mt-6 grid gap-6">
               <div>
                 <label
                   htmlFor="q"

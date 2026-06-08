@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookingStatus } from "@prisma/client";
+import { BookingStatus, HelpRequestStatus, HelpType } from "@prisma/client";
 import {
   ArrowRight,
   BadgeCheck,
@@ -143,6 +143,7 @@ export default async function ExpertDashboardPage({
       services: {
         include: {
           category: true,
+          subcategory: true,
         },
         orderBy: {
           createdAt: "desc",
@@ -382,6 +383,58 @@ export default async function ExpertDashboardPage({
   ];
 
   const completedChecklist = checklist.filter((item) => item.done).length;
+
+  const activeServiceCategoryIds = Array.from(
+    new Set(activeServices.map((service) => service.categoryId).filter(Boolean)),
+  ) as string[];
+  const activeServiceSubcategoryIds = Array.from(
+    new Set(activeServices.map((service) => service.subcategoryId).filter(Boolean)),
+  ) as string[];
+  const activeServiceHelpTypes = Array.from(
+    new Set(activeServices.map((service) => service.helpType).filter(Boolean)),
+  ) as HelpType[];
+
+  const incomingHelpRequests =
+    activeServices.length > 0
+      ? await prisma.helpRequest.findMany({
+          where: {
+            status: {
+              in: [HelpRequestStatus.OPEN, HelpRequestStatus.MATCHED],
+            },
+            OR: [
+              activeServiceCategoryIds.length > 0
+                ? { categoryId: { in: activeServiceCategoryIds } }
+                : undefined,
+              activeServiceSubcategoryIds.length > 0
+                ? { subcategoryId: { in: activeServiceSubcategoryIds } }
+                : undefined,
+              activeServiceHelpTypes.length > 0
+                ? { helpType: { in: activeServiceHelpTypes } }
+                : undefined,
+              {
+                query: {
+                  contains: expert.skills[0] ?? expert.tags[0] ?? expert.headline.split(" ")[0] ?? "",
+                  mode: "insensitive",
+                },
+              },
+            ].filter(Boolean) as any,
+          },
+          include: {
+            category: true,
+            subcategory: true,
+            buyer: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 6,
+        })
+      : [];
  
 
   const avatarLetter = (
@@ -512,6 +565,11 @@ export default async function ExpertDashboardPage({
             totalReviews={expert.totalReviews}
             rating={expert.rating}
             isVerified={expert.isVerified}
+          />
+          <IncomingHelpRequestsPanel
+            requests={incomingHelpRequests}
+            expertId={expert.id}
+            defaultServiceId={activeServices[0]?.id ?? ""}
           />
           {!isBookable ? (
             <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
@@ -1266,6 +1324,111 @@ function getWindowFreeMinutes(window: {
     );
 
   return Math.max(totalMinutes - bookedMinutes, 0);
+}
+
+function IncomingHelpRequestsPanel({
+  requests,
+  expertId,
+  defaultServiceId,
+}: {
+  requests: {
+    id: string;
+    query: string;
+    helpType: HelpType | null;
+    urgency: string;
+    budgetMaxCents: number | null;
+    preferredLanguage: string | null;
+    createdAt: Date;
+    category: { name: string; slug: string } | null;
+    subcategory: { name: string; slug: string } | null;
+    buyer: { name: string | null; email: string } | null;
+  }[];
+  expertId: string;
+  defaultServiceId: string;
+}) {
+  return (
+    <Card className="p-5 md:p-6">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <Badge variant="primary">
+            <Sparkles size={14} />
+            Matching demand
+          </Badge>
+
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+            Buyer problems that match your offers
+          </h2>
+
+          <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+            This turns SkillDrop into a problem-first marketplace: experts see
+            real buyer demand, and buyers reach the right person faster.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {requests.length > 0 ? (
+          requests.map((request) => {
+            const params = new URLSearchParams({
+              requestId: request.id,
+            });
+
+            if (defaultServiceId) {
+              params.set("service", defaultServiceId);
+            }
+
+            return (
+              <Link
+                key={request.id}
+                href={`/experts/${expertId}?${params.toString()}`}
+                className="group"
+              >
+                <div className="h-full rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="accent">
+                      {request.subcategory?.name ?? request.category?.name ?? "Open problem"}
+                    </Badge>
+                    {request.helpType ? (
+                      <Badge>{request.helpType.replaceAll("_", " ")}</Badge>
+                    ) : null}
+                    {request.preferredLanguage ? (
+                      <Badge>{request.preferredLanguage}</Badge>
+                    ) : null}
+                  </div>
+
+                  <h3 className="mt-4 line-clamp-3 font-bold leading-6 tracking-[-0.02em]">
+                    {request.query}
+                  </h3>
+
+                  <div className="mt-4 flex items-center justify-between gap-3 text-xs font-black text-[var(--muted-foreground)]">
+                    <span>{formatShortDate(request.createdAt)}</span>
+                    <span>
+                      {request.budgetMaxCents
+                        ? `Up to ${formatMoney(request.budgetMaxCents)}`
+                        : "Budget open"}
+                    </span>
+                  </div>
+
+                  <p className="mt-4 text-sm font-black text-[var(--primary-dark)]">
+                    Open matched profile →
+                  </p>
+                </div>
+              </Link>
+            );
+          })
+        ) : (
+          <div className="rounded-[22px] border border-dashed border-[var(--border)] bg-[var(--card-soft)] p-5 md:col-span-2 xl:col-span-3">
+            <p className="font-black tracking-[-0.02em]">No matching buyer demand yet</p>
+            <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+              Improve your offer titles, categories, help types, tags and
+              availability. Matching requests will appear here as buyers
+              describe problems.
+            </p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 function getDurationMinutes(startTime: Date, endTime: Date) {

@@ -17,9 +17,11 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
-import { HelpType } from "@prisma/client";
+import { HelpRequestStatus, HelpType, HelpUrgency } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { calculateWorldClassMatchScore } from "@/lib/matching";
+import { trackProductEvent } from "@/lib/product-analytics";
 import {
   calculatePricingBreakdown,
   formatMoneyFromCents,
@@ -38,6 +40,7 @@ type ExpertsPageProps = {
     urgency?: string;
     sort?: string;
     page?: string;
+    requestId?: string;
   }>;
 };
 
@@ -95,6 +98,18 @@ function parseHelpType(value?: string) {
   }
 
   return normalizedValue as HelpType;
+}
+
+function helpUrgencyToParam(value: HelpUrgency) {
+  if (value === HelpUrgency.TODAY) {
+    return "today";
+  }
+
+  if (value === HelpUrgency.THIS_WEEK) {
+    return "this-week";
+  }
+
+  return "";
 }
 
 const EXPERTS_PAGE_SIZE = 20;
@@ -165,7 +180,21 @@ const synonymMap: Record<string, string[]> = {
 export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
 
-  const query = resolvedSearchParams.q?.trim() ?? "";
+  const requestId = resolvedSearchParams.requestId?.trim() ?? "";
+
+  const helpRequest = requestId
+    ? await prisma.helpRequest.findUnique({
+        where: {
+          id: requestId,
+        },
+        include: {
+          category: true,
+          subcategory: true,
+        },
+      })
+    : null;
+
+  const query = helpRequest?.query ?? resolvedSearchParams.q?.trim() ?? "";
   const verifiedOnly = resolvedSearchParams.verified === "true";
 
   const parsedMaxPrice = resolvedSearchParams.maxPrice
@@ -173,15 +202,24 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     : null;
 
   const maxPrice =
-    parsedMaxPrice && Number.isFinite(parsedMaxPrice) && parsedMaxPrice > 0
+    helpRequest?.budgetMaxCents ??
+    (parsedMaxPrice && Number.isFinite(parsedMaxPrice) && parsedMaxPrice > 0
       ? parsedMaxPrice * 100
-      : null;
+      : null);
 
-  const language = resolvedSearchParams.language?.trim().toLowerCase() ?? "";
+  const language =
+    helpRequest?.preferredLanguage?.trim().toLowerCase() ??
+    resolvedSearchParams.language?.trim().toLowerCase() ??
+    "";
   const categorySlug =
-    resolvedSearchParams.category?.trim().toLowerCase() ?? "";
-  const helpType = parseHelpType(resolvedSearchParams.helpType);
-  const urgency = resolvedSearchParams.urgency?.trim().toLowerCase() ?? "";
+    helpRequest?.subcategory?.slug ??
+    helpRequest?.category?.slug ??
+    resolvedSearchParams.category?.trim().toLowerCase() ??
+    "";
+  const helpType = helpRequest?.helpType ?? parseHelpType(resolvedSearchParams.helpType);
+  const urgency = helpRequest
+    ? helpUrgencyToParam(helpRequest.urgency)
+    : resolvedSearchParams.urgency?.trim().toLowerCase() ?? "";
   const sort =
     urgency === "today" ? "soonest" : (resolvedSearchParams.sort ?? "best");
 
@@ -421,17 +459,17 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
         );
       });
     })
-    .map((expert) => ({
-      ...expert,
-      qualityScore: calculateQualityScore({
+    .map((expert) => {
+      const qualityScore = calculateQualityScore({
         rating: expert.rating,
         totalReviews: expert.totalReviews,
         totalSessions: expert.totalSessions,
         isVerified: expert.isVerified,
         openSlots: expert.availability.length,
         reviews: expert.reviews,
-      }),
-      searchScore: calculateSearchScore({
+      });
+
+      const keywordScore = calculateSearchScore({
         query,
         searchTerms,
         headline: expert.headline,
@@ -448,8 +486,27 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           helpType: service.helpType ?? "",
           tags: service.tags,
         })),
-      }),
-    }));
+      });
+
+      const worldClassMatch = calculateWorldClassMatchScore({
+        expert,
+        problem: {
+          query,
+          categorySlug,
+          helpType,
+          preferredLanguage: language,
+          budgetMaxCents: maxPrice,
+          urgency,
+        },
+      });
+
+      return {
+        ...expert,
+        qualityScore,
+        searchScore: keywordScore + worldClassMatch.score,
+        matchReasons: worldClassMatch.reasons,
+      };
+    });
 
   if (sort === "best") {
     experts = experts.sort((a, b) => {
@@ -518,7 +575,35 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     Boolean(categorySlug) ||
     Boolean(helpType) ||
     Boolean(urgency) ||
+    Boolean(requestId) ||
     sort !== "best";
+
+  if (requestId && helpRequest?.status === HelpRequestStatus.OPEN && totalMatchedExperts > 0) {
+    await prisma.helpRequest.updateMany({
+      where: {
+        id: requestId,
+        status: HelpRequestStatus.OPEN,
+      },
+      data: {
+        status: HelpRequestStatus.MATCHED,
+      },
+    });
+  }
+
+  await trackProductEvent({
+    event: "EXPERTS_VIEWED",
+    entityType: requestId ? "HelpRequest" : "ExpertsSearch",
+    entityId: requestId || null,
+    metadata: {
+      q: query || null,
+      category: categorySlug || null,
+      helpType: helpType ?? null,
+      language: language || null,
+      maxPrice,
+      sort,
+      matchedExperts: totalMatchedExperts,
+    },
+  });
 
   return (
     <main>
@@ -536,13 +621,15 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           <div className="mt-6 grid gap-8 xl:grid-cols-[1fr_380px] xl:items-end">
             <div>
               <h1 className="heading-lg max-w-5xl text-balance">
-                Find the right person for the help you need.
+                {helpRequest
+                  ? "Best helpers for your saved problem."
+                  : "Find the right person for the help you need."}
               </h1>
 
               <p className="mt-5 max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
-                Search with simple words or come from the guided intake.
-                SkillDrop matches the problem with helpers, help types,
-                categories, languages, price and availability.
+                {helpRequest
+                  ? `Problem: “${helpRequest.query}”`
+                  : "Search with simple words or come from the guided intake. SkillDrop matches the problem with helpers, help types, categories, languages, price and availability."}
               </p>
 
               <div className="mt-5">
@@ -584,6 +671,10 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                 <StatRow label="Verified" value={String(verifiedCount)} />
                 <StatRow label="Open times" value={String(totalOpenTimes)} />
                 <StatRow
+                  label="Request"
+                  value={helpRequest ? "Saved problem" : "Direct search"}
+                />
+                <StatRow
                   label="Sort"
                   value={sortLabels[sort] ?? "Best match"}
                 />
@@ -593,6 +684,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
           <form action="/experts" className="mt-8">
             <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card-soft)] p-3 shadow-[var(--shadow-sm)] backdrop-blur">
+              {requestId ? <input type="hidden" name="requestId" value={requestId} /> : null}
+
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-[var(--background-soft)] px-4">
                   <Search
@@ -638,7 +731,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
                 <select
                   name="maxPrice"
-                  defaultValue={resolvedSearchParams.maxPrice ?? ""}
+                  defaultValue={maxPrice ? String(Math.round(maxPrice / 100)) : ""}
                   className="min-h-12 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
                 >
                   <option value="">Any service price</option>
@@ -789,7 +882,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               <>
                 <div className="grid gap-5">
                   {visibleExperts.map((expert) => (
-                    <ExpertSearchCard key={expert.id} expert={expert} />
+                    <ExpertSearchCard key={expert.id} expert={expert} requestId={requestId} />
                   ))}
                 </div>
                 {totalMatchedExperts > EXPERTS_PAGE_SIZE ? (
@@ -798,9 +891,12 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
                     totalPages={totalPages}
                     query={query}
                     verifiedOnly={verifiedOnly}
-                    maxPrice={resolvedSearchParams.maxPrice ?? ""}
+                    maxPrice={maxPrice ? String(Math.round(maxPrice / 100)) : ""}
                     language={language}
                     sort={sort}
+                    requestId={requestId}
+                    category={categorySlug}
+                    helpType={helpType ?? ""}
                   />
                 ) : null}
               </>
@@ -825,6 +921,9 @@ function PaginationControls({
   maxPrice,
   language,
   sort,
+  requestId,
+  category,
+  helpType,
 }: {
   page: number;
   totalPages: number;
@@ -833,6 +932,9 @@ function PaginationControls({
   maxPrice: string;
   language: string;
   sort: string;
+  requestId: string;
+  category: string;
+  helpType: string;
 }) {
   const previousPage = Math.max(page - 1, 1);
   const nextPage = Math.min(page + 1, totalPages);
@@ -853,6 +955,9 @@ function PaginationControls({
               maxPrice,
               language,
               sort,
+              requestId,
+              category,
+              helpType,
             })}
             className="btn btn-secondary"
           >
@@ -869,6 +974,9 @@ function PaginationControls({
               maxPrice,
               language,
               sort,
+              requestId,
+              category,
+              helpType,
             })}
             className="btn btn-primary"
           >
@@ -887,6 +995,9 @@ function buildExpertsPageHref({
   maxPrice,
   language,
   sort,
+  requestId,
+  category,
+  helpType,
 }: {
   page: number;
   query: string;
@@ -894,11 +1005,18 @@ function buildExpertsPageHref({
   maxPrice: string;
   language: string;
   sort: string;
+  requestId: string;
+  category: string;
+  helpType: string;
 }) {
   const params = new URLSearchParams();
 
   if (query) {
     params.set("q", query);
+  }
+
+  if (requestId) {
+    params.set("requestId", requestId);
   }
 
   if (verifiedOnly) {
@@ -911,6 +1029,14 @@ function buildExpertsPageHref({
 
   if (language) {
     params.set("language", language);
+  }
+
+  if (category) {
+    params.set("category", category);
+  }
+
+  if (helpType) {
+    params.set("helpType", helpType);
   }
 
   if (sort && sort !== "best") {
@@ -928,6 +1054,7 @@ function buildExpertsPageHref({
 
 function ExpertSearchCard({
   expert,
+  requestId,
 }: {
   expert: {
     id: string;
@@ -944,6 +1071,7 @@ function ExpertSearchCard({
     rating: number;
     qualityScore: number;
     searchScore: number;
+    matchReasons?: string[];
     totalReviews: number;
     totalSessions: number;
     isVerified: boolean;
@@ -960,7 +1088,14 @@ function ExpertSearchCard({
       durationMinutes: number;
       category: {
         name: string;
+        slug?: string | null;
       } | null;
+      subcategory?: {
+        name: string;
+        slug?: string | null;
+      } | null;
+      helpType?: string | null;
+      tags?: string[];
     }[];
     availability: {
       id: string;
@@ -978,6 +1113,7 @@ function ExpertSearchCard({
       createdAt: Date;
     }[];
   };
+  requestId: string;
 }) {
   const startingPrice = expert.services[0]?.priceCents ?? null;
   const nextSlot = expert.availability[0] ?? null;
@@ -1018,9 +1154,11 @@ function ExpertSearchCard({
       ? Math.round((solvedReviews / problemOutcomeTotal) * 100)
       : null;
 
-  const profileHref = mainService
-    ? `/experts/${expert.id}?service=${mainService.id}`
-    : `/experts/${expert.id}`;
+  const profileHref = buildExpertProfileHref({
+    expertId: expert.id,
+    serviceId: mainService?.id ?? "",
+    requestId,
+  });
 
   const ratingLabel =
     expert.totalReviews > 0 ? expert.rating.toFixed(1) : "New";
@@ -1032,6 +1170,16 @@ function ExpertSearchCard({
     qualityScore: expert.qualityScore,
     searchScore: expert.searchScore,
   });
+
+  const matchReasons = getMatchReasons({
+    expert,
+    mainService,
+    nextSlot,
+    problemSolvedRate,
+  });
+  const visibleMatchReasons = Array.from(
+    new Set([...(expert.matchReasons ?? []), ...matchReasons]),
+  ).slice(0, 6);
 
   return (
     <Link href={profileHref} className="group">
@@ -1112,6 +1260,25 @@ function ExpertSearchCard({
                   <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-[var(--muted-foreground)]">
                     {mainService.description}
                   </p>
+                </div>
+              ) : null}
+
+              {visibleMatchReasons.length > 0 ? (
+                <div className="mt-4 rounded-[22px] border border-[var(--primary)]/15 bg-[var(--primary-soft)] p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--primary-dark)]">
+                    Why this helper matches
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {visibleMatchReasons.map((reason) => (
+                      <span
+                        key={reason}
+                        className="rounded-full bg-white/70 px-3 py-1.5 text-xs font-black text-[var(--primary-dark)]"
+                      >
+                        {reason}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               ) : null}
 
@@ -1214,6 +1381,91 @@ function ExpertSearchCard({
       </Card>
     </Link>
   );
+}
+
+function buildExpertProfileHref({
+  expertId,
+  serviceId,
+  requestId,
+}: {
+  expertId: string;
+  serviceId: string;
+  requestId: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (serviceId) {
+    params.set("service", serviceId);
+  }
+
+  if (requestId) {
+    params.set("requestId", requestId);
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/experts/${expertId}?${queryString}` : `/experts/${expertId}`;
+}
+
+function getMatchReasons({
+  expert,
+  mainService,
+  nextSlot,
+  problemSolvedRate,
+}: {
+  expert: {
+    isVerified: boolean;
+    languages: string[];
+    searchScore: number;
+    qualityScore: number;
+    totalSessions: number;
+  };
+  mainService: {
+    durationMinutes: number;
+    category: {
+      name: string;
+    } | null;
+  } | null;
+  nextSlot: {
+    startTime: Date;
+  } | null;
+  problemSolvedRate: number | null;
+}) {
+  const reasons: string[] = [];
+
+  if (expert.searchScore >= 20) {
+    reasons.push("Strong topic match");
+  }
+
+  if (mainService?.category?.name) {
+    reasons.push(mainService.category.name);
+  }
+
+  if (expert.languages.length > 0) {
+    reasons.push(`Speaks ${expert.languages.slice(0, 2).join(" / ")}`);
+  }
+
+  if (nextSlot) {
+    reasons.push("Has upcoming availability");
+  }
+
+  if (expert.isVerified) {
+    reasons.push("Verified helper");
+  }
+
+  if (problemSolvedRate !== null && problemSolvedRate >= 70) {
+    reasons.push(`${problemSolvedRate}% solved outcomes`);
+  }
+
+  if (expert.totalSessions >= 5) {
+    reasons.push("Experienced on platform");
+  }
+
+  if (mainService) {
+    reasons.push(`${mainService.durationMinutes} min call`);
+  }
+
+  return Array.from(new Set(reasons)).slice(0, 5);
 }
 
 function AvatarPreview({
@@ -1392,6 +1644,9 @@ function calculateSearchScore({
     title: string;
     description: string;
     category: string;
+    subcategory?: string;
+    helpType?: string;
+    tags?: string[];
   }[];
 }) {
   if (!query || searchTerms.length === 0) {
@@ -1410,6 +1665,9 @@ function calculateSearchScore({
     title: normalizeSearchTerm(service.title),
     description: normalizeSearchTerm(service.description),
     category: normalizeSearchTerm(service.category),
+    subcategory: normalizeSearchTerm(service.subcategory ?? ""),
+    helpType: normalizeSearchTerm(service.helpType ?? ""),
+    tags: (service.tags ?? []).map(normalizeSearchTerm),
   }));
 
   let score = 0;
@@ -1458,6 +1716,18 @@ function calculateSearchScore({
 
       if (service.category.includes(term)) {
         score += 8;
+      }
+
+      if (service.subcategory.includes(term)) {
+        score += 10;
+      }
+
+      if (service.helpType.includes(term)) {
+        score += 6;
+      }
+
+      if (service.tags.some((tag) => tag === term || tag.includes(term))) {
+        score += 12;
       }
     }
   }

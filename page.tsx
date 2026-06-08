@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
-import { trackProductEvent } from "@/lib/product-analytics";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { createBookingAction } from "@/server/actions/booking.actions";
 import {
@@ -47,7 +46,6 @@ type ExpertPublicPageProps = {
   }>;
   searchParams?: Promise<{
     service?: string;
-    requestId?: string;
     error?: string;
     saved?: string;
   }>;
@@ -82,7 +80,6 @@ export default async function ExpertPublicPage({
   const resolvedParams = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const session = await getCurrentUser();
-  const requestId = resolvedSearchParams.requestId?.trim() ?? "";
 
   const now = new Date();
 
@@ -169,49 +166,9 @@ export default async function ExpertPublicPage({
   const isBuyer = normalizedRole === "BUYER" || isAdmin;
   const isOwnProfile = currentUser?.id === expert.userId;
 
-  const linkedHelpRequest =
-    requestId && currentUser
-      ? await prisma.helpRequest.findFirst({
-          where: {
-            id: requestId,
-            OR: [
-              {
-                buyerId: currentUser.id,
-              },
-              ...(isAdmin
-                ? [
-                    {
-                      buyerId: {
-                        not: currentUser.id,
-                      },
-                    },
-                  ]
-                : []),
-            ],
-          },
-          include: {
-            category: true,
-            subcategory: true,
-          },
-        })
-      : null;
-
   if (expert.status !== "APPROVED" && !isOwnProfile && !isAdmin) {
     notFound();
   }
-
-  await trackProductEvent({
-    event: "EXPERT_PROFILE_VIEWED",
-    userId: currentUser?.id ?? null,
-    email: currentUser?.email ?? null,
-    entityType: "ExpertProfile",
-    entityId: expert.id,
-    metadata: {
-      requestId: requestId || null,
-      service: resolvedSearchParams.service ?? null,
-      linkedHelpRequest: Boolean(linkedHelpRequest),
-    },
-  });
 
   const canAcceptPayments =
     Boolean(expert.stripeAccountId) &&
@@ -264,11 +221,9 @@ export default async function ExpertPublicPage({
     hasOpenTimes,
   });
 
-  const currentProfileUrl = buildProfileHref({
-    expertId: expert.id,
-    serviceId: selectedService?.id ?? "",
-    requestId,
-  });
+  const currentProfileUrl = `/experts/${expert.id}${
+    selectedService ? `?service=${selectedService.id}` : ""
+  }`;
 
   const signInHref = `/sign-in?next=${encodeURIComponent(currentProfileUrl)}`;
 
@@ -380,7 +335,7 @@ export default async function ExpertPublicPage({
 
         <div className="relative container-page py-8 md:py-10 lg:py-14">
           <Link
-            href={requestId ? `/experts?requestId=${requestId}` : "/experts"}
+            href="/experts"
             className="inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]"
           >
             <ArrowLeft size={16} />
@@ -783,11 +738,7 @@ export default async function ExpertPublicPage({
                     return (
                       <Link
                         key={service.id}
-                        href={buildProfileHref({
-                          expertId: expert.id,
-                          serviceId: service.id,
-                          requestId,
-                        })}
+                        href={`/experts/${expert.id}?service=${service.id}`}
                         className={
                           isSelected
                             ? "rounded-[26px] border border-[var(--primary)]/30 bg-[var(--primary-soft)] p-4 shadow-sm transition hover:-translate-y-0.5"
@@ -892,30 +843,6 @@ export default async function ExpertPublicPage({
                       name="serviceId"
                       value={selectedService.id}
                     />
-                    {linkedHelpRequest ? (
-                      <input
-                        type="hidden"
-                        name="helpRequestId"
-                        value={linkedHelpRequest.id}
-                      />
-                    ) : null}
-
-                    {linkedHelpRequest ? (
-                      <div className="rounded-[24px] border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-4">
-                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--primary-dark)]">
-                          Booking linked to your problem
-                        </p>
-
-                        <p className="mt-2 text-sm font-bold leading-6 text-[var(--primary-dark)]">
-                          “{linkedHelpRequest.query}”
-                        </p>
-
-                        <p className="mt-2 text-xs font-semibold text-[var(--primary-dark)]/80">
-                          After booking, this request will move from open to
-                          booked in your buyer dashboard.
-                        </p>
-                      </div>
-                    ) : null}
 
                     <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
                       <div className="flex flex-col gap-2">
@@ -955,13 +882,6 @@ Already tried: I wrote a first version but I am not sure if it is professional e
 Desired result:
 
 Already tried:`}
-                          defaultValue={
-                            linkedHelpRequest
-                              ? `Problem: ${linkedHelpRequest.query}
-
-Desired result: `
-                              : undefined
-                          }
                           className="mt-2 min-h-44 resize-y rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-4 py-3 text-sm font-medium leading-6 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
                         />
 
@@ -1528,30 +1448,6 @@ function DocumentCard({
       </div>
     </a>
   );
-}
-
-function buildProfileHref({
-  expertId,
-  serviceId,
-  requestId,
-}: {
-  expertId: string;
-  serviceId: string;
-  requestId: string;
-}) {
-  const params = new URLSearchParams();
-
-  if (serviceId) {
-    params.set("service", serviceId);
-  }
-
-  if (requestId) {
-    params.set("requestId", requestId);
-  }
-
-  const queryString = params.toString();
-
-  return queryString ? `/experts/${expertId}?${queryString}` : `/experts/${expertId}`;
 }
 
 function formatFileSize(sizeBytes: number | null) {

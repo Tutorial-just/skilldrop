@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BookingStatus, Prisma } from "@prisma/client";
+import { BookingStatus, HelpRequestStatus, Prisma } from "@prisma/client";
 
 import {
   cancelBooking,
@@ -13,6 +13,7 @@ import {
 } from "@/server/services/booking.service";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import { trackProductEvent } from "@/lib/product-analytics";
 import {
   assertRateLimit,
   getClientIp,
@@ -218,6 +219,7 @@ export async function createBookingAction(formData: FormData) {
   const [availabilityId = "", startTimeValue = ""] = timeSlot.split("|");
   const rawNote = getStringValue(formData, "note");
   const note = cleanBookingNote(rawNote);
+  const helpRequestId = getStringValue(formData, "helpRequestId");
 
   if (!expertId || !serviceId || !availabilityId || !startTimeValue) {
     redirect(`/experts/${expertId || ""}?error=missing-booking-data`);
@@ -405,6 +407,24 @@ export async function createBookingAction(formData: FormData) {
           },
         });
 
+        if (helpRequestId) {
+          await tx.helpRequest.updateMany({
+            where: {
+              id: helpRequestId,
+              buyerId: buyer.id,
+              status: {
+                in: [HelpRequestStatus.OPEN, HelpRequestStatus.MATCHED],
+              },
+            },
+            data: {
+              status: HelpRequestStatus.BOOKED,
+              selectedExpertId: expertId,
+              selectedServiceId: serviceId,
+              bookingId: createdBooking.id,
+            },
+          });
+        }
+
         return {
           id: createdBooking.id,
           expertId: createdBooking.expertId,
@@ -467,6 +487,7 @@ export async function createBookingAction(formData: FormData) {
       startTime: booking.startTime.toISOString(),
       endTime: booking.endTime.toISOString(),
       note: booking.note,
+      helpRequestId: helpRequestId || null,
     },
   });
 
@@ -496,6 +517,22 @@ export async function createBookingAction(formData: FormData) {
       platformFeeCents: pricing.platformFeeCents,
       providerNetCents: pricing.providerNetCents,
       note: booking.note,
+      helpRequestId: helpRequestId || null,
+    },
+  });
+
+  await trackProductEvent({
+    event: "BOOKING_STARTED",
+    userId: buyer.id,
+    email: buyer.email,
+    entityType: "Booking",
+    entityId: booking.id,
+    metadata: {
+      expertId,
+      serviceId,
+      helpRequestId: helpRequestId || null,
+      clientTotalCents: pricing.clientTotalCents,
+      startTime: booking.startTime.toISOString(),
     },
   });
 
@@ -511,6 +548,7 @@ export async function createBookingAction(formData: FormData) {
     priceText: `€${(pricing.clientTotalCents / 100).toFixed(2)}`,
   });
 
+  revalidatePath("/buyer");
   revalidateBookingPaths(expertId, booking.id);
 
   redirect(`/buyer/bookings/${booking.id}/checkout`);
@@ -571,6 +609,17 @@ export async function cancelBookingAction(formData: FormData) {
           ? "CANCELLED_BY_EXPERT"
           : "CANCELLED_BY_BUYER",
     );
+
+    await tx.helpRequest.updateMany({
+      where: {
+        bookingId: booking.id,
+        status: HelpRequestStatus.BOOKED,
+      },
+      data: {
+        status: HelpRequestStatus.OPEN,
+        bookingId: null,
+      },
+    });
   });
 
   const cancelledBy = isAdmin
@@ -578,6 +627,15 @@ export async function cancelBookingAction(formData: FormData) {
     : isExpert
       ? "the helper"
       : "the buyer";
+
+  await trackProductEvent({
+    event: "BOOKING_CANCELLED",
+    userId: currentUser.id,
+    email: currentUser.email,
+    entityType: "Booking",
+    entityId: booking.id,
+    metadata: { cancelledBy },
+  });
 
   await safeSendNotification({
     to: booking.buyer.email,

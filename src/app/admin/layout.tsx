@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  BarChart3,
   Bell,
   CalendarDays,
   Home,
@@ -68,6 +69,12 @@ export default async function AdminLayout({
               href="/admin/reviews"
               label="Reviews"
               icon={MessageCircle}
+            />
+
+            <AdminNavLink
+              href="/admin/analytics"
+              label="Analytics"
+              icon={BarChart3}
             />
 
             <AdminNavLink

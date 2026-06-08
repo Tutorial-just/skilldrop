@@ -12,6 +12,7 @@ import { stripe } from "@/lib/stripe";
 import { sendNotification } from "@/server/services/notification.service";
 import { sendBookingConfirmedEmails } from "@/lib/booking-emails";
 import { calculatePricingBreakdown } from "@/config/pricing";
+import { trackProductEvent } from "@/lib/product-analytics";
 
 export const runtime = "nodejs";
 
@@ -420,6 +421,19 @@ async function handleCheckoutSessionPaid({
   if (!confirmedBooking) {
     return null;
   }
+
+  await trackProductEvent({
+    event: "PAYMENT_CONFIRMED",
+    email: confirmedBooking.buyerEmail,
+    entityType: "Booking",
+    entityId: confirmedBooking.id,
+    metadata: {
+      stripeCheckoutSessionId: confirmedBooking.stripeCheckoutSessionId,
+      stripePaymentIntentId: confirmedBooking.stripePaymentIntentId,
+      clientTotalCents: confirmedBooking.clientTotalCents,
+      paymentConfirmed: true,
+    },
+  });
 
   await safeSendNotification({
     to: confirmedBooking.buyerEmail,

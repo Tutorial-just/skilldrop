@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { refreshExpertVerification } from "@/lib/expert-verification";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { prisma } from "@/lib/prisma";
+import { trackProductEvent } from "@/lib/product-analytics";
 import {
   assertRateLimit,
   getClientIp,
@@ -395,6 +396,21 @@ export async function createReviewAction(formData: FormData) {
       });
     }
   }
+
+  await trackProductEvent({
+    event: "REVIEW_LEFT",
+    userId: currentUser.id,
+    email: currentUser.email,
+    entityType: "Review",
+    entityId: result.review.id,
+    metadata: {
+      bookingId: result.booking.id,
+      expertId: result.booking.expertId,
+      rating: finalRating,
+      problemSolved,
+      wouldRecommend,
+    },
+  });
 
   revalidateReviewPaths(result.booking.expertId, result.booking.id);
 

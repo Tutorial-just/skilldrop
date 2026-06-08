@@ -87,6 +87,37 @@ const helperSteps = [
   },
 ];
 
+const problemLandingLinks = [
+  {
+    label: "Relationship advice",
+    href: "/help/relationship-advice",
+  },
+  {
+    label: "Business first clients",
+    href: "/help/business-first-clients",
+  },
+  {
+    label: "French documents",
+    href: "/help/french-documents",
+  },
+  {
+    label: "CV review",
+    href: "/help/cv-review",
+  },
+  {
+    label: "Learn cooking",
+    href: "/help/learn-cooking",
+  },
+  {
+    label: "Religion questions",
+    href: "/help/religion-questions",
+  },
+  {
+    label: "Tech help",
+    href: "/help/tech-help",
+  },
+];
+
 const faqs = [
   {
     question: "What is SkillDrop?",
@@ -145,7 +176,8 @@ export default function HelpPage() {
 
             <p className="mt-4 max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
               Learn how to find help, book short calls, offer services, manage
-              bookings and stay safe on the marketplace.
+              bookings and stay safe on the marketplace. You can also start
+              from a specific problem page and go directly to matching helpers.
             </p>
           </div>
 
@@ -196,6 +228,46 @@ export default function HelpPage() {
           title="For trust"
           text="Use reviews, verification, safe payments and dispute review."
         />
+      </section>
+
+
+      <section className="mt-12">
+        <Card className="p-6 md:p-8">
+          <Badge variant="primary">
+            <Sparkles size={14} />
+            Problem guides
+          </Badge>
+
+          <div className="mt-4 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+              <h2 className="text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+                Start from a real problem
+              </h2>
+
+              <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
+                These pages explain common situations and send buyers directly
+                toward matching helpers or a missing-help request.
+              </p>
+            </div>
+
+            <ButtonLink href="/help-me" variant="secondary">
+              Guided problem intake
+            </ButtonLink>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {problemLandingLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-black text-[var(--muted-foreground)] transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--background-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
+              >
+                {item.label}
+                <ArrowRight size={16} className="ml-2 inline" />
+              </Link>
+            ))}
+          </div>
+        </Card>
       </section>
 
       <section className="mt-12 grid gap-8 lg:grid-cols-2">

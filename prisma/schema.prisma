@@ -15,16 +15,18 @@ model User {
   avatarUrl String?
   role      UserRole @default(BUYER)
 
-  expertProfile    ExpertProfile?
-  bookings         Booking[]         @relation("BuyerBookings")
-  reviews          Review[]
-  savedExperts     SavedExpert[]
-  buyerSettings    BuyerSettings?
-  notifications    Notification[]
-  adminAuditLogs   AdminAuditLog[]
-  bookingReports   BookingReport[]
-  categoryRequests CategoryRequest[]
-  buyerCallOutcomes CallOutcome[] @relation("BuyerCallOutcomes")
+  expertProfile     ExpertProfile?
+  bookings          Booking[]         @relation("BuyerBookings")
+  reviews           Review[]
+  savedExperts      SavedExpert[]
+  buyerSettings     BuyerSettings?
+  notifications     Notification[]
+  adminAuditLogs    AdminAuditLog[]
+  productEvents     ProductEvent[]
+  bookingReports    BookingReport[]
+  categoryRequests  CategoryRequest[]
+  helpRequests      HelpRequest[]
+  buyerCallOutcomes CallOutcome[]     @relation("BuyerCallOutcomes")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -77,9 +79,9 @@ model ExpertProfile {
   reviews      Review[]
   savedBy      SavedExpert[]
 
-  documents ExpertDocument[]
-  settings  ExpertSettings?
-  expertCallOutcomes CallOutcome[] @relation("ExpertCallOutcomes")
+  documents          ExpertDocument[]
+  settings           ExpertSettings?
+  expertCallOutcomes CallOutcome[]    @relation("ExpertCallOutcomes")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -117,6 +119,7 @@ model Category {
   subcategories Subcategory[]
   services      Service[]
   requests      CategoryRequest[]
+  helpRequests  HelpRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -138,7 +141,8 @@ model Subcategory {
   isActive    Boolean @default(true)
   sortOrder   Int     @default(0)
 
-  services Service[]
+  services     Service[]
+  helpRequests HelpRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -215,6 +219,45 @@ model CategoryRequest {
   @@index([categoryId])
   @@index([status])
   @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+model HelpRequest {
+  id String @id @default(cuid())
+
+  buyerId String?
+  buyer   User?   @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  subcategoryId String?
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+
+  query String
+
+  helpType          HelpType?
+  urgency           HelpUrgency @default(FLEXIBLE)
+  preferredLanguage String?
+  budgetMaxCents    Int?
+
+  status HelpRequestStatus @default(OPEN)
+
+  selectedExpertId  String?
+  selectedServiceId String?
+  bookingId         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buyerId])
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([helpType])
+  @@index([urgency])
+  @@index([status])
+  @@index([createdAt])
+  @@index([buyerId, status])
   @@index([status, createdAt])
 }
 
@@ -399,15 +442,15 @@ model CallOutcome {
   booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   buyerId String
-  buyer   User @relation("BuyerCallOutcomes", fields: [buyerId], references: [id], onDelete: Cascade)
+  buyer   User   @relation("BuyerCallOutcomes", fields: [buyerId], references: [id], onDelete: Cascade)
 
   expertId String
   expert   ExpertProfile @relation("ExpertCallOutcomes", fields: [expertId], references: [id], onDelete: Cascade)
 
-  problemSummary String
+  problemSummary  String
   discussionNotes String?
-  nextSteps String
-  usefulLinks String[] @default([])
+  nextSteps       String
+  usefulLinks     String[] @default([])
 
   followUpRecommended Boolean @default(false)
   followUpNote        String?
@@ -578,6 +621,30 @@ enum NotificationType {
   SYSTEM
 }
 
+model ProductEvent {
+  id String @id @default(cuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  email String?
+  event String
+
+  entityType String?
+  entityId   String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([email])
+  @@index([event])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([event, createdAt])
+}
+
 model StripeEvent {
   id          String    @id
   type        String
@@ -646,6 +713,20 @@ enum HelpType {
   RELIGIOUS_DISCUSSION
   BUSINESS_MENTORING
   OTHER
+}
+
+enum HelpUrgency {
+  TODAY
+  THIS_WEEK
+  FLEXIBLE
+}
+
+enum HelpRequestStatus {
+  OPEN
+  MATCHED
+  BOOKED
+  CLOSED
+  NO_MATCH
 }
 
 enum CategoryRequestStatus {
