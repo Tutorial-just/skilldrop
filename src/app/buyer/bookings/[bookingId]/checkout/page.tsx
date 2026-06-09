@@ -403,17 +403,17 @@ export default async function BookingCheckoutPage({
 
           <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
             <p className="text-sm font-bold text-[var(--foreground)]">
-              Protected by SkillDrop trust tools
+              Need help before paying?
             </p>
 
             <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-              Before paying, you can review how payments, refunds, disputes,
+              Before paying, you can review how bookings, payments, refunds,
               safety boundaries and action plans work.
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link href="/trust" className="text-sm font-bold text-[var(--primary-dark)]">
-                Trust Center
+              <Link href="/help" className="text-sm font-bold text-[var(--primary-dark)]">
+                Help Center
               </Link>
               <span className="text-sm font-bold text-[var(--muted-foreground)]">·</span>
               <Link href="/legal/safety" className="text-sm font-bold text-[var(--primary-dark)]">

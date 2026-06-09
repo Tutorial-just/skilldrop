@@ -13,8 +13,8 @@ import { Card } from "@/components/ui/card";
 const steps = [
   {
     icon: Search,
-    title: "Describe your problem",
-    text: "Search with your own words: topic, language, situation, goal or keyword.",
+    title: "Find the right helper",
+    text: "Search by topic, situation, goal, language or practical keyword.",
   },
   {
     icon: BadgeCheck,
@@ -57,8 +57,8 @@ export function HowItWorksSection() {
                 <ArrowRight size={18} />
               </ButtonLink>
 
-              <ButtonLink href="/trust" variant="secondary">
-                How trust works
+              <ButtonLink href="/help" variant="secondary">
+                How to use SkillDrop
               </ButtonLink>
             </div>
           </div>

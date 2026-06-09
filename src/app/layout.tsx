@@ -200,24 +200,10 @@ export default async function RootLayout({
 
               <nav className="flex items-center gap-2">
                 <Link
-                  href="/help-me"
+                  href="/help"
                   className="btn btn-secondary hidden md:inline-flex"
                 >
-                  Describe problem
-                </Link>
-
-                <Link
-                  href="/categories"
-                  className="btn btn-secondary hidden lg:inline-flex"
-                >
-                  Categories
-                </Link>
-
-                <Link
-                  href="/trust"
-                  className="btn btn-secondary hidden lg:inline-flex"
-                >
-                  Trust
+                  Help
                 </Link>
 
                 {user ? (

@@ -527,7 +527,6 @@ export default async function ExpertPublicPage({
                             className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-4"
                           >
                             <div className="flex flex-wrap gap-2">
-                              <Badge>{service.category?.name ?? "Help"}</Badge>
                               <Badge>
                                 <Clock3 size={14} />
                                 {service.durationMinutes} min
@@ -674,13 +673,13 @@ export default async function ExpertPublicPage({
               <div className="mt-5 grid gap-3">
                 <Step
                   number="1"
-                  title="Choose help"
-                  text="Pick the service that matches your problem."
+                  title="Choose an offer"
+                  text="Pick the service that matches the result you want."
                 />
                 <Step
                   number="2"
-                  title="Explain your situation"
-                  text="Tell the helper what you need before the call."
+                  title="Add context"
+                  text="Leave a short note so the helper can prepare before the call."
                 />
                 <Step
                   number="3"
@@ -690,11 +689,11 @@ export default async function ExpertPublicPage({
               </div>
 
               <p className="mt-4 text-center text-xs font-bold leading-5 text-[var(--muted-foreground)]">
-                Booking is protected by SkillDrop{" "}
-                <Link href="/trust" className="text-[var(--primary-dark)]">
-                  Trust Center
+                Need help with the booking flow? Visit the{" "}
+                <Link href="/help" className="text-[var(--primary-dark)]">
+                  Help Center
                 </Link>
-                ,{" "}
+                . You can also read the{" "}
                 <Link href="/legal/safety" className="text-[var(--primary-dark)]">
                   Safety Rules
                 </Link>{" "}
@@ -803,8 +802,6 @@ export default async function ExpertPublicPage({
                                   Selected
                                 </Badge>
                               ) : null}
-
-                              <Badge>{service.category?.name ?? "Service"}</Badge>
 
                               <Badge>
                                 <Clock3 size={14} />
@@ -923,14 +920,13 @@ export default async function ExpertPublicPage({
                           htmlFor="booking-note"
                           className="text-sm font-black tracking-[-0.01em]"
                         >
-                          Describe your problem and desired result
+                          Add a short preparation note
                         </label>
 
                         <p className="text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-                          Help the helper prepare before the call. Explain what
-                          problem you want to solve, what result you expect by
-                          the end of the call, and what you already tried if it
-                          is relevant.
+                          Help the helper prepare before the call. Write the
+                          context, your goal for the session and anything useful
+                          you already tried if it is relevant.
                         </p>
 
                         <div className="mt-3 rounded-2xl border border-[var(--primary)]/15 bg-[var(--primary-soft)] p-4">
@@ -939,8 +935,8 @@ export default async function ExpertPublicPage({
                           </p>
 
                           <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-[var(--primary-dark)]">
-                            {`Problem: I need help improving my CV for an alternance application.
-Desired result: I want clear advice and corrections before I send it.
+                            {`Context: I am preparing a CV for an alternance application.
+Goal: I want clear advice and corrections before I send it.
 Already tried: I wrote a first version but I am not sure if it is professional enough.`}
                           </p>
                         </div>
@@ -950,16 +946,16 @@ Already tried: I wrote a first version but I am not sure if it is professional e
                           name="note"
                           maxLength={MAX_BOOKING_NOTE_LENGTH}
                           rows={7}
-                          placeholder={`Problem:
+                          placeholder={`Context:
 
-Desired result:
+Goal for the call:
 
 Already tried:`}
                           defaultValue={
                             linkedHelpRequest
-                              ? `Problem: ${linkedHelpRequest.query}
+                              ? `Context: ${linkedHelpRequest.query}
 
-Desired result: `
+Goal for the call: `
                               : undefined
                           }
                           className="mt-2 min-h-44 resize-y rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-4 py-3 text-sm font-medium leading-6 text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/10"
@@ -1200,7 +1196,7 @@ Desired result: `
 
                   <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-[var(--muted-foreground)]">
                     Buyers answer whether their problem was solved after the
-                    call. This is one of the strongest trust signals on
+                    call. This is one of the strongest quality signals on
                     SkillDrop.
                   </p>
                 </div>
@@ -1326,7 +1322,7 @@ Desired result: `
             <Card className="p-5">
               <Badge variant="success">
                 <ShieldCheck size={14} />
-                Trust overview
+                Profile overview
               </Badge>
 
               <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
@@ -1438,7 +1434,7 @@ Desired result: `
                 <Step
                   number="3"
                   title="Action plan + review"
-                  text="A completed call can lead to next steps, then buyer feedback keeps the marketplace trustworthy."
+                  text="A completed call can lead to next steps, then buyer feedback helps future buyers choose."
                 />
               </div>
             </Card>
@@ -1469,8 +1465,8 @@ Desired result: `
               </p>
 
               <div className="mt-5">
-                <Link href="/trust" className="btn btn-secondary">
-                  How trust works
+                <Link href="/help" className="btn btn-secondary">
+                  How to use SkillDrop
                 </Link>
               </div>
             </Card>

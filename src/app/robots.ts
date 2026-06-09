@@ -13,8 +13,7 @@ export default function robots(): MetadataRoute.Robots {
           "/help-me",
           "/experts",
           "/categories",
-          "/trust",
-          "/legal",
+                "/legal",
         ],
         disallow: [
           "/admin",

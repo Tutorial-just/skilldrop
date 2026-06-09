@@ -82,7 +82,7 @@ const helperSteps = [
   },
   {
     icon: BadgeCheck,
-    title: "Build trust",
+    title: "Build quality",
     text: "Earn reviews and verification after successful sessions.",
   },
 ];
@@ -225,8 +225,8 @@ export default function HelpPage() {
 
         <TopCard
           icon={ShieldCheck}
-          title="For trust"
-          text="Use reviews, verification, safe payments and dispute review."
+          title="For help & safety"
+          text="Use reviews, verification, safe payments and support guides."
         />
       </section>
 

@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import {
   ArrowRight,
   BookOpen,
@@ -17,17 +16,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-
-const popularSearches = [
-  "relationship advice",
-  "business idea",
-  "understand a document",
-  "learn a recipe",
-  "religion questions",
-  "CV review",
-  "tech help",
-  "practice French",
-];
 
 const heroTopics = [
   {
@@ -77,32 +65,7 @@ export function HeroSection() {
             Book a short call and leave with clearer next steps.
           </p>
 
-          <form action="/experts" className="mt-8 max-w-2xl">
-            <div className="rounded-[30px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-md)] backdrop-blur">
-              <div className="flex flex-col gap-3 md:flex-row">
-                <div className="relative flex-1">
-                  <input
-                    name="q"
-                    type="search"
-                    placeholder="Describe your problem..."
-                    className="input min-h-[56px] border-transparent bg-[var(--background-soft)] pl-5 pr-12 shadow-none"
-                  />
-
-                  <Search
-                    size={19}
-                    className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
-                  />
-                </div>
-
-                <button type="submit" className="btn btn-primary min-h-[56px]">
-                  Find help
-                  <ArrowRight size={18} />
-                </button>
-              </div>
-            </div>
-          </form>
-
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <ButtonLink href="/experts">
               Find help now
               <Search size={18} />
@@ -112,18 +75,6 @@ export function HeroSection() {
               Become a helper
               <ArrowRight size={18} />
             </ButtonLink>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            {popularSearches.map((item) => (
-              <Link
-                key={item}
-                href={`/experts?q=${encodeURIComponent(item)}`}
-                className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-4 py-2 text-sm font-bold text-[var(--muted-foreground)] shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)] hover:shadow-[var(--shadow-sm)]"
-              >
-                {item}
-              </Link>
-            ))}
           </div>
 
           <div className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
@@ -212,10 +163,10 @@ function HeroPreview() {
 
           <div>
             <p className="text-sm font-bold text-[var(--foreground)]">
-              Protected booking
+              Help center
             </p>
             <p className="text-xs text-[var(--muted-foreground)]">
-              Safety, refunds and action plan
+              Guides, booking steps and support
             </p>
           </div>
         </div>

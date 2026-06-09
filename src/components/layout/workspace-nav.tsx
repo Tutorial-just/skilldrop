@@ -24,7 +24,6 @@ const expertLinks: NavItem[] = [
 
 const buyerLinks: NavItem[] = [
   { href: "/buyer", label: "Overview" },
-  { href: "/help-me", label: "Describe problem" },
   { href: "/experts", label: "Find helpers" },
   { href: "/buyer/bookings", label: "Bookings" },
   { href: "/buyer/outcomes", label: "Action plans" },

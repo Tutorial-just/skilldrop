@@ -62,20 +62,19 @@ export function ExpertFilters({
           </div>
 
           <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
-            Start with the problem.
+            Find a helper faster.
           </h2>
 
           <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-            Search by your own words, category, help type, language, price or availability.
-            For a guided flow, start from the problem intake page.
+            Search by topic, help type, language, price or availability. For guided help, open the buyer dashboard.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-[var(--muted-foreground)]">
           <Filter size={16} />
           {resultCount} of {totalCount} helpers
-          <a href="/help-me" className="rounded-full bg-[var(--primary-soft)] px-3 py-1 text-[var(--primary-dark)]">
-            Guided intake
+          <a href="/buyer" className="rounded-full bg-[var(--primary-soft)] px-3 py-1 text-[var(--primary-dark)]">
+            Buyer dashboard
           </a>
         </div>
       </div>
@@ -90,7 +89,7 @@ export function ExpertFilters({
             value={filters.query}
             onChange={(event) => update("query", event.target.value)}
             type="search"
-            placeholder="Describe your problem: dating advice, learn a recipe, start a company..."
+            placeholder="Search helpers: CV review, French documents, website bug..."
             className="input min-h-[54px] pl-12"
           />
         </div>

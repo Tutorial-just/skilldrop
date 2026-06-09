@@ -60,8 +60,8 @@ export default function SafetyPage() {
             Refund policy
           </ButtonLink>
 
-          <ButtonLink href="/trust" variant="secondary">
-            Trust center
+          <ButtonLink href="/help" variant="secondary">
+            Help center
           </ButtonLink>
         </div>
       </section>

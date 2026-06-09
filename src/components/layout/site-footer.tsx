@@ -12,15 +12,11 @@ import { Badge } from "@/components/ui/badge";
 const productLinks = [
   {
     label: "Find help",
-    href: "/help-me",
+    href: "/experts",
   },
   {
     label: "Marketplace",
     href: "/experts",
-  },
-  {
-    label: "Categories",
-    href: "/categories",
   },
   {
     label: "Become a helper",
@@ -59,10 +55,10 @@ const marketplaceLinks = [
   },
 ];
 
-const trustLinks = [
+const helpLinks = [
   {
-    label: "Trust Center",
-    href: "/trust",
+    label: "Help Center",
+    href: "/help",
   },
   {
     label: "Safety",
@@ -113,7 +109,7 @@ export function SiteFooter() {
             <div className="mt-5 flex flex-wrap gap-2">
               <Badge variant="success">
                 <ShieldCheck size={14} />
-                Trust-first
+                Helpful flow
               </Badge>
 
               <Badge variant="primary">
@@ -130,7 +126,7 @@ export function SiteFooter() {
 
           <FooterColumn title="Product" links={productLinks} />
           <FooterColumn title="Marketplace" links={marketplaceLinks} />
-          <FooterColumn title="Trust & legal" links={trustLinks} />
+          <FooterColumn title="Help & legal" links={helpLinks} />
         </div>
 
         <div className="mt-10 flex flex-col justify-between gap-4 border-t border-[var(--border)] pt-6 md:flex-row md:items-center">
@@ -142,14 +138,14 @@ export function SiteFooter() {
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-muted">
             <span className="inline-flex items-center gap-1">
               <BadgeCheck size={14} />
-              Trust & safety foundation
+              Help & safety foundation
             </span>
 
             <Link
-              href="/trust"
+              href="/help"
               className="hover-scale text-[var(--primary-dark)]"
             >
-              Trust
+              Help
             </Link>
 
             <Link

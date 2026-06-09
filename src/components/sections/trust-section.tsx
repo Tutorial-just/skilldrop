@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-const trustItems = [
+const helpItems = [
   "Clear total price before checkout",
   "Safety rules for buyers and helpers",
   "Reports and disputes for problematic calls",
@@ -22,7 +22,7 @@ const trustItems = [
   "Admin moderation for missing categories",
 ];
 
-export function TrustSection() {
+export function HelpSection() {
   return (
     <section className="section-page">
       <div className="container-page">
@@ -30,11 +30,11 @@ export function TrustSection() {
           <div>
             <Badge variant="primary">
               <ShieldCheck size={14} />
-              Trust layer
+              Help layer
             </Badge>
 
             <h2 className="heading-xl mt-5 text-balance">
-              Trust is built into the booking flow.
+              Help is built into the booking flow.
             </h2>
 
             <p className="mt-5 text-lg leading-8 text-[var(--muted-foreground)]">
@@ -44,8 +44,8 @@ export function TrustSection() {
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <ButtonLink href="/trust">
-                Visit Trust Center
+              <ButtonLink href="/help">
+                Visit Help Center
                 <ArrowRight size={18} />
               </ButtonLink>
 
@@ -57,13 +57,13 @@ export function TrustSection() {
 
           <Card className="overflow-hidden p-6 md:p-8">
             <div className="grid gap-4 md:grid-cols-3">
-              <TrustMetric icon={CreditCard} value="Stripe" label="secure checkout" />
-              <TrustMetric icon={FileText} value="Action plan" label="next steps" />
-              <TrustMetric icon={Flag} value="Reports" label="dispute review" />
+              <HelpMetric icon={CreditCard} value="Stripe" label="secure checkout" />
+              <HelpMetric icon={FileText} value="Action plan" label="next steps" />
+              <HelpMetric icon={Flag} value="Reports" label="dispute review" />
             </div>
 
             <div className="mt-6 grid gap-3">
-              {trustItems.map((item) => (
+              {helpItems.map((item) => (
                 <div
                   key={item}
                   className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-medium text-[var(--muted-foreground)]"
@@ -103,7 +103,7 @@ export function TrustSection() {
   );
 }
 
-function TrustMetric({
+function HelpMetric({
   icon: Icon,
   value,
   label,

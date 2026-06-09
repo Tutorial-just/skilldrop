@@ -345,8 +345,8 @@ export default async function HelpLandingPage({ params }: HelpLandingPageProps) 
             </p>
 
             <div className="mt-5">
-              <ButtonLink href="/trust" variant="secondary">
-                How trust works
+              <ButtonLink href="/help" variant="secondary">
+                How to use SkillDrop
               </ButtonLink>
             </div>
           </Card>

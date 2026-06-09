@@ -15,7 +15,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/help-me",
     "/experts",
     "/categories",
-    "/trust",
     "/legal/terms",
     "/legal/privacy",
     "/legal/refunds",

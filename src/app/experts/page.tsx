@@ -812,7 +812,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               <div className="mt-5 grid gap-3">
                 <Step
                   number="1"
-                  title="Describe your problem"
+                  title="Search helpers"
                   text="Use natural words like CV, document, French, website or moving."
                 />
                 <Step
@@ -849,11 +849,11 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             <Card className="p-5">
               <Badge variant="success">
                 <CheckCircle2 size={14} />
-                Trust signals
+                Helpful booking info
               </Badge>
 
               <div className="mt-5 grid gap-3">
-                <TrustPoint text="Only approved helpers with active services and future availability are shown." />
+                <TrustPoint text="Only helpers with active services and future availability are shown." />
                 <TrustPoint text="Prices, call duration and available times are visible before booking." />
                 <TrustPoint text="Reviews and completed sessions help you compare people." />
               </div>
@@ -869,7 +869,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
                 <p className="mt-2 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
                   Choose someone by what they can help with, language, price,
-                  reviews, availability and trust signals.
+                  reviews, availability and service details.
                 </p>
               </div>
 
