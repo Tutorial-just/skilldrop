@@ -89,7 +89,7 @@ export function buildEmailLayout({
     ctaLabel && ctaHref
       ? `
         <p style="margin: 28px 0;">
-          <a href="${ctaHref}" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:14px;">
+          <a href="${ctaHref}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:14px;">
             ${escapeHtml(ctaLabel)}
           </a>
         </p>
@@ -101,23 +101,23 @@ export function buildEmailLayout({
       ${safePreview}
     </div>
 
-    <main style="font-family:Inter,Arial,sans-serif;background:#f8fafc;padding:32px;">
-      <section style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;padding:32px;">
-        <p style="margin:0 0 18px;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#059669;">
+    <main style="font-family:Inter,Arial,sans-serif;background:#fbf8ff;padding:32px;">
+      <section style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid rgba(109,40,217,.14);border-radius:24px;padding:32px;">
+        <p style="margin:0 0 18px;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#7c3aed;">
           SkillDrop
         </p>
 
-        <h1 style="margin:0;font-size:28px;line-height:1.15;color:#020617;">
+        <h1 style="margin:0;font-size:28px;line-height:1.15;color:#221833;">
           ${safeTitle}
         </h1>
 
-        <div style="margin-top:20px;font-size:15px;line-height:1.7;color:#475569;">
+        <div style="margin-top:20px;font-size:15px;line-height:1.7;color:#615675;">
           ${body}
         </div>
 
         ${cta}
 
-        <hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;" />
+        <hr style="border:none;border-top:1px solid rgba(109,40,217,.14);margin:28px 0;" />
 
         <p style="margin:0;font-size:12px;line-height:1.6;color:#94a3b8;">
           You received this email because you use SkillDrop.

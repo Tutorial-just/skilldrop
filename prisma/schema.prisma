@@ -176,6 +176,10 @@ model Service {
   currency        String  @default("EUR")
   isActive        Boolean @default(true)
 
+  moderationStatus ServiceModerationStatus @default(APPROVED)
+  moderationNote   String?
+  moderatedAt      DateTime?
+
   bookings Booking[]
 
   createdAt DateTime @default(now())
@@ -186,6 +190,7 @@ model Service {
   @@index([subcategoryId])
   @@index([helpType])
   @@index([isActive])
+  @@index([moderationStatus])
   @@index([priceCents])
   @@index([durationMinutes])
   @@index([createdAt])
@@ -242,6 +247,8 @@ model HelpRequest {
   budgetMaxCents    Int?
 
   status HelpRequestStatus @default(OPEN)
+
+  attachments HelpRequestAttachment[]
 
   selectedExpertId  String?
   selectedServiceId String?
@@ -664,6 +671,8 @@ model BookingReport {
   reason     String
   message    String?
   status     String   @default("OPEN")
+  adminNote  String?
+  resolvedAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -701,6 +710,29 @@ model ExpertDocument {
 enum ExpertDocumentType {
   CV
   PORTFOLIO
+}
+
+model HelpRequestAttachment {
+  id String @id @default(cuid())
+
+  helpRequestId String
+  helpRequest   HelpRequest @relation(fields: [helpRequestId], references: [id], onDelete: Cascade)
+
+  title    String?
+  fileUrl  String
+  fileName String?
+
+  createdAt DateTime @default(now())
+
+  @@index([helpRequestId])
+  @@index([createdAt])
+}
+
+enum ServiceModerationStatus {
+  PENDING
+  APPROVED
+  NEEDS_CHANGES
+  REJECTED
 }
 
 enum HelpType {

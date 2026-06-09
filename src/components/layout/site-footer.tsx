@@ -15,16 +15,16 @@ const productLinks = [
     href: "/experts",
   },
   {
-    label: "Marketplace",
-    href: "/experts",
+    label: "Categories",
+    href: "/c",
   },
   {
     label: "Become a helper",
-    href: "/sign-up?role=expert",
+    href: "/for-experts",
   },
   {
     label: "How it works",
-    href: "/#how-it-works",
+    href: "/how-it-works",
   },
 ];
 
@@ -62,11 +62,19 @@ const helpLinks = [
   },
   {
     label: "Safety",
-    href: "/legal/safety",
+    href: "/safety",
   },
   {
     label: "Refund policy",
-    href: "/legal/refunds",
+    href: "/refund-policy",
+  },
+  {
+    label: "Fees",
+    href: "/fees",
+  },
+  {
+    label: "Guidelines",
+    href: "/community-guidelines",
   },
   {
     label: "Terms",
@@ -149,14 +157,14 @@ export function SiteFooter() {
             </Link>
 
             <Link
-              href="/legal/safety"
+              href="/safety"
               className="hover-scale text-[var(--primary-dark)]"
             >
               Safety
             </Link>
 
             <Link
-              href="/legal/refunds"
+              href="/refund-policy"
               className="hover-scale text-[var(--primary-dark)]"
             >
               Refunds

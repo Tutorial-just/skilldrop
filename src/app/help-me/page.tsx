@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -179,6 +180,7 @@ export default async function HelpMePage({ searchParams }: HelpMePageProps) {
             </p>
 
             <form action={createHelpRequestAction} className="mt-6 grid gap-6">
+                <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
               <div>
                 <label
                   htmlFor="q"
@@ -274,6 +276,26 @@ export default async function HelpMePage({ searchParams }: HelpMePageProps) {
                     );
                   })}
                 </div>
+              </div>
+
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
+                <label
+                  htmlFor="attachmentLinks"
+                  className="text-sm font-black text-[var(--foreground)]"
+                >
+                  Optional files or screenshot links
+                </label>
+                <p className="mt-1 text-xs font-semibold leading-5 text-[var(--muted-foreground)]">
+                  Paste up to 5 secure links to a CV, screenshot, PDF or error image. This lets helpers understand the context before the call.
+                </p>
+                <textarea
+                  id="attachmentLinks"
+                  name="attachmentLinks"
+                  rows={3}
+                  placeholder="https://...
+https://..."
+                  className="mt-3 w-full rounded-[20px] border border-[var(--border)] bg-[var(--background-soft)] p-3 text-sm font-medium leading-6 outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
+                />
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
@@ -389,7 +411,7 @@ function Field({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <label className="block">

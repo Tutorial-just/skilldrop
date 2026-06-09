@@ -265,12 +265,22 @@ export default async function BookPage({
               )}
             </div>
 
-            <div className="rounded-[1.5rem] bg-[#eef4ff] p-5">
-              <p className="font-black text-[#2563eb]">Before you continue</p>
-              <div className="mt-3 grid gap-3 text-sm text-[#6f6a63] md:grid-cols-3">
-                <p>✓ Time reserved for 15 minutes</p>
-                <p>✓ Secure checkout</p>
+            <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--card-soft)] p-5">
+              <p className="font-black text-[var(--primary-dark)]">Before you continue</p>
+              <div className="mt-3 grid gap-3 text-sm font-semibold text-[var(--muted-foreground)] md:grid-cols-3">
+                <p>✓ Time reserved during checkout</p>
+                <p>✓ Secure Stripe payment</p>
                 <p>✓ Video room after payment</p>
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5">
+              <p className="font-black text-[var(--warning)]">Cancellation & no-show rules</p>
+              <div className="mt-3 grid gap-3 text-sm font-semibold leading-6 text-[var(--muted-foreground)] md:grid-cols-2">
+                <p>• No payment is taken until checkout succeeds.</p>
+                <p>• If the expert does not join, report expert no-show from your booking.</p>
+                <p>• If the buyer does not join, the expert can report buyer no-show.</p>
+                <p>• Refund requests and disputes are reviewed by SkillDrop.</p>
               </div>
             </div>
 

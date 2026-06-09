@@ -24,6 +24,7 @@ const expertLinks: NavItem[] = [
 
 const buyerLinks: NavItem[] = [
   { href: "/buyer", label: "Overview" },
+  { href: "/buyer/onboarding", label: "Start with a problem" },
   { href: "/experts", label: "Find helpers" },
   { href: "/buyer/bookings", label: "Bookings" },
   { href: "/buyer/outcomes", label: "Action plans" },
@@ -33,8 +34,9 @@ const buyerLinks: NavItem[] = [
 const adminLinks: NavItem[] = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/experts", label: "Experts" },
+  { href: "/admin/services", label: "Services" },
   { href: "/admin/category-requests", label: "Help requests" },
-  { href: "/admin/metrics", label: "Metrics" },
+  { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/disputes", label: "Disputes" },
   { href: "/admin/launch", label: "Launch" },
   { href: "/admin/health", label: "Health" },

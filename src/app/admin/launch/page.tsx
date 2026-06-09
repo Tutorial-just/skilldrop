@@ -45,6 +45,11 @@ export default async function AdminLaunchChecklistPage() {
     notificationsCount,
     callOutcomesCount,
     stripeConnectedExpertsCount,
+    payoutReadyExpertsCount,
+    expertsWithoutAvailabilityCount,
+    pendingBookingsCount,
+    disputedBookingsCount,
+    completedWithoutOutcomeCount,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.expertProfile.count(),
@@ -102,6 +107,37 @@ export default async function AdminLaunchChecklistPage() {
         stripeAccountId: {
           not: null,
         },
+      },
+    }),
+    prisma.expertProfile.count({
+      where: {
+        status: "APPROVED",
+        stripeAccountId: { not: null },
+        stripeDetailsSubmitted: true,
+        stripePayoutsEnabled: true,
+      },
+    }),
+    prisma.expertProfile.count({
+      where: {
+        status: "APPROVED",
+        availability: {
+          none: {
+            isActive: true,
+            endTime: { gte: new Date() },
+          },
+        },
+      },
+    }),
+    prisma.booking.count({
+      where: { status: "PENDING" },
+    }),
+    prisma.booking.count({
+      where: { status: "DISPUTED" },
+    }),
+    prisma.booking.count({
+      where: {
+        status: "COMPLETED",
+        outcome: { is: null },
       },
     }),
   ]);
@@ -357,6 +393,8 @@ export default async function AdminLaunchChecklistPage() {
             <LaunchStat label="Launch score" value={`${launchScore}%`} />
             <LaunchStat label="Checks ready" value={`${readyCount}/${totalCount}`} />
             <LaunchStat label="Categories" value={`${activeCategoriesCount}/${categoriesCount}`} />
+            <LaunchStat label="Payout ready" value={String(payoutReadyExpertsCount)} />
+            <LaunchStat label="Disputes" value={String(disputedBookingsCount)} />
             <LaunchStat
               label="Status"
               value={canSoftLaunch ? "Soft launch ready" : "Needs work"}
@@ -434,6 +472,20 @@ export default async function AdminLaunchChecklistPage() {
                   ready={activeCategoriesCount > 0 && subcategoriesCount > 0}
                 />
                 <DecisionRow label="Open slots" ready={openSlotsCount > 0} />
+              </div>
+            </Card>
+
+            <Card className="p-5 md:p-6">
+              <Badge variant="accent">
+                <ShieldAlert size={14} />
+                Operational alerts
+              </Badge>
+
+              <div className="mt-5 grid gap-3">
+                <DecisionRow label="Pending payments" ready={pendingBookingsCount === 0} />
+                <DecisionRow label="Open disputes" ready={disputedBookingsCount === 0} />
+                <DecisionRow label="Completed calls need outcomes" ready={completedWithoutOutcomeCount === 0} />
+                <DecisionRow label="Approved experts need availability" ready={expertsWithoutAvailabilityCount === 0} />
               </div>
             </Card>
 

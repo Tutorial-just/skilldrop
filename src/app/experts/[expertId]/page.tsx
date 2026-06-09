@@ -40,6 +40,7 @@ import {
 } from "@/config/pricing";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ExpertCard } from "@/components/experts/expert-card";
 
 type ExpertPublicPageProps = {
   params: Promise<{
@@ -95,6 +96,7 @@ export default async function ExpertPublicPage({
       services: {
         where: {
           isActive: true,
+          moderationStatus: "APPROVED",
         },
         include: {
           category: true,
@@ -192,6 +194,7 @@ export default async function ExpertPublicPage({
           include: {
             category: true,
             subcategory: true,
+            attachments: true,
           },
         })
       : null;
@@ -362,6 +365,45 @@ export default async function ExpertPublicPage({
   ).slice(0, 24);
 
   const mainHelpAreas = expert.services.slice(0, 3);
+
+  const similarCategoryIds = expert.services
+    .map((service) => service.categoryId)
+    .filter((value): value is string => Boolean(value));
+
+  const similarExperts = similarCategoryIds.length > 0
+    ? await prisma.expertProfile.findMany({
+        where: {
+          id: { not: expert.id },
+          status: "APPROVED",
+          services: {
+            some: {
+              isActive: true,
+              categoryId: { in: similarCategoryIds },
+            },
+          },
+        },
+        include: {
+          user: true,
+          services: {
+            where: { isActive: true, moderationStatus: "APPROVED" },
+            include: { category: true, subcategory: true },
+            orderBy: { priceCents: "asc" },
+            take: 3,
+          },
+          availability: {
+            where: { isActive: true, endTime: { gte: now } },
+            orderBy: { startTime: "asc" },
+            take: 1,
+          },
+          reviews: {
+            select: { problemSolved: true },
+            take: 20,
+          },
+        },
+        orderBy: [{ rating: "desc" }, { totalSessions: "desc" }],
+        take: 3,
+      })
+    : [];
 
   const cvDocuments = expert.documents.filter(
     (document) => document.type === "CV",
@@ -911,6 +953,22 @@ export default async function ExpertPublicPage({
                           After booking, this request will move from open to
                           booked in your buyer dashboard.
                         </p>
+
+                        {linkedHelpRequest.attachments.length > 0 ? (
+                          <div className="mt-3 grid gap-2">
+                            {linkedHelpRequest.attachments.map((attachment) => (
+                              <a
+                                key={attachment.id}
+                                href={attachment.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-2xl border border-[var(--primary)]/20 bg-white/45 px-3 py-2 text-xs font-black text-[var(--primary-dark)] hover:underline"
+                              >
+                                Supporting file: {attachment.title ?? attachment.fileName ?? "open link"}
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -1316,6 +1374,33 @@ Goal for the call: `
                   </div>
               ) : null}
             </Card>
+
+            {similarExperts.length > 0 ? (
+              <Card className="p-5 md:p-6">
+                <Badge variant="primary">
+                  <Sparkles size={14} />
+                  Similar helpers
+                </Badge>
+
+                <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                  <div>
+                    <h2 className="text-3xl font-black tracking-[-0.05em]">
+                      Other helpers for similar problems
+                    </h2>
+
+                    <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+                      Useful if this helper has no upcoming availability or you want to compare price, language and outcomes.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  {similarExperts.map((similarExpert) => (
+                    <ExpertCard key={similarExpert.id} expert={similarExpert} />
+                  ))}
+                </div>
+              </Card>
+            ) : null}
           </div>
 
           <div className="grid content-start gap-5 xl:sticky xl:top-[96px]">

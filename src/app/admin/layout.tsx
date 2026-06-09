@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Home,
   MessageCircle,
+  ShieldAlert,
   ShieldCheck,
   UserRound,
   UsersRound,
@@ -75,6 +76,12 @@ export default async function AdminLayout({
               href="/admin/analytics"
               label="Analytics"
               icon={BarChart3}
+            />
+
+            <AdminNavLink
+              href="/admin/risk"
+              label="Risk"
+              icon={ShieldAlert}
             />
 
             <AdminNavLink

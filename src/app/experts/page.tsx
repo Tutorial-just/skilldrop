@@ -258,6 +258,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           services: {
             some: {
               isActive: true,
+              moderationStatus: "APPROVED",
               OR: [
                 {
                   title: {
@@ -294,6 +295,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       services: {
         some: {
           isActive: true,
+          moderationStatus: "APPROVED",
           ...(maxPrice
             ? {
                 priceCents: {
@@ -362,6 +364,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       services: {
         where: {
           isActive: true,
+          moderationStatus: "APPROVED",
           ...(maxPrice
             ? {
                 priceCents: {

@@ -17,6 +17,8 @@ import {
 const MIN_QUERY_LENGTH = 3;
 const MAX_QUERY_LENGTH = 260;
 const MAX_LANGUAGE_LENGTH = 40;
+const MAX_ATTACHMENT_LINKS = 5;
+const MAX_ATTACHMENT_URL_LENGTH = 500;
 
 const validHelpTypes = new Set<string>(Object.values(HelpType));
 
@@ -72,6 +74,17 @@ function urgencyToSearchParam(urgency: HelpUrgency) {
   }
 
   return "";
+}
+
+
+function normalizeAttachmentLinks(value: string) {
+  return value
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, MAX_ATTACHMENT_LINKS)
+    .filter((item) => item.length <= MAX_ATTACHMENT_URL_LENGTH)
+    .filter((item) => item.startsWith("http://") || item.startsWith("https://"));
 }
 
 function parseBudgetMaxCents(value: string) {
@@ -171,12 +184,21 @@ async function findCategoryOrSubcategory(slug: string) {
 export async function createHelpRequestAction(formData: FormData) {
   const currentUser = await getCurrentUser();
 
+  const honeypot = getStringValue(formData, "website") || getStringValue(formData, "companyWebsite");
+
+  if (honeypot) {
+    redirectWithSearch("/help-me", {
+      error: "spam-detected",
+    });
+  }
+
   const query = normalizeText(getStringValue(formData, "q") || getStringValue(formData, "query"));
   const categorySlug = normalizeSlug(getStringValue(formData, "category"));
   const helpType = parseHelpType(getStringValue(formData, "helpType"));
   const urgency = parseUrgency(getStringValue(formData, "urgency"));
   const preferredLanguage = normalizeText(getStringValue(formData, "language")).toLowerCase();
   const budgetMaxCents = parseBudgetMaxCents(getStringValue(formData, "maxPrice"));
+  const attachmentLinks = normalizeAttachmentLinks(getStringValue(formData, "attachmentLinks"));
 
   const userKey = currentUser?.user?.id ?? currentUser?.user?.email ?? "guest";
   await assertHelpRequestRateLimit(userKey, "create");
@@ -208,6 +230,15 @@ export async function createHelpRequestAction(formData: FormData) {
       preferredLanguage: preferredLanguage || null,
       budgetMaxCents,
       status: HelpRequestStatus.OPEN,
+      attachments: attachmentLinks.length > 0
+        ? {
+            create: attachmentLinks.map((url, index) => ({
+              title: `Supporting file ${index + 1}`,
+              fileUrl: url,
+              fileName: url.split("/").filter(Boolean).pop()?.slice(0, 120) ?? null,
+            })),
+          }
+        : undefined,
     },
     select: {
       id: true,
@@ -227,6 +258,7 @@ export async function createHelpRequestAction(formData: FormData) {
       urgency,
       preferredLanguage: preferredLanguage || null,
       budgetMaxCents,
+      attachmentCount: attachmentLinks.length,
     },
   });
 

@@ -333,6 +333,13 @@ export default async function BuyerDashboardPage() {
 
   const totalBookedCents = totalBookedResult._sum.clientTotalCents ?? 0;
 
+  const visibleOutcomeCount = await prisma.callOutcome.count({
+    where: {
+      buyerId: buyer.id,
+      isVisibleToBuyer: true,
+    },
+  });
+
   const recommendedExperts = await prisma.expertProfile.findMany({
     where: {
       status: "APPROVED",
@@ -420,6 +427,7 @@ export default async function BuyerDashboardPage() {
               </p>
 
               <form action={createHelpRequestAction} className="mt-7 max-w-4xl">
+                <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
                 <div className="rounded-[30px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-sm)] backdrop-blur md:p-5">
                   <label
                     htmlFor="q"
@@ -526,7 +534,7 @@ export default async function BuyerDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <MetricCard
               icon={Video}
               label="Upcoming"
@@ -553,6 +561,13 @@ export default async function BuyerDashboardPage() {
               label="Reviews"
               value={String(waitingReviewBookings.length)}
               hint="Waiting feedback"
+            />
+
+            <MetricCard
+              icon={FileText}
+              label="Outcomes"
+              value={String(visibleOutcomeCount)}
+              hint="Action plans"
             />
 
             <MetricCard
@@ -844,7 +859,7 @@ export default async function BuyerDashboardPage() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-7">
             <QuickAction
               icon={Search}
               title="Find help"
@@ -871,6 +886,13 @@ export default async function BuyerDashboardPage() {
               title="Leave reviews"
               text="Help strong helpers build trust after completed calls."
               href="/buyer/reviews"
+            />
+
+            <QuickAction
+              icon={FileText}
+              title="Action plans"
+              text="Read next steps created after completed calls."
+              href="/buyer/outcomes"
             />
 
             <QuickAction

@@ -257,3 +257,86 @@ export async function sendExpertVerifiedEmail(input: {
     }),
   });
 }
+export async function sendCallReminderEmail(input: BookingEmailInput & { minutesBefore: number }) {
+  const appUrl = getAppUrl();
+  const serviceTitle = input.serviceTitle ?? "SkillDrop call";
+  const buyerUrl = `${appUrl}/buyer/bookings?booking=${input.bookingId}`;
+  const expertUrl = `${appUrl}/expert/bookings`;
+  const timeLabel = `${input.minutesBefore} minutes`;
+
+  await sendEmail({
+    to: input.buyerEmail,
+    subject: `Reminder: your call starts in ${timeLabel}`,
+    text: `Your SkillDrop call starts in ${timeLabel}.`,
+    html: buildEmailLayout({
+      title: `Your call starts in ${timeLabel}`,
+      preview: "Prepare your question and open your booking details.",
+      body: `
+        <p>Hello ${escapeHtml(input.buyerName ?? "there")},</p>
+        <p>Your call <strong>${escapeHtml(serviceTitle)}</strong> starts soon.</p>
+        <p><strong>Date:</strong> ${escapeHtml(formatEmailDate(input.startTime))}</p>
+        <p>Prepare your main question, files or screenshots before joining.</p>
+      `,
+      ctaLabel: "Open booking",
+      ctaHref: buyerUrl,
+    }),
+  });
+
+  await sendEmail({
+    to: input.expertEmail,
+    subject: `Reminder: buyer call starts in ${timeLabel}`,
+    text: `Your SkillDrop buyer call starts in ${timeLabel}.`,
+    html: buildEmailLayout({
+      title: `Buyer call starts in ${timeLabel}`,
+      preview: "Review the buyer note before joining.",
+      body: `
+        <p>Hello ${escapeHtml(input.expertName ?? "there")},</p>
+        <p>Your call <strong>${escapeHtml(serviceTitle)}</strong> starts soon.</p>
+        <p><strong>Date:</strong> ${escapeHtml(formatEmailDate(input.startTime))}</p>
+        <p>Review the buyer context and be ready to give clear next steps after the session.</p>
+      `,
+      ctaLabel: "Open expert bookings",
+      ctaHref: expertUrl,
+    }),
+  });
+}
+
+export async function sendWeeklyExpertSummaryEmail(input: {
+  expertEmail: string;
+  expertName?: string | null;
+  upcomingCalls: number;
+  completedCalls: number;
+  openOutcomes: number;
+  estimatedNetCents: number;
+  currency?: string;
+}) {
+  const appUrl = getAppUrl();
+  const currency = input.currency ?? "EUR";
+  const estimatedNet = new Intl.NumberFormat("en", {
+    style: "currency",
+    currency,
+  }).format(input.estimatedNetCents / 100);
+
+  await sendEmail({
+    to: input.expertEmail,
+    subject: "Your weekly SkillDrop helper summary",
+    text: "Your weekly helper summary is ready.",
+    html: buildEmailLayout({
+      title: "Your weekly helper summary",
+      preview: "Upcoming calls, completed sessions and action plans to write.",
+      body: `
+        <p>Hello ${escapeHtml(input.expertName ?? "there")},</p>
+        <p>Here is your SkillDrop helper summary.</p>
+        <ul>
+          <li><strong>Upcoming calls:</strong> ${input.upcomingCalls}</li>
+          <li><strong>Completed calls this week:</strong> ${input.completedCalls}</li>
+          <li><strong>Action plans to write:</strong> ${input.openOutcomes}</li>
+          <li><strong>Estimated helper net:</strong> ${escapeHtml(estimatedNet)}</li>
+        </ul>
+        <p>Keep your availability open and write outcomes after each call to build buyer trust.</p>
+      `,
+      ctaLabel: "Open expert dashboard",
+      ctaHref: `${appUrl}/expert`,
+    }),
+  });
+}

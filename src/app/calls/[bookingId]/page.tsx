@@ -266,6 +266,35 @@ export default async function CallAccessPage({ params }: CallAccessPageProps) {
             </div>
 
             <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
+              <Badge variant="success">
+                <CheckCircle2 size={14} />
+                Pre-call checklist
+              </Badge>
+
+              <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--foreground)]">
+                Prepare for a useful call
+              </h2>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {isBuyer ? (
+                  <>
+                    <SafetyRule text="Open the file, screenshot or document you want to discuss before joining." />
+                    <SafetyRule text="Write the one result you want by the end of the call." />
+                    <SafetyRule text="Check your microphone, camera and network connection." />
+                    <SafetyRule text="Be ready to ask for clear next steps after the discussion." />
+                  </>
+                ) : (
+                  <>
+                    <SafetyRule text="Read the buyer note and identify the expected result before joining." />
+                    <SafetyRule text="Prepare useful links, examples or steps you can share after the call." />
+                    <SafetyRule text="Check your microphone, camera and network connection." />
+                    <SafetyRule text="After the call, create an outcome so the buyer leaves with an action plan." />
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
               <Badge variant="primary">
                 <Globe2 size={14} />
                 Timezone note

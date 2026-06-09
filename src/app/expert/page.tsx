@@ -23,6 +23,7 @@ import {
   UserRound,
   Video,
   WalletCards,
+  Zap,
 } from "lucide-react";
 import { getExpertQuality } from "@/lib/expert-quality";
 import { ExpertProfileCompletenessCard } from "@/components/experts/expert-profile-completeness-card";
@@ -48,11 +49,10 @@ const activeBookingStatuses: BookingStatus[] = [
   BookingStatus.DISPUTED,
 ];
 
-const inactiveBookingStatuses: BookingStatus[] = [
+const finishedOrInactiveStatuses: BookingStatus[] = [
   BookingStatus.CANCELLED,
   BookingStatus.REFUNDED,
   BookingStatus.COMPLETED,
-  BookingStatus.DISPUTED,
   BookingStatus.EXPIRED,
 ];
 
@@ -64,57 +64,45 @@ const DASHBOARD_AVAILABILITY_LIMIT = 24;
 const workspaceLinks = [
   {
     title: "Profile",
-    text: "Edit biography, skills, languages and public details.",
+    text: "Bio, skills, languages and public trust.",
     href: "/expert/profile",
     icon: UserRound,
+    tone: "Profile quality",
   },
   {
     title: "Offers",
-    text: "Manage bookable services, prices and duration.",
+    text: "Services, price, duration and categories.",
     href: "/expert/services",
     icon: WalletCards,
+    tone: "What clients buy",
   },
   {
     title: "Availability",
-    text: "Add availability windows and manage your calendar.",
+    text: "Open windows clients can book inside.",
     href: "/expert/availability",
     icon: CalendarDays,
+    tone: "Your calendar",
   },
   {
     title: "Bookings",
-    text: "See upcoming calls and manage sessions.",
+    text: "Upcoming calls, payments and call rooms.",
     href: "/expert/bookings",
     icon: Video,
+    tone: "Live work",
   },
   {
     title: "Action plans",
-    text: "Create next steps after completed calls.",
+    text: "Give buyers clear next steps after calls.",
     href: "/expert/outcomes",
     icon: ListChecks,
-  },
-  {
-    title: "Notifications",
-    text: "See booking updates, payments, refunds, disputes and review requests.",
-    href: "/notifications",
-    icon: Bell,
+    tone: "After-call value",
   },
   {
     title: "Earnings",
-    text: "Track completed calls, estimated fees and payout-ready income.",
+    text: "Revenue, fees and payout readiness.",
     href: "/expert/earnings",
     icon: CircleDollarSign,
-  },
-  {
-    title: "Statistics",
-    text: "Track revenue, calls, rating and growth.",
-    href: "/expert/stats",
-    icon: BarChart3,
-  },
-  {
-    title: "Settings",
-    text: "Appearance, visibility, privacy and booking rules.",
-    href: "/expert/settings",
-    icon: Settings,
+    tone: "Money",
   },
 ];
 
@@ -165,7 +153,6 @@ export default async function ExpertDashboardPage({
               },
             },
             select: {
-              id: true,
               startTime: true,
               endTime: true,
               status: true,
@@ -181,37 +168,38 @@ export default async function ExpertDashboardPage({
         take: DASHBOARD_AVAILABILITY_LIMIT,
       },
       bookings: {
-  where: {
-    OR: [
-      {
-        startTime: {
-          gte: now,
+        where: {
+          OR: [
+            {
+              startTime: {
+                gte: now,
+              },
+              status: {
+                in: activeBookingStatuses,
+              },
+            },
+            {
+              endTime: {
+                lt: now,
+              },
+              status: BookingStatus.COMPLETED,
+            },
+            {
+              status: BookingStatus.DISPUTED,
+            },
+          ],
         },
-        status: {
-          in: activeBookingStatuses,
+        orderBy: {
+          startTime: "asc",
+        },
+        take: DASHBOARD_BOOKINGS_LIMIT,
+        include: {
+          buyer: true,
+          service: true,
+          callRoom: true,
+          outcome: true,
         },
       },
-      {
-        endTime: {
-          lt: now,
-        },
-        status: BookingStatus.COMPLETED,
-      },
-      {
-        status: BookingStatus.DISPUTED,
-      },
-    ],
-  },
-  orderBy: {
-    startTime: "asc",
-  },
-  take: DASHBOARD_BOOKINGS_LIMIT,
-  include: {
-    buyer: true,
-    service: true,
-    callRoom: true,
-  },
-},
       reviews: {
         orderBy: {
           createdAt: "desc",
@@ -225,28 +213,11 @@ export default async function ExpertDashboardPage({
     redirect("/become-expert");
   }
 
-  const bio = expert.bio ?? "";
   const helperName = expert.user.name || "Helper";
   const helperEmail = expert.user.email || email;
+  const bio = expert.bio ?? "";
 
   const activeServices = expert.services.filter((service) => service.isActive);
-  const quality = getExpertQuality({
-    image: expert.user.avatarUrl,
-    headline: expert.headline,
-    bio: expert.bio,
-    country: expert.country,
-    timezone: expert.timezone,
-    languages: expert.languages,
-    skills: expert.skills,
-    totalSessions: expert.totalSessions,
-    completedCalls: expert.totalSessions,
-    totalReviews: expert.totalReviews,
-    rating: expert.rating,
-    servicesCount: expert.services.length,
-    activeServicesCount: activeServices.length,
-    availabilityCount: expert.availability.length,
-    isManuallyVerified: expert.isVerified,
-  });
   const openSlots = expert.availability.filter(
     (window) =>
       window.isActive &&
@@ -254,18 +225,20 @@ export default async function ExpertDashboardPage({
       getWindowFreeMinutes(window) > 0,
   );
 
-  const nextOpenSlots = openSlots.slice(0, 8);
-
-  const hasStripePayouts = Boolean(expert.stripeAccountId);
+  const hasStripePayouts = Boolean(
+    expert.stripeAccountId &&
+      expert.stripeDetailsSubmitted &&
+      expert.stripePayoutsEnabled,
+  );
 
   const isBookable =
     activeServices.length > 0 && openSlots.length > 0 && hasStripePayouts;
 
   const missingBookableSteps = [
-    activeServices.length === 0 ? "create at least one active offer" : null,
-    openSlots.length === 0 ? "add open availability" : null,
-    !hasStripePayouts ? "connect Stripe payouts" : null,
-  ].filter(Boolean);
+    activeServices.length === 0 ? "create an active offer" : null,
+    openSlots.length === 0 ? "add availability" : null,
+    !hasStripePayouts ? "finish Stripe payouts" : null,
+  ].filter(Boolean) as string[];
 
   const nextSetupHref =
     activeServices.length === 0
@@ -280,7 +253,7 @@ export default async function ExpertDashboardPage({
     .filter(
       (booking) =>
         booking.startTime >= now &&
-        !inactiveBookingStatuses.includes(booking.status),
+        !finishedOrInactiveStatuses.includes(booking.status),
     )
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
@@ -298,6 +271,10 @@ export default async function ExpertDashboardPage({
 
   const completedBookings = expert.bookings.filter(
     (booking) => booking.status === BookingStatus.COMPLETED,
+  );
+
+  const completedWithoutOutcome = completedBookings.filter(
+    (booking) => !booking.outcome,
   );
 
   const disputedBookings = expert.bookings.filter(
@@ -319,7 +296,7 @@ export default async function ExpertDashboardPage({
   );
 
   const nextBooking = todaysBookings[0] ?? upcomingBookings[0] ?? null;
-  const nextTodayOpenSlot = todaysOpenSlots[0] ?? null;
+  const nextOpenSlots = openSlots.slice(0, 6);
 
   const upcomingRevenueCents = confirmedBookings.reduce(
     (sum, booking) => sum + getProviderNetCents(booking),
@@ -331,12 +308,28 @@ export default async function ExpertDashboardPage({
     0,
   );
 
-
+  const quality = getExpertQuality({
+    image: expert.user.avatarUrl,
+    headline: expert.headline,
+    bio: expert.bio,
+    country: expert.country,
+    timezone: expert.timezone,
+    languages: expert.languages,
+    skills: expert.skills,
+    totalSessions: expert.totalSessions,
+    completedCalls: expert.totalSessions,
+    totalReviews: expert.totalReviews,
+    rating: expert.rating,
+    servicesCount: expert.services.length,
+    activeServicesCount: activeServices.length,
+    availabilityCount: expert.availability.length,
+    isManuallyVerified: expert.isVerified,
+  });
 
   const checklist = [
     {
-      title: "Complete public profile",
-      text: "Add a strong biography, headline, languages and skills.",
+      title: "Public profile",
+      text: "Headline, long bio, languages and 3+ skills.",
       done:
         Boolean(expert.headline?.trim()) &&
         bio.trim().length >= 120 &&
@@ -345,44 +338,33 @@ export default async function ExpertDashboardPage({
       href: "/expert/profile",
     },
     {
-      title: "Create at least one offer",
-      text: "Buyers need a clear offer to understand what they will get.",
+      title: "Bookable offer",
+      text: "At least one active service with clear result.",
       done: activeServices.length > 0,
       href: "/expert/services",
     },
     {
-      title: "Add open availability",
-      text: "Open windows make your profile bookable.",
+      title: "Open calendar",
+      text: "Availability for the next few days.",
       done: openSlots.length > 0,
       href: "/expert/availability",
     },
     {
-      title: "Connect Stripe payouts",
-      text: "Required before buyers can safely book and pay you.",
+      title: "Payouts ready",
+      text: "Stripe onboarding submitted and payouts enabled.",
       done: hasStripePayouts,
       href: "/expert/earnings",
     },
     {
-      title: "Understand action plans",
-      text: "After completed calls, create next steps so buyers keep a useful result.",
-      done: completedBookings.length === 0 || completedBookings.some((booking) => booking.status === BookingStatus.COMPLETED),
-      href: "/expert/outcomes",
-    },
-    {
-      title: "Complete first 3 calls",
-      text: "This helps unlock verification.",
-      done: expert.totalSessions >= 3,
-      href: "/expert/bookings",
-    },
-    {
-      title: "Earn client reviews",
-      text: "Reviews help future buyers trust you faster.",
-      done: expert.totalReviews > 0,
+      title: "First trust signal",
+      text: "At least one review or 3 completed calls.",
+      done: expert.totalReviews > 0 || expert.totalSessions >= 3,
       href: "/expert/stats",
     },
   ];
 
   const completedChecklist = checklist.filter((item) => item.done).length;
+  const setupProgress = Math.round((completedChecklist / checklist.length) * 100);
 
   const activeServiceCategoryIds = Array.from(
     new Set(activeServices.map((service) => service.categoryId).filter(Boolean)),
@@ -411,12 +393,14 @@ export default async function ExpertDashboardPage({
               activeServiceHelpTypes.length > 0
                 ? { helpType: { in: activeServiceHelpTypes } }
                 : undefined,
-              {
-                query: {
-                  contains: expert.skills[0] ?? expert.tags[0] ?? expert.headline.split(" ")[0] ?? "",
-                  mode: "insensitive",
-                },
-              },
+              expert.skills[0] || expert.tags[0]
+                ? {
+                    query: {
+                      contains: expert.skills[0] ?? expert.tags[0],
+                      mode: "insensitive",
+                    },
+                  }
+                : undefined,
             ].filter(Boolean) as any,
           },
           include: {
@@ -432,20 +416,19 @@ export default async function ExpertDashboardPage({
           orderBy: {
             createdAt: "desc",
           },
-          take: 6,
+          take: 4,
         })
       : [];
- 
 
   const avatarLetter = (
     helperName.charAt(0) ||
     helperEmail.charAt(0) ||
-    "P"
+    "H"
   ).toUpperCase();
 
   return (
     <main>
-      <section className="relative overflow-hidden border-b border-[var(--border)]">
+      <section className="relative overflow-hidden border-b border-[var(--border)] bg-[radial-gradient(circle_at_top_left,var(--primary-soft),transparent_34%),linear-gradient(135deg,var(--background),var(--background-soft))]">
         <div className="surface-grid absolute inset-0 opacity-40" />
 
         <div className="relative p-6 md:p-8 lg:p-10">
@@ -455,362 +438,118 @@ export default async function ExpertDashboardPage({
             </div>
           ) : null}
 
-          <div className="grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
-            <div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant={expert.isVerified ? "success" : "accent"}>
-                  {expert.isVerified ? (
-                    <>
-                      <BadgeCheck size={14} />
-                      Verified helper
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck size={14} />
-                      Verification in progress
-                    </>
-                  )}
-                </Badge>
-
-                <Badge variant={isBookable ? "success" : "accent"}>
-                  {isBookable ? (
-                    <>
-                      <CheckCircle2 size={14} />
-                      Ready to accept bookings
-                    </>
-                  ) : (
-                    <>
-                      <ListChecks size={14} />
-                      Setup required
-                    </>
-                  )}
-                </Badge>
-
-                {disputedBookings.length > 0 ? (
-                  <Badge variant="danger">
-                    <ShieldAlert size={14} />
-                    {disputedBookings.length} disputed
+          <div className="grid gap-8 xl:grid-cols-[1fr_360px] xl:items-stretch">
+            <div className="flex min-h-[340px] flex-col justify-between rounded-[34px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-md)] md:p-8">
+              <div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={expert.isVerified ? "success" : "accent"}>
+                    {expert.isVerified ? <BadgeCheck size={14} /> : <ShieldCheck size={14} />}
+                    {expert.isVerified ? "Verified helper" : "Verification in progress"}
                   </Badge>
-                ) : null}
+
+                  <Badge variant={isBookable ? "success" : "accent"}>
+                    {isBookable ? <CheckCircle2 size={14} /> : <ListChecks size={14} />}
+                    {isBookable ? "Bookable" : "Setup required"}
+                  </Badge>
+
+                  {disputedBookings.length > 0 ? (
+                    <Badge variant="danger">
+                      <ShieldAlert size={14} />
+                      {disputedBookings.length} disputed
+                    </Badge>
+                  ) : null}
+                </div>
+
+                <h1 className="heading-lg mt-5 max-w-4xl text-balance">
+                  Welcome back, {helperName}.
+                </h1>
+
+                <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+                  This dashboard is now your expert cockpit: next call, setup readiness, buyer demand and the exact actions that make your profile bookable.
+                </p>
               </div>
 
-              <h1 className="heading-lg mt-5 max-w-4xl text-balance">
-                Welcome back, {helperName}.
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
-                Manage your calls, offers, availability, payouts, action plans and buyer trust from one place.
-              </p>
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                <HeroStat label="Today" value={`${todaysBookings.length} calls`} hint={`${todaysOpenSlots.length} open windows`} />
+                <HeroStat label="Setup" value={`${setupProgress}%`} hint={`${completedChecklist}/${checklist.length} ready`} />
+                <HeroStat label="Net confirmed" value={formatMoney(upcomingRevenueCents)} hint="Estimated helper net" />
+              </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
-              <ButtonLink href={`/experts/${expert.id}`}>
-                <Eye size={18} />
-                Public profile
-              </ButtonLink>
+            <Card className="flex flex-col justify-between overflow-hidden p-6">
+              <div>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-2xl font-black text-white shadow-[var(--shadow-sm)]">
+                    {avatarLetter}
+                  </div>
 
-              <ButtonLink href="/expert/availability" variant="secondary">
-                <Plus size={18} />
-                Add availability
-              </ButtonLink>
+                  <div className="min-w-0">
+                    <p className="truncate text-xl font-black tracking-[-0.04em]">{helperName}</p>
+                    <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-muted">
+                      {expert.headline || "Practical help through short calls"}
+                    </p>
+                  </div>
+                </div>
 
-              <SignOutButton />
-            </div>
-          </div>
+                <div className="mt-6 space-y-3">
+                  <ReadinessLine label="Offer" done={activeServices.length > 0} />
+                  <ReadinessLine label="Availability" done={openSlots.length > 0} />
+                  <ReadinessLine label="Payouts" done={hasStripePayouts} />
+                  <ReadinessLine label="Trust" done={expert.isVerified || expert.totalReviews > 0} />
+                </div>
+              </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard
-              icon={Video}
-              label="Calls today"
-              value={String(todaysBookings.length)}
-              hint={`${todaysOpenSlots.length} open windows today`}
-            />
+              <div className="mt-6 grid gap-3">
+                <ButtonLink href={isBookable ? `/experts/${expert.id}` : nextSetupHref}>
+                  {isBookable ? "View public profile" : "Complete setup"}
+                  <ArrowRight size={18} />
+                </ButtonLink>
 
-            <MetricCard
-              icon={CalendarDays}
-              label="Open windows"
-              value={String(openSlots.length)}
-              hint="Future bookable availability"
-            />
+                <div className="grid grid-cols-2 gap-3">
+                  <ButtonLink href="/expert/availability" variant="secondary">
+                    <Plus size={17} />
+                    Availability
+                  </ButtonLink>
+                  <ButtonLink href="/expert/settings" variant="secondary">
+                    <Settings size={17} />
+                    Settings
+                  </ButtonLink>
+                </div>
 
-            <MetricCard
-              icon={CircleDollarSign}
-              label="Confirmed net"
-              value={formatMoney(upcomingRevenueCents)}
-              hint="Estimated helper net"
-            />
-
-            <MetricCard
-              icon={Star}
-              label="Rating"
-              value={expert.rating ? expert.rating.toFixed(1) : "New"}
-              hint={`${expert.totalReviews} reviews`}
-            />
-
-            <MetricCard
-              icon={WalletCards}
-              label="Payouts"
-              value={hasStripePayouts ? "Ready" : "Missing"}
-              hint={hasStripePayouts ? "Stripe connected" : "Connect before launch"}
-            />
+                <SignOutButton />
+              </div>
+            </Card>
           </div>
         </div>
       </section>
 
       <section className="p-6 md:p-8 lg:p-10">
-        <div className="grid gap-5">
-          <ExpertProfileCompletenessCard quality={quality}/>
-          <ExpertVerificationCard
-            totalSessions={expert.totalSessions}
-            totalReviews={expert.totalReviews}
-            rating={expert.rating}
-            isVerified={expert.isVerified}
-          />
-          <IncomingHelpRequestsPanel
-            requests={incomingHelpRequests}
-            expertId={expert.id}
-            defaultServiceId={activeServices[0]?.id ?? ""}
-          />
-          {!isBookable ? (
-            <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
-              <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--warning)]">
-                  <ShieldCheck size={24} />
-                </div>
+        <div className="grid gap-6">
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+            <NextCallPanel
+              nextBooking={nextBooking}
+              nextOpenSlots={nextOpenSlots}
+              openSlotsCount={openSlots.length}
+              completedWithoutOutcomeCount={completedWithoutOutcome.length}
+            />
 
-                <div>
-                  <h2 className="text-2xl font-black tracking-[-0.04em]">
-                    Your profile is not ready for paid bookings yet
-                  </h2>
-
-                  <p className="mt-2 leading-7 text-muted">
-                    Complete this before connecting real payments:{" "}
-                    <span className="font-black text-[var(--foreground)]">
-                      {missingBookableSteps.join(", ")}
-                    </span>
-                    .
-                  </p>
-                </div>
-
-                <ButtonLink href={nextSetupHref}>
-                  Complete setup
-                  <ArrowRight size={18} />
-                </ButtonLink>
-              </div>
-            </Card>
-          ) : (
-            <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6">
-              <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--success)]">
-                  <CheckCircle2 size={24} />
-                </div>
-
-                <div>
-                  <h2 className="text-2xl font-black tracking-[-0.04em]">
-                    Your profile is ready for paid bookings
-                  </h2>
-
-                  <p className="mt-2 leading-7 text-muted">
-                    You have an active offer, open availability and Stripe payouts
-                    connected.
-                  </p>
-                </div>
-
-                <ButtonLink href={`/experts/${expert.id}`}>
-                  View public profile
-                  <Eye size={18} />
-                </ButtonLink>
-              </div>
-            </Card>
-          )}
-
-          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-            <Card className="p-5 md:p-6">
-              {nextBooking ? (
-                <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-center">
-                  <div>
-                    <Badge variant="primary">
-                      <Sparkles size={14} />
-                      Today
-                    </Badge>
-
-                    <h2 className="mt-4 text-3xl font-bold tracking-[-0.05em]">
-                      {todaysBookings.length > 0
-                        ? "Your next call is ready."
-                        : "Your next call is upcoming."}
-                    </h2>
-
-                    <p className="mt-3 leading-7 text-muted">
-                      {todaysBookings.length > 0
-                        ? "Prepare for your next session today."
-                        : "You have no booked calls today, but a future call is already scheduled."}
-                    </p>
-
-                    {nextBooking.note ? (
-                      <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4">
-                        <div className="flex gap-3">
-                          <MessageCircle
-                            size={18}
-                            className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
-                          />
-
-                          <div>
-                            <p className="text-sm font-bold">Buyer note</p>
-                            <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
-                              {nextBooking.note}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                      <ButtonLink href="/expert/bookings">
-                        View bookings
-                        <Video size={18} />
-                      </ButtonLink>
-
-                      <ButtonLink href="/expert/availability" variant="secondary">
-                        Add availability
-                        <Plus size={18} />
-                      </ButtonLink>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[26px] border border-[var(--border)] bg-[var(--card-soft)] p-5">
-                    <Badge variant="accent">
-                      <Clock3 size={14} />
-                      {todaysBookings.length > 0 ? "Next call today" : "Upcoming call"}
-                    </Badge>
-
-                    <h3 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-                      {nextBooking.service?.title ?? "Helper call"}
-                    </h3>
-
-                    <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                      Client: {nextBooking.buyer.name ?? nextBooking.buyer.email}
-                    </p>
-
-                    <p className="mt-4 text-sm font-bold text-[var(--primary-dark)]">
-                      {formatDateTime(nextBooking.startTime)}
-                    </p>
-
-                    <div className="mt-5 grid gap-3">
-                      <SmallInfoRow
-                        label="Status"
-                        value={formatStatus(nextBooking.status)}
-                      />
-
-                      <SmallInfoRow
-                        label="Helper net"
-                        value={formatMoney(getProviderNetCents(nextBooking))}
-                      />
-                    </div>
-
-                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                      {canJoinBooking(nextBooking) ? (
-                        <Link
-                          href={`/calls/${nextBooking.id}`}
-                          className="btn btn-primary"
-                        >
-                          Join call
-                          <Video size={17} />
-                        </Link>
-                      ) : null}
-
-                      <Link href="/expert/bookings" className="btn btn-secondary">
-                        View booking
-                      </Link>
-                    </div>
-
-                    {nextBooking.status === BookingStatus.PENDING ? (
-                      <p className="mt-4 rounded-2xl border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-3 text-sm font-bold text-[var(--warning)]">
-                        Waiting for client payment.
-                      </p>
-                    ) : null}
-
-                    {nextBooking.status === BookingStatus.PAID ? (
-                      <p className="mt-4 rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary-soft)] p-3 text-sm font-bold text-[var(--primary-dark)]">
-                        Payment received. Confirmation may still be processing.
-                      </p>
-                    ) : null}
-
-                    {nextBooking.status === BookingStatus.CONFIRMED ? (
-                      <p className="mt-4 rounded-2xl border border-[var(--success)]/20 bg-[var(--success-soft)] p-3 text-sm font-bold text-[var(--success)]">
-                        Booking confirmed. The call room opens 10 minutes before start.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              ) : (
-                <div className="max-w-2xl">
-                  <Badge variant="primary">
-                    <Sparkles size={14} />
-                    Today
-                  </Badge>
-
-                  <h2 className="mt-4 text-3xl font-bold tracking-[-0.05em]">
-                    {nextTodayOpenSlot
-                      ? "You have open availability today."
-                      : "No calls yet today."}
-                  </h2>
-
-                  <p className="mt-3 max-w-xl leading-7 text-muted">
-                    {nextTodayOpenSlot
-                      ? `Your next open window today is ${formatTime(
-                          nextTodayOpenSlot.startTime,
-                        )}–${formatTime(
-                          nextTodayOpenSlot.endTime,
-                        )}. Clients can book inside this window.`
-                      : "You have no booked calls today. Add availability or improve offers to get your next client."}
-                  </p>
-
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <ButtonLink href="/expert/availability">
-                      Add availability
-                      <Plus size={18} />
-                    </ButtonLink>
-
-                    <ButtonLink href="/expert/services" variant="secondary">
-                      Improve offers
-                    </ButtonLink>
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            <Card className="p-5 md:p-6">
-              <Badge variant="accent">
-                <ListChecks size={14} />
-                Setup checklist
-              </Badge>
-
-              <div className="mt-5">
-                <h2 className="text-3xl font-black tracking-[-0.05em]">
-                  Setup checklist
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  {completedChecklist} of {checklist.length} tasks done.
-                </p>
-              </div>
-
-              <div className="mt-5 grid gap-2">
-                {checklist.map((item) => (
-                  <ChecklistRow key={item.title} item={item} />
-                ))}
-              </div>
-            </Card>
+            <SetupCommandCenter
+              isBookable={isBookable}
+              missingBookableSteps={missingBookableSteps}
+              nextSetupHref={nextSetupHref}
+              checklist={checklist}
+              completedChecklist={completedChecklist}
+            />
           </div>
 
-          {pendingBookings.length > 0 || paidBookings.length > 0 || disputedBookings.length > 0 ? (
-            <div className="grid gap-5 lg:grid-cols-3">
+          {(pendingBookings.length > 0 || paidBookings.length > 0 || disputedBookings.length > 0 || completedWithoutOutcome.length > 0) ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {pendingBookings.length > 0 ? (
                 <AttentionCard
                   icon={Clock3}
-                  title="Waiting for payment"
+                  title="Payment waiting"
                   value={String(pendingBookings.length)}
-                  text="Clients reserved these times but payment is not completed yet."
+                  text="Reserved slots where the client has not completed payment."
                   href="/expert/bookings"
                   variant="warning"
                 />
@@ -819,10 +558,21 @@ export default async function ExpertDashboardPage({
               {paidBookings.length > 0 ? (
                 <AttentionCard
                   icon={WalletCards}
-                  title="Payment received"
+                  title="Paid processing"
                   value={String(paidBookings.length)}
-                  text="These bookings are paid and may need confirmation or webhook review."
+                  text="Paid bookings that may still need confirmation or webhook review."
                   href="/expert/bookings"
+                  variant="primary"
+                />
+              ) : null}
+
+              {completedWithoutOutcome.length > 0 ? (
+                <AttentionCard
+                  icon={ListChecks}
+                  title="Action plans due"
+                  value={String(completedWithoutOutcome.length)}
+                  text="Completed calls without a written outcome for the buyer."
+                  href="/expert/outcomes"
                   variant="primary"
                 />
               ) : null}
@@ -830,9 +580,9 @@ export default async function ExpertDashboardPage({
               {disputedBookings.length > 0 ? (
                 <AttentionCard
                   icon={ShieldAlert}
-                  title="Disputed bookings"
+                  title="Disputes"
                   value={String(disputedBookings.length)}
-                  text="These bookings are under SkillDrop admin review."
+                  text="Bookings under SkillDrop admin review."
                   href="/expert/bookings"
                   variant="danger"
                 />
@@ -840,257 +590,398 @@ export default async function ExpertDashboardPage({
             </div>
           ) : null}
 
-          <div className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
-            <div className="grid gap-5">
-              <Card className="p-5 md:p-6">
-                <Badge variant="primary">
-                  <CalendarDays size={14} />
-                  Upcoming availability
-                </Badge>
+          <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+            <div className="grid gap-6">
+              <IncomingHelpRequestsPanel
+                requests={incomingHelpRequests}
+                expertId={expert.id}
+                defaultServiceId={activeServices[0]?.id ?? ""}
+              />
 
-                <div className="mt-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                  <div>
-                    <h2 className="text-3xl font-black tracking-[-0.05em]">
-                      {openSlots.length > 0
-                        ? `${openSlots.length} future windows`
-                        : "No open availability"}
-                    </h2>
-
-                    <p className="mt-2 text-sm leading-6 text-muted">
-                      These are future availability windows where clients can book.
-                    </p>
-                  </div>
-
-                  <ButtonLink href="/expert/availability" variant="secondary">
-                    View calendar
-                  </ButtonLink>
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {nextOpenSlots.length > 0 ? (
-                    nextOpenSlots.map((slot) => (
-                      <SlotChip key={slot.id} slot={slot} />
-                    ))
-                  ) : (
-                    <div className="w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-5">
-                      <p className="font-bold">No bookable times yet</p>
-
-                      <p className="mt-2 text-sm leading-6 text-muted">
-                        Add availability so clients can choose a time.
-                      </p>
-
-                      <div className="mt-4">
-                        <ButtonLink href="/expert/availability">
-                          Add availability
-                          <Plus size={17} />
-                        </ButtonLink>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {openSlots.length > nextOpenSlots.length ? (
-                  <p className="mt-4 text-sm font-bold text-muted">
-                    Showing {nextOpenSlots.length} of {openSlots.length}. Open
-                    calendar to see all.
-                  </p>
-                ) : null}
-              </Card>
-
-
-              
-            </div>
-
-            <div className="grid gap-5">
               <Card className="p-5 md:p-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                   <div>
                     <Badge variant="primary">
-                      <WalletCards size={14} />
-                      Workspace
+                      <CalendarDays size={14} />
+                      Upcoming availability
                     </Badge>
-
-                    <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-                      Manage your helper business
+                    <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                      {openSlots.length > 0 ? `${openSlots.length} open windows` : "No open availability"}
                     </h2>
-
-                    <p className="mt-3 max-w-2xl leading-7 text-muted">
-                      Quick access to the tools you use most often.
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Buyers can book calls inside these future windows.
                     </p>
                   </div>
+                  <ButtonLink href="/expert/availability" variant="secondary">
+                    Manage
+                  </ButtonLink>
                 </div>
 
-                <div className="mt-6 grid gap-3 md:grid-cols-2">
-                  {workspaceLinks.map((item) => {
-                    const Icon = item.icon;
-
-                    return (
-                      <Link key={item.href} href={item.href} className="group">
-                        <div className="h-full rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
-                              <Icon size={18} />
-                            </div>
-
-                            <ArrowRight
-                              size={16}
-                              className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]"
-                            />
-                          </div>
-
-                          <h3 className="mt-4 text-lg font-black tracking-[-0.03em]">
-                            {item.title}
-                          </h3>
-
-                          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-                            {item.text}
-                          </p>
-                        </div>
-                      </Link>
-                    );
-                  })}
+                <div className="mt-5 grid gap-2">
+                  {nextOpenSlots.length > 0 ? (
+                    nextOpenSlots.map((slot) => <SlotRow key={slot.id} slot={slot} />)
+                  ) : (
+                    <EmptyMini
+                      title="Add your first windows"
+                      text="A profile without availability is hard to book, even with good services."
+                      href="/expert/availability"
+                      cta="Add availability"
+                    />
+                  )}
                 </div>
               </Card>
+            </div>
 
-              <div className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
-                <Card className="p-5">
-                  <Badge variant="success">
-                    <CircleDollarSign size={14} />
-                    Revenue snapshot
-                  </Badge>
+            <div className="grid gap-6">
+              <WorkspacePanel />
 
-                  <div className="mt-5 grid gap-3">
-                    <MoneyRow
-                      label="Confirmed net"
-                      value={formatMoney(upcomingRevenueCents)}
-                    />
+              <div className="grid gap-6 lg:grid-cols-2">
+                <PerformancePanel
+                  rating={expert.rating}
+                  totalReviews={expert.totalReviews}
+                  totalSessions={expert.totalSessions}
+                  activeServicesCount={activeServices.length}
+                  completedRevenueCents={completedRevenueCents}
+                  hasStripePayouts={hasStripePayouts}
+                />
 
-                    <MoneyRow
-                      label="Completed net"
-                      value={formatMoney(completedRevenueCents)}
-                    />
-
-                    <MoneyRow
-                      label="Active offers"
-                      value={String(activeServices.length)}
-                    />
-
-                    <MoneyRow
-                      label="Waiting payment"
-                      value={String(pendingBookings.length)}
-                    />
-
-                    <MoneyRow
-                      label="Paid pending confirmation"
-                      value={String(paidBookings.length)}
-                    />
-
-                    <MoneyRow
-                      label="Disputed"
-                      value={String(disputedBookings.length)}
-                    />
-
-                    <MoneyRow
-                      label="Stripe payouts"
-                      value={hasStripePayouts ? "Connected" : "Missing"}
-                    />
-                  </div>
-                </Card>
-
-                <Card className="p-5">
+                <Card className="p-5 md:p-6">
                   <Badge variant="accent">
-                    <Eye size={14} />
-                    Client preview
+                    <Lightbulb size={14} />
+                    Smart next step
                   </Badge>
-
-                  <div className="mt-5 flex items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-[var(--primary)] to-[#8b5cf6] text-xl font-bold text-white">
-                      {avatarLetter}
-                    </div>
-
-                    <div className="min-w-0">
-                      <p className="font-bold tracking-[-0.02em]">
-                        {helperName}
-                      </p>
-
-                      <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">
-                        {expert.headline || "Practical help through short calls"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {expert.skills.slice(0, 4).map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-1 text-xs font-black text-[var(--muted-foreground)]"
-                      >
-                        #{skill}
-                      </span>
-                    ))}
-
-                    {expert.skills.length === 0 ? (
-                      <span className="text-sm font-semibold text-muted">
-                        Add skills to improve discovery.
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-5">
-                    <ButtonLink href={`/experts/${expert.id}`} variant="secondary">
-                      View as buyer
-                    </ButtonLink>
-                  </div>
+                  <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">Recommended action</h2>
+                  <p className="mt-3 min-h-[96px] text-sm font-semibold leading-6 text-muted">
+                    {getSmartTip({
+                      hasServices: activeServices.length > 0,
+                      hasAvailability: openSlots.length > 0,
+                      hasReviews: expert.reviews.length > 0,
+                      hasStrongBio: bio.trim().length >= 120,
+                      hasStripePayouts,
+                      hasPendingPayment: pendingBookings.length > 0,
+                      hasDisputes: disputedBookings.length > 0,
+                      hasCompletedWithoutOutcome: completedWithoutOutcome.length > 0,
+                    })}
+                  </p>
+                  <ButtonLink
+                    href={getSmartTipHref({
+                      hasServices: activeServices.length > 0,
+                      hasAvailability: openSlots.length > 0,
+                      hasReviews: expert.reviews.length > 0,
+                      hasStrongBio: bio.trim().length >= 120,
+                      hasStripePayouts,
+                      hasPendingPayment: pendingBookings.length > 0,
+                      hasDisputes: disputedBookings.length > 0,
+                      hasCompletedWithoutOutcome: completedWithoutOutcome.length > 0,
+                    })}
+                    variant="secondary"
+                  >
+                    Open
+                    <ArrowRight size={18} />
+                  </ButtonLink>
                 </Card>
               </div>
             </div>
           </div>
 
+          <div className="grid gap-6 xl:grid-cols-2">
+            <ExpertProfileCompletenessCard quality={quality} />
+            <ExpertVerificationCard
+              totalSessions={expert.totalSessions}
+              totalReviews={expert.totalReviews}
+              rating={expert.rating}
+              isVerified={expert.isVerified}
+            />
+          </div>
+
           <UnreadNotificationsCard userId={expert.user.id} email={helperEmail} />
-
-          <Card soft className="p-5 md:p-6">
-            <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                <Lightbulb size={24} />
-              </div>
-
-              <div>
-                <h2 className="text-2xl font-black tracking-[-0.04em]">
-                  Smart next step
-                </h2>
-
-                <p className="mt-2 leading-7 text-muted">
-                  {getSmartTip({
-                    hasServices: activeServices.length > 0,
-                    hasAvailability: openSlots.length > 0,
-                    hasReviews: expert.reviews.length > 0,
-                    hasStrongBio: bio.trim().length >= 120,
-                    hasStripePayouts,
-                    hasPendingPayment: pendingBookings.length > 0,
-                    hasDisputes: disputedBookings.length > 0,
-                  })}
-                </p>
-              </div>
-
-              <ButtonLink
-                href={getSmartTipHref({
-                  hasServices: activeServices.length > 0,
-                  hasAvailability: openSlots.length > 0,
-                  hasReviews: expert.reviews.length > 0,
-                  hasStrongBio: bio.trim().length >= 120,
-                  hasStripePayouts,
-                  hasPendingPayment: pendingBookings.length > 0,
-                  hasDisputes: disputedBookings.length > 0,
-                })}
-              >
-                Open
-                <ArrowRight size={18} />
-              </ButtonLink>
-            </div>
-          </Card>
         </div>
       </section>
     </main>
+  );
+}
+
+function HeroStat({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">{label}</p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.05em]">{value}</p>
+      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
+    </div>
+  );
+}
+
+function ReadinessLine({ label, done }: { label: string; done: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 py-3">
+      <p className="text-sm font-black">{label}</p>
+      <span className={done ? "text-[var(--success)]" : "text-[var(--accent)]"}>
+        {done ? <CheckCircle2 size={18} /> : <Clock3 size={18} />}
+      </span>
+    </div>
+  );
+}
+
+function NextCallPanel({
+  nextBooking,
+  nextOpenSlots,
+  openSlotsCount,
+  completedWithoutOutcomeCount,
+}: {
+  nextBooking: {
+    id: string;
+    note: string | null;
+    startTime: Date;
+    endTime: Date;
+    status: BookingStatus;
+    priceCents: number;
+    providerNetCents?: number | null;
+    platformFeeCents?: number | null;
+    buyer: { name: string | null; email: string };
+    service: { title: string };
+    callRoom: { roomUrl: string } | null;
+  } | null;
+  nextOpenSlots: {
+    id: string;
+    startTime: Date;
+    endTime: Date;
+    isActive: boolean;
+    bookings: { startTime: Date; endTime: Date; status: BookingStatus }[];
+  }[];
+  openSlotsCount: number;
+  completedWithoutOutcomeCount: number;
+}) {
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-[var(--border)] bg-[var(--card-soft)] p-5 md:p-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <Badge variant="primary">
+              <Video size={14} />
+              Live work
+            </Badge>
+            <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+              {nextBooking ? "Next call command center" : "No booked call right now"}
+            </h2>
+          </div>
+          <ButtonLink href="/expert/bookings" variant="secondary">
+            All bookings
+          </ButtonLink>
+        </div>
+      </div>
+
+      <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="p-5 md:p-6">
+          {nextBooking ? (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={nextBooking.status === BookingStatus.CONFIRMED ? "success" : "accent"}>
+                  {formatStatus(nextBooking.status)}
+                </Badge>
+                <Badge>{formatDateTime(nextBooking.startTime)}</Badge>
+              </div>
+
+              <h3 className="mt-5 text-3xl font-black tracking-[-0.05em]">
+                {nextBooking.service?.title ?? "Helper call"}
+              </h3>
+              <p className="mt-2 text-sm font-bold text-muted">
+                Client: {nextBooking.buyer.name ?? nextBooking.buyer.email}
+              </p>
+
+              {nextBooking.note ? (
+                <div className="mt-5 rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
+                  <div className="flex gap-3">
+                    <MessageCircle size={18} className="mt-0.5 shrink-0 text-[var(--primary-dark)]" />
+                    <div>
+                      <p className="text-sm font-black">Problem brief</p>
+                      <p className="mt-1 line-clamp-5 whitespace-pre-wrap text-sm font-semibold leading-6 text-muted">
+                        {nextBooking.note}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--card-soft)] p-4">
+                  <p className="text-sm font-bold text-muted">No buyer note was added for this call.</p>
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                {canJoinBooking(nextBooking) ? (
+                  <Link href={`/calls/${nextBooking.id}`} className="btn btn-primary">
+                    Join call
+                    <Video size={17} />
+                  </Link>
+                ) : null}
+                <ButtonLink href="/expert/bookings" variant={canJoinBooking(nextBooking) ? "secondary" : "primary"}>
+                  Prepare call
+                  <ArrowRight size={17} />
+                </ButtonLink>
+              </div>
+            </>
+          ) : (
+            <EmptyMini
+              title={openSlotsCount > 0 ? "Your calendar is open" : "Add availability to become bookable"}
+              text={openSlotsCount > 0 ? "Clients can book your open windows. Keep your next 7 days fresh." : "Without open windows, buyers cannot choose a time."}
+              href="/expert/availability"
+              cta={openSlotsCount > 0 ? "Review availability" : "Add availability"}
+            />
+          )}
+        </div>
+
+        <div className="border-t border-[var(--border)] bg-[var(--background-soft)] p-5 md:p-6 lg:border-l lg:border-t-0">
+          <h3 className="text-xl font-black tracking-[-0.04em]">Today’s focus</h3>
+          <div className="mt-5 grid gap-3">
+            <FocusRow
+              icon={Clock3}
+              title="Keep calendar fresh"
+              text={nextOpenSlots[0] ? `${formatShortDate(nextOpenSlots[0].startTime)} · ${formatTime(nextOpenSlots[0].startTime)}–${formatTime(nextOpenSlots[0].endTime)}` : "No upcoming open window"}
+              href="/expert/availability"
+            />
+            <FocusRow
+              icon={ListChecks}
+              title="Action plans"
+              text={completedWithoutOutcomeCount > 0 ? `${completedWithoutOutcomeCount} outcome missing` : "No action plan due"}
+              href="/expert/outcomes"
+            />
+            <FocusRow
+              icon={Sparkles}
+              title="Improve conversion"
+              text="Make your best offer specific and result-oriented."
+              href="/expert/services"
+            />
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function SetupCommandCenter({
+  isBookable,
+  missingBookableSteps,
+  nextSetupHref,
+  checklist,
+  completedChecklist,
+}: {
+  isBookable: boolean;
+  missingBookableSteps: string[];
+  nextSetupHref: string;
+  checklist: { title: string; text: string; done: boolean; href: string }[];
+  completedChecklist: number;
+}) {
+  return (
+    <Card className={isBookable ? "border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6" : "border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6"}>
+      <div className="flex items-start gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--primary-dark)]">
+          {isBookable ? <CheckCircle2 size={22} /> : <ShieldCheck size={22} />}
+        </div>
+        <div>
+          <Badge variant={isBookable ? "success" : "accent"}>
+            {completedChecklist}/{checklist.length} complete
+          </Badge>
+          <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+            {isBookable ? "Ready for paid bookings" : "Finish your launch setup"}
+          </h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+            {isBookable
+              ? "Your offer, calendar and payout setup are ready. Keep availability fresh."
+              : `Next: ${missingBookableSteps.join(", ")}.`}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-2">
+        {checklist.map((item) => <ChecklistRow key={item.title} item={item} />)}
+      </div>
+
+      <div className="mt-6">
+        <ButtonLink href={nextSetupHref}>
+          {isBookable ? "View buyer profile" : "Continue setup"}
+          <ArrowRight size={18} />
+        </ButtonLink>
+      </div>
+    </Card>
+  );
+}
+
+function WorkspacePanel() {
+  return (
+    <Card className="p-5 md:p-6">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <Badge variant="primary">
+            <Zap size={14} />
+            Workspace
+          </Badge>
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
+            Manage your helper business
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+            Different areas, different jobs. No more identical dashboard boxes.
+          </p>
+        </div>
+        <ButtonLink href="/notifications" variant="secondary">
+          <Bell size={17} />
+          Notifications
+        </ButtonLink>
+      </div>
+
+      <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {workspaceLinks.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link key={item.href} href={item.href} className="group">
+              <div className="h-full rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-1 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+                    <Icon size={19} />
+                  </div>
+                  <ArrowRight size={16} className="text-muted transition group-hover:translate-x-1 group-hover:text-[var(--primary-dark)]" />
+                </div>
+                <p className="mt-4 text-xs font-black uppercase tracking-[0.14em] text-muted">{item.tone}</p>
+                <h3 className="mt-2 text-lg font-black tracking-[-0.03em]">{item.title}</h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-muted">{item.text}</p>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function PerformancePanel({
+  rating,
+  totalReviews,
+  totalSessions,
+  activeServicesCount,
+  completedRevenueCents,
+  hasStripePayouts,
+}: {
+  rating: number;
+  totalReviews: number;
+  totalSessions: number;
+  activeServicesCount: number;
+  completedRevenueCents: number;
+  hasStripePayouts: boolean;
+}) {
+  return (
+    <Card className="p-5 md:p-6">
+      <Badge variant="success">
+        <BarChart3 size={14} />
+        Performance
+      </Badge>
+      <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">Snapshot</h2>
+      <div className="mt-5 grid gap-3">
+        <MoneyRow label="Completed net" value={formatMoney(completedRevenueCents)} />
+        <MoneyRow label="Rating" value={rating ? rating.toFixed(1) : "New"} />
+        <MoneyRow label="Reviews" value={String(totalReviews)} />
+        <MoneyRow label="Completed calls" value={String(totalSessions)} />
+        <MoneyRow label="Active offers" value={String(activeServicesCount)} />
+        <MoneyRow label="Stripe payouts" value={hasStripePayouts ? "Ready" : "Missing"} />
+      </div>
+    </Card>
   );
 }
 
@@ -1118,23 +1009,17 @@ function AttentionCard({
 
   return (
     <Link href={href} className="group">
-      <Card
-        className={`h-full p-5 transition group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)] ${className}`}
-      >
+      <Card className={`h-full p-5 transition group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)] ${className}`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--primary-dark)]">
             <Icon size={21} />
           </div>
-
-          <p className="text-3xl font-bold tracking-[-0.05em]">{value}</p>
+          <p className="text-3xl font-black tracking-[-0.05em]">{value}</p>
         </div>
-
         <h3 className="mt-5 text-xl font-black tracking-[-0.03em]">{title}</h3>
-
         <p className="mt-2 text-sm font-bold leading-6 text-muted">{text}</p>
-
-        <div className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[var(--primary-dark)]">
-          Open bookings
+        <div className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[var(--primary-dark)]">
+          Open
           <ArrowRight size={16} />
         </div>
       </Card>
@@ -1142,7 +1027,32 @@ function AttentionCard({
   );
 }
 
-function SlotChip({
+function FocusRow({
+  icon: Icon,
+  title,
+  text,
+  href,
+}: {
+  icon: typeof Clock3;
+  title: string;
+  text: string;
+  href: string;
+}) {
+  return (
+    <Link href={href} className="group flex items-center gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--card)] p-4 transition hover:bg-[var(--card-soft)] hover:shadow-[var(--shadow-sm)]">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
+        <Icon size={18} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-black tracking-[-0.02em]">{title}</p>
+        <p className="mt-1 truncate text-sm font-semibold text-muted">{text}</p>
+      </div>
+      <ArrowRight size={16} className="text-muted transition group-hover:translate-x-1" />
+    </Link>
+  );
+}
+
+function SlotRow({
   slot,
 }: {
   slot: {
@@ -1158,56 +1068,16 @@ function SlotChip({
   };
 }) {
   const freeMinutes = getWindowFreeMinutes(slot);
-
   return (
-    <Link
-      href="/expert/availability"
-      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-sm font-bold text-[var(--foreground)] shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]"
-      title={`${formatDateTime(slot.startTime)} — ${formatTime(slot.endTime)}`}
-    >
-      <Clock3 size={14} />
-
-      <span>
-        {formatShortDate(slot.startTime)} · {formatTime(slot.startTime)}–
-        {formatTime(slot.endTime)}
-      </span>
-
-      <span className="rounded-full bg-[var(--primary-soft)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--primary-dark)]">
-        {freeMinutes} min free
-      </span>
-    </Link>
-  );
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: typeof Video;
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <Card soft className="p-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
-          <Icon size={20} />
-        </div>
-
-        <ArrowRight size={16} className="text-muted" />
+    <Link href="/expert/availability" className="flex items-center justify-between gap-4 rounded-[20px] border border-[var(--border)] bg-[var(--card-soft)] p-3 transition hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]">
+      <div>
+        <p className="font-black tracking-[-0.02em]">
+          {formatShortDate(slot.startTime)} · {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
+        </p>
+        <p className="mt-1 text-xs font-bold text-muted">{freeMinutes} min free</p>
       </div>
-
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-muted">
-        {label}
-      </p>
-
-      <p className="mt-2 text-2xl font-bold tracking-[-0.04em]">{value}</p>
-
-      <p className="mt-1 text-sm font-semibold text-muted">{hint}</p>
-    </Card>
+      <ArrowRight size={16} className="text-muted" />
+    </Link>
   );
 }
 
@@ -1222,108 +1092,40 @@ function ChecklistRow({
   };
 }) {
   return (
-    <Link
-      href={item.href}
-      className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3 transition hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]"
-    >
-      <div
-        className={
-          item.done
-            ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--success-soft)] text-[var(--success)]"
-            : "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]"
-        }
-      >
+    <Link href={item.href} className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 transition hover:bg-[var(--background-soft)] hover:shadow-[var(--shadow-sm)]">
+      <div className={item.done ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--success-soft)] text-[var(--success)]" : "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]"}>
         {item.done ? <CheckCircle2 size={16} /> : <Clock3 size={16} />}
       </div>
-
       <div className="min-w-0">
-        <p className="font-bold tracking-[-0.02em]">{item.title}</p>
-
-        <p className="mt-1 line-clamp-1 text-xs font-semibold text-muted">
-          {item.text}
-        </p>
+        <p className="font-black tracking-[-0.02em]">{item.title}</p>
+        <p className="mt-1 line-clamp-1 text-xs font-semibold text-muted">{item.text}</p>
       </div>
     </Link>
   );
 }
 
-
+function EmptyMini({ title, text, href, cta }: { title: string; text: string; href: string; cta: string }) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-5">
+      <p className="font-black tracking-[-0.02em]">{title}</p>
+      <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
+      <div className="mt-4">
+        <ButtonLink href={href} variant="secondary">
+          {cta}
+          <ArrowRight size={17} />
+        </ButtonLink>
+      </div>
+    </div>
+  );
+}
 
 function MoneyRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
       <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="font-bold">{value}</p>
+      <p className="text-right font-black">{value}</p>
     </div>
   );
-}
-
-function SmallInfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
-      <p className="text-sm font-bold text-muted">{label}</p>
-      <p className="text-right text-sm font-bold">{value}</p>
-    </div>
-  );
-}
-
-function canJoinBooking(booking: {
-  startTime: Date;
-  endTime: Date;
-  status: BookingStatus;
-  callRoom: {
-    roomUrl: string;
-  } | null;
-}) {
-  const now = new Date();
-  const joinWindowStart = new Date(booking.startTime.getTime() - 10 * 60 * 1000);
-  const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
-
-  return (
-    booking.status === BookingStatus.CONFIRMED &&
-    Boolean(booking.callRoom?.roomUrl) &&
-    now >= joinWindowStart &&
-    now <= joinWindowEnd
-  );
-}
-
-
-function getProviderNetCents(booking: {
-  priceCents: number;
-  providerNetCents?: number | null;
-  platformFeeCents?: number | null;
-}) {
-  if (typeof booking.providerNetCents === "number") {
-    return booking.providerNetCents;
-  }
-
-  if (typeof booking.platformFeeCents === "number") {
-    return Math.max(booking.priceCents - booking.platformFeeCents, 0);
-  }
-
-  return Math.max(booking.priceCents - Math.round(booking.priceCents * 0.1), 0);
-}
-
-function getWindowFreeMinutes(window: {
-  startTime: Date;
-  endTime: Date;
-  bookings: {
-    startTime: Date;
-    endTime: Date;
-    status: BookingStatus;
-  }[];
-}) {
-  const totalMinutes = getDurationMinutes(window.startTime, window.endTime);
-
-  const bookedMinutes = window.bookings
-    .filter((booking) => activeBookingStatuses.includes(booking.status))
-    .reduce(
-      (sum, booking) =>
-        sum + getDurationMinutes(booking.startTime, booking.endTime),
-      0,
-    );
-
-  return Math.max(totalMinutes - bookedMinutes, 0);
 }
 
 function IncomingHelpRequestsPanel({
@@ -1354,88 +1156,107 @@ function IncomingHelpRequestsPanel({
             <Sparkles size={14} />
             Matching demand
           </Badge>
-
-          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
-            Buyer problems that match your offers
+          <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+            Buyer problems for you
           </h2>
-
-          <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-            This turns SkillDrop into a problem-first marketplace: experts see
-            real buyer demand, and buyers reach the right person faster.
+          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
+            Real problem requests that match your categories, help types or skills.
           </p>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-5 grid gap-3">
         {requests.length > 0 ? (
           requests.map((request) => {
-            const params = new URLSearchParams({
-              requestId: request.id,
-            });
-
-            if (defaultServiceId) {
-              params.set("service", defaultServiceId);
-            }
+            const params = new URLSearchParams({ requestId: request.id });
+            if (defaultServiceId) params.set("service", defaultServiceId);
 
             return (
-              <Link
-                key={request.id}
-                href={`/experts/${expertId}?${params.toString()}`}
-                className="group"
-              >
-                <div className="h-full rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:border-[var(--border-strong)] group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
+              <Link key={request.id} href={`/experts/${expertId}?${params.toString()}`} className="group">
+                <div className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 transition group-hover:-translate-y-0.5 group-hover:bg-[var(--background-soft)] group-hover:shadow-[var(--shadow-sm)]">
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="accent">
-                      {request.subcategory?.name ?? request.category?.name ?? "Open problem"}
-                    </Badge>
-                    {request.helpType ? (
-                      <Badge>{request.helpType.replaceAll("_", " ")}</Badge>
-                    ) : null}
-                    {request.preferredLanguage ? (
-                      <Badge>{request.preferredLanguage}</Badge>
-                    ) : null}
+                    <Badge variant="accent">{request.subcategory?.name ?? request.category?.name ?? "Open problem"}</Badge>
+                    {request.helpType ? <Badge>{request.helpType.replaceAll("_", " ")}</Badge> : null}
+                    {request.preferredLanguage ? <Badge>{request.preferredLanguage}</Badge> : null}
                   </div>
-
-                  <h3 className="mt-4 line-clamp-3 font-bold leading-6 tracking-[-0.02em]">
-                    {request.query}
-                  </h3>
-
+                  <h3 className="mt-4 line-clamp-3 font-black leading-6 tracking-[-0.02em]">{request.query}</h3>
                   <div className="mt-4 flex items-center justify-between gap-3 text-xs font-black text-[var(--muted-foreground)]">
                     <span>{formatShortDate(request.createdAt)}</span>
-                    <span>
-                      {request.budgetMaxCents
-                        ? `Up to ${formatMoney(request.budgetMaxCents)}`
-                        : "Budget open"}
-                    </span>
+                    <span>{request.budgetMaxCents ? `Up to ${formatMoney(request.budgetMaxCents)}` : "Budget open"}</span>
                   </div>
-
-                  <p className="mt-4 text-sm font-black text-[var(--primary-dark)]">
-                    Open matched profile →
-                  </p>
                 </div>
               </Link>
             );
           })
         ) : (
-          <div className="rounded-[22px] border border-dashed border-[var(--border)] bg-[var(--card-soft)] p-5 md:col-span-2 xl:col-span-3">
-            <p className="font-black tracking-[-0.02em]">No matching buyer demand yet</p>
-            <p className="mt-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-              Improve your offer titles, categories, help types, tags and
-              availability. Matching requests will appear here as buyers
-              describe problems.
-            </p>
-          </div>
+          <EmptyMini
+            title="No matching buyer demand yet"
+            text="Improve your offer titles, tags and availability. Requests will appear here when buyers describe problems."
+            href="/expert/services"
+            cta="Improve offers"
+          />
         )}
       </div>
     </Card>
   );
 }
 
-function getDurationMinutes(startTime: Date, endTime: Date) {
-  return Math.max(
-    Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60),
-    0,
+function canJoinBooking(booking: {
+  startTime: Date;
+  endTime: Date;
+  status: BookingStatus;
+  callRoom: {
+    roomUrl: string;
+  } | null;
+}) {
+  const now = new Date();
+  const joinWindowStart = new Date(booking.startTime.getTime() - 10 * 60 * 1000);
+  const joinWindowEnd = new Date(booking.endTime.getTime() + 15 * 60 * 1000);
+
+  return (
+    booking.status === BookingStatus.CONFIRMED &&
+    Boolean(booking.callRoom?.roomUrl) &&
+    now >= joinWindowStart &&
+    now <= joinWindowEnd
   );
+}
+
+function getProviderNetCents(booking: {
+  priceCents: number;
+  providerNetCents?: number | null;
+  platformFeeCents?: number | null;
+}) {
+  if (typeof booking.providerNetCents === "number") {
+    return booking.providerNetCents;
+  }
+
+  if (typeof booking.platformFeeCents === "number") {
+    return Math.max(booking.priceCents - booking.platformFeeCents, 0);
+  }
+
+  return Math.max(booking.priceCents - Math.round(booking.priceCents * 0.1), 0);
+}
+
+function getWindowFreeMinutes(window: {
+  startTime: Date;
+  endTime: Date;
+  bookings: {
+    startTime: Date;
+    endTime: Date;
+    status: BookingStatus;
+  }[];
+}) {
+  const totalMinutes = getDurationMinutes(window.startTime, window.endTime);
+
+  const bookedMinutes = window.bookings
+    .filter((booking) => activeBookingStatuses.includes(booking.status))
+    .reduce((sum, booking) => sum + getDurationMinutes(booking.startTime, booking.endTime), 0);
+
+  return Math.max(totalMinutes - bookedMinutes, 0);
+}
+
+function getDurationMinutes(startTime: Date, endTime: Date) {
+  return Math.max(Math.round((endTime.getTime() - startTime.getTime()) / 1000 / 60), 0);
 }
 
 function getSmartTip({
@@ -1446,6 +1267,7 @@ function getSmartTip({
   hasStripePayouts,
   hasPendingPayment,
   hasDisputes,
+  hasCompletedWithoutOutcome,
 }: {
   hasServices: boolean;
   hasAvailability: boolean;
@@ -1454,35 +1276,16 @@ function getSmartTip({
   hasStripePayouts: boolean;
   hasPendingPayment: boolean;
   hasDisputes: boolean;
+  hasCompletedWithoutOutcome: boolean;
 }) {
-  if (hasDisputes) {
-    return "You have disputed bookings under admin review. Open bookings and check the affected sessions.";
-  }
-
-  if (hasPendingPayment) {
-    return "Some clients reserved time but have not paid yet. Keep your availability fresh and wait for payment confirmation.";
-  }
-
-  if (!hasStrongBio) {
-    return "Strengthen your biography so clients understand who you help, why they can trust you, and what they will get from a call.";
-  }
-
-  if (!hasServices) {
-    return "Create your first clear offer with price and duration. Clients book faster when the result is easy to understand.";
-  }
-
-  if (!hasAvailability) {
-    return "Add open availability for the next 7 days. A profile without availability is harder for clients to book.";
-  }
-
-  if (!hasStripePayouts) {
-    return "Connect Stripe payouts before enabling real paid bookings. Clients should only pay when your payout setup is ready.";
-  }
-
-  if (!hasReviews) {
-    return "Complete your first calls and ask clients to leave a review. Reviews are one of the strongest trust signals.";
-  }
-
+  if (hasDisputes) return "You have disputed bookings under admin review. Open bookings and check the affected sessions.";
+  if (hasCompletedWithoutOutcome) return "Some completed calls still need an action plan. This is what makes SkillDrop stronger than a normal video call.";
+  if (hasPendingPayment) return "Some clients reserved time but have not paid yet. Keep your availability fresh and wait for payment confirmation.";
+  if (!hasStrongBio) return "Strengthen your biography so clients quickly understand who you help, why they can trust you and what they get from a call.";
+  if (!hasServices) return "Create your first clear offer with price and duration. Clients book faster when the result is easy to understand.";
+  if (!hasAvailability) return "Add open availability for the next 7 days. A profile without availability is hard to book.";
+  if (!hasStripePayouts) return "Finish Stripe payouts before enabling real paid bookings.";
+  if (!hasReviews) return "Complete your first calls and ask clients to leave a review. Reviews are one of the strongest trust signals.";
   return "Your workspace looks healthy. Keep availability fresh every week and improve your best-performing offer.";
 }
 
@@ -1494,6 +1297,7 @@ function getSmartTipHref({
   hasStripePayouts,
   hasPendingPayment,
   hasDisputes,
+  hasCompletedWithoutOutcome,
 }: {
   hasServices: boolean;
   hasAvailability: boolean;
@@ -1502,31 +1306,15 @@ function getSmartTipHref({
   hasStripePayouts: boolean;
   hasPendingPayment: boolean;
   hasDisputes: boolean;
+  hasCompletedWithoutOutcome: boolean;
 }) {
-  if (hasDisputes || hasPendingPayment) {
-    return "/expert/bookings";
-  }
-
-  if (!hasStrongBio) {
-    return "/expert/profile";
-  }
-
-  if (!hasServices) {
-    return "/expert/services";
-  }
-
-  if (!hasAvailability) {
-    return "/expert/availability";
-  }
-
-  if (!hasStripePayouts) {
-    return "/expert/earnings";
-  }
-
-  if (!hasReviews) {
-    return "/expert/bookings";
-  }
-
+  if (hasDisputes || hasPendingPayment) return "/expert/bookings";
+  if (hasCompletedWithoutOutcome) return "/expert/outcomes";
+  if (!hasStrongBio) return "/expert/profile";
+  if (!hasServices) return "/expert/services";
+  if (!hasAvailability) return "/expert/availability";
+  if (!hasStripePayouts) return "/expert/earnings";
+  if (!hasReviews) return "/expert/bookings";
   return "/expert/stats";
 }
 
@@ -1559,33 +1347,5 @@ function formatTime(date: Date) {
 }
 
 function formatStatus(status: BookingStatus) {
-  if (status === BookingStatus.PENDING) {
-    return "Pending payment";
-  }
-
-  if (status === BookingStatus.PAID) {
-    return "Confirming";
-  }
-
-  if (status === BookingStatus.CONFIRMED) {
-    return "Confirmed";
-  }
-
-  if (status === BookingStatus.COMPLETED) {
-    return "Completed";
-  }
-
-  if (status === BookingStatus.CANCELLED) {
-    return "Cancelled";
-  }
-
-  if (status === BookingStatus.REFUNDED) {
-    return "Refunded";
-  }
-
-  if (status === BookingStatus.DISPUTED) {
-    return "Disputed";
-  }
-
-  return status.toLowerCase();
+  return status.toLowerCase().replaceAll("_", " ");
 }
