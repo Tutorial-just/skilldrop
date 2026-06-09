@@ -116,7 +116,15 @@ const examples = [
   "I need to prepare for a job interview",
 ];
 
-export default function HelpMePage() {
+type HelpMePageProps = {
+  searchParams?: Promise<{
+    q?: string;
+  }>;
+};
+
+export default async function HelpMePage({ searchParams }: HelpMePageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const initialQuery = resolvedSearchParams.q?.trim() ?? "";
   return (
     <main>
       <section className="relative overflow-hidden border-b border-[var(--border)]">
@@ -186,7 +194,8 @@ export default function HelpMePage() {
                   minLength={3}
                   maxLength={220}
                   rows={5}
-                  placeholder="Example: I want to understand a religious topic and ask someone knowledgeable for 30 minutes..."
+                  placeholder="Example: Situation — I need to understand a French document. Goal — know exactly what to do next. Already tried — translated it but I am still confused."
+                  defaultValue={initialQuery}
                   className="mt-2 w-full rounded-[24px] border border-[var(--border)] bg-[var(--background-soft)] p-4 text-sm font-medium leading-7 outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]/50 focus:shadow-[0_0_0_4px_rgba(79,70,229,0.11)]"
                 />
               </div>
@@ -297,18 +306,24 @@ export default function HelpMePage() {
                 </Field>
               </div>
 
-              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
+              <div className="rounded-[24px] border border-[var(--primary)]/15 bg-[var(--primary-soft)] p-4">
                 <div className="flex gap-3">
                   <ShieldCheck
                     size={18}
                     className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
                   />
 
-                  <p className="text-sm font-bold leading-6 text-[var(--muted-foreground)]">
-                    SkillDrop will show matching helpers. If no one fits your
-                    problem, you can request that help so the platform learns
-                    what category or helper is missing.
-                  </p>
+                  <div>
+                    <p className="text-sm font-black text-[var(--primary-dark)]">
+                      Best format: situation → desired result → already tried.
+                    </p>
+
+                    <p className="mt-1 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+                      SkillDrop will show matching helpers. If no one fits your
+                      problem, the request still helps identify missing helper
+                      supply without breaking the user flow.
+                    </p>
+                  </div>
                 </div>
               </div>
 

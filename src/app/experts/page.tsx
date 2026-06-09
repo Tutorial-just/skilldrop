@@ -488,8 +488,38 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
         })),
       });
 
+      const sortedServices = [...expert.services].sort((a, b) => {
+        const bScore = calculateServiceFitScore({
+          service: b,
+          query,
+          searchTerms,
+          categorySlug,
+          helpType,
+          maxPrice,
+        });
+        const aScore = calculateServiceFitScore({
+          service: a,
+          query,
+          searchTerms,
+          categorySlug,
+          helpType,
+          maxPrice,
+        });
+
+        if (bScore !== aScore) {
+          return bScore - aScore;
+        }
+
+        return a.priceCents - b.priceCents;
+      });
+
+      const expertForMatch = {
+        ...expert,
+        services: sortedServices,
+      };
+
       const worldClassMatch = calculateWorldClassMatchScore({
-        expert,
+        expert: expertForMatch,
         problem: {
           query,
           categorySlug,
@@ -502,6 +532,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
       return {
         ...expert,
+        services: sortedServices,
         qualityScore,
         searchScore: keywordScore + worldClassMatch.score,
         matchReasons: worldClassMatch.reasons,
@@ -903,7 +934,8 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
             ) : (
               <EmptyState
                 title="No helpers found"
-                text="Try another keyword, remove filters, or check back later when more helpers open bookable time slots."
+                text="Try another keyword, remove filters, or create a problem request so SkillDrop can keep the need and guide you when a matching helper is available."
+                query={query}
               />
             )}
           </div>
@@ -1570,7 +1602,15 @@ function SideRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function EmptyState({ title, text }: { title: string; text: string }) {
+function EmptyState({
+  title,
+  text,
+  query,
+}: {
+  title: string;
+  text: string;
+  query?: string;
+}) {
   return (
     <Card className="p-8 text-center">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-soft)] text-[var(--primary-dark)]">
@@ -1585,9 +1625,17 @@ function EmptyState({ title, text }: { title: string; text: string }) {
         {text}
       </p>
 
-      <div className="mt-5">
+      <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
         <Link href="/experts" className="btn btn-secondary">
           Clear filters
+        </Link>
+
+        <Link
+          href={query ? `/help-me?q=${encodeURIComponent(query)}` : "/help-me"}
+          className="btn btn-primary"
+        >
+          Create problem request
+          <ArrowRight size={17} />
         </Link>
       </div>
     </Card>
@@ -1619,6 +1667,90 @@ function normalizeSearchTerm(value: string) {
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s-]/gu, "")
     .replace(/\s+/g, " ");
+}
+
+
+function calculateServiceFitScore({
+  service,
+  query,
+  searchTerms,
+  categorySlug,
+  helpType,
+  maxPrice,
+}: {
+  service: {
+    title: string;
+    description: string;
+    priceCents: number;
+    category: {
+      name: string;
+      slug?: string | null;
+    } | null;
+    subcategory?: {
+      name: string;
+      slug?: string | null;
+    } | null;
+    helpType?: string | null;
+    tags?: string[];
+  };
+  query: string;
+  searchTerms: string[];
+  categorySlug: string;
+  helpType: HelpType | null | undefined;
+  maxPrice: number | null;
+}) {
+  let score = 0;
+
+  const normalizedTitle = normalizeSearchTerm(service.title);
+  const normalizedDescription = normalizeSearchTerm(service.description);
+  const normalizedCategory = normalizeSearchTerm(
+    service.category?.slug ?? service.category?.name ?? "",
+  );
+  const normalizedSubcategory = normalizeSearchTerm(
+    service.subcategory?.slug ?? service.subcategory?.name ?? "",
+  );
+  const normalizedHelpType = normalizeSearchTerm(service.helpType ?? "");
+  const normalizedTags = (service.tags ?? []).map(normalizeSearchTerm);
+  const normalizedQuery = normalizeSearchTerm(query);
+
+  if (normalizedQuery && normalizedTitle.includes(normalizedQuery)) {
+    score += 30;
+  }
+
+  for (const term of searchTerms) {
+    if (!term) {
+      continue;
+    }
+
+    if (normalizedTitle.includes(term)) {
+      score += 18;
+    }
+
+    if (normalizedDescription.includes(term)) {
+      score += 10;
+    }
+
+    if (normalizedTags.some((tag) => tag === term || tag.includes(term))) {
+      score += 8;
+    }
+  }
+
+  if (
+    categorySlug &&
+    (normalizedCategory === categorySlug || normalizedSubcategory === categorySlug)
+  ) {
+    score += 35;
+  }
+
+  if (helpType && normalizedHelpType === normalizeSearchTerm(helpType)) {
+    score += 22;
+  }
+
+  if (maxPrice && service.priceCents <= maxPrice) {
+    score += 10;
+  }
+
+  return score;
 }
 
 function calculateSearchScore({

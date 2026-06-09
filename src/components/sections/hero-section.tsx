@@ -66,18 +66,41 @@ export function HeroSection() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href="/experts">
-              Find help now
+            <ButtonLink href="/help-me">
+              Describe your problem
               <Search size={18} />
+            </ButtonLink>
+
+            <ButtonLink href="/experts" variant="secondary">
+              Browse helpers
+              <ArrowRight size={18} />
             </ButtonLink>
 
             <ButtonLink href="/sign-up?role=expert" variant="secondary">
               Become a helper
-              <ArrowRight size={18} />
             </ButtonLink>
           </div>
 
-          <div className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
+          <div className="mt-8 rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-sm)] sm:max-w-2xl">
+            <form action="/experts" className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-[var(--background-soft)] px-4">
+                <Search size={18} className="text-[var(--muted-foreground)]" />
+                <input
+                  name="q"
+                  type="search"
+                  placeholder="Example: CV review, French document, website bug..."
+                  className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-[var(--muted-foreground)]"
+                />
+              </div>
+
+              <button type="submit" className="btn btn-primary min-h-12">
+                Match me
+                <ArrowRight size={17} />
+              </button>
+            </form>
+          </div>
+
+          <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
             <HeroStat value="15–60 min" label="focused human calls" />
             <HeroStat value="Action plan" label="next steps after call" />
             <HeroStat value="Clear price" label="before checkout" />
