@@ -282,11 +282,12 @@ export default async function ExpertProfilePage({
     tags: expert.tags,
     servicesCount: expert.services.length,
     activeServicesCount: expert.services.length,
-    availabilityCount: expert.availability.length,
+    availabilityCount: 0,
   });
 
   const profileStrength = profileCompleteness.score;
-  const missingItems = profileCompleteness.missingItems;
+  const missingItems = profileCompleteness.missingItems.filter((item) => !item.toLowerCase().includes("availability"));
+  const profileCompleted = missingItems.length === 0;
 
   const helperName = expert.user.name ?? "Helper";
   const avatarLetter = (
@@ -304,19 +305,19 @@ export default async function ExpertProfilePage({
           ? "Good start"
           : "Needs work";
 
-  const nextRecommendedHref =
-    missingItems.some((item) => item.includes("active offer"))
-      ? "/expert/services"
-      : missingItems.some((item) => item.includes("availability"))
-        ? "/expert/availability"
-        : `/experts/${expert.id}`;
+  const nextRecommendedHref = missingItems.some((item) =>
+    item.toLowerCase().includes("active service") ||
+    item.toLowerCase().includes("active offer"),
+  )
+    ? "/expert/services"
+    : `/experts/${expert.id}`;
 
-  const nextRecommendedText =
-    missingItems.some((item) => item.includes("active offer"))
-      ? "Create offer"
-      : missingItems.some((item) => item.includes("availability"))
-        ? "Add availability"
-        : "View public profile";
+  const nextRecommendedText = missingItems.some((item) =>
+    item.toLowerCase().includes("active service") ||
+    item.toLowerCase().includes("active offer"),
+  )
+    ? "Create offer"
+    : "View public profile";
 
   const cvDocuments = expert.documents.filter(
     (document) => document.type === "CV",
@@ -535,52 +536,36 @@ export default async function ExpertProfilePage({
               )}
             </Card>
 
-            <Card soft className="p-6">
-              <Badge variant="primary">
-                <ListChecks size={14} />
-                Readiness checklist
-              </Badge>
+            {profileCompleted ? (
+              <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-6">
+                <Badge variant="success">
+                  <CheckCircle2 size={14} />
+                  Profile completed
+                </Badge>
 
-              <div className="mt-5 grid gap-2">
-                <CheckRow
-                  done={Boolean(expert.user.avatarUrl)}
-                  text="Photo added"
-                />
-                <CheckRow
-                  done={(expert.headline?.length ?? 0) >= 8}
-                  text="Clear headline"
-                />
-                <CheckRow
-                  done={(expert.bio?.length ?? 0) >= 120}
-                  text="Strong biography"
-                />
-                <CheckRow
-                  done={expert.languages.length > 0}
-                  text="Languages added"
-                />
-                <CheckRow
-                  done={expert.skills.length >= 3}
-                  text="At least 3 skills"
-                />
-                <CheckRow
-                  done={expert.tags.length >= 3}
-                  text="Search tags added"
-                />
-                <CheckRow
-                  done={expert.services.length > 0}
-                  text="Active offer created"
-                />
-                <CheckRow
-                  done={expert.availability.length > 0}
-                  text="Availability open"
-                />
-                <CheckRow done={cvDocuments.length > 0} text="CV uploaded" />
-                <CheckRow
-                  done={portfolioDocuments.length > 0}
-                  text="Portfolio added"
-                />
-              </div>
-            </Card>
+                <p className="mt-4 text-sm font-bold leading-6 text-[var(--success)]">
+                  Your public profile has the essential information buyers need.
+                  Availability is managed separately when you want to receive bookings.
+                </p>
+              </Card>
+            ) : (
+              <Card soft className="p-6">
+                <Badge variant="primary">
+                  <ListChecks size={14} />
+                  Profile checklist
+                </Badge>
+
+                <div className="mt-5 grid gap-2">
+                  <CheckRow done={Boolean(expert.user.avatarUrl)} text="Photo added" />
+                  <CheckRow done={(expert.headline?.length ?? 0) >= 8} text="Clear headline" />
+                  <CheckRow done={(expert.bio?.length ?? 0) >= 120} text="Strong biography" />
+                  <CheckRow done={expert.languages.length > 0} text="Languages added" />
+                  <CheckRow done={expert.skills.length >= 3} text="At least 3 skills" />
+                  <CheckRow done={expert.tags.length >= 3} text="Search tags added" />
+                  <CheckRow done={expert.services.length > 0} text="Active offer created" />
+                </div>
+              </Card>
+            )}
 
             <Card className="p-6">
               <Badge variant="primary">
@@ -1252,28 +1237,21 @@ function HashTag({ text }: { text: string }) {
 
 function ExampleBox({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-[24px] border border-[var(--border)] bg-[#111827]/70 p-4">
-      <div className="flex gap-3">
-        <Lightbulb
-          size={18}
-          className="mt-0.5 shrink-0 text-[var(--accent)]"
-        />
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[#111827]/70 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-muted">
+        <Lightbulb size={14} />
+        {title}
+      </span>
 
-        <div>
-          <p className="text-sm font-black">{title}</p>
-
-          <div className="mt-3 grid gap-2">
-            {items.map((item) => (
-              <div
-                key={item}
-                className="rounded-2xl border border-[var(--border)] bg-[#111827]/80 px-3 py-2 text-sm font-bold leading-6 text-muted"
-              >
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {items.map((item) => (
+        <span
+          key={item}
+          title={item}
+          className="cursor-help rounded-full border border-[var(--border)] bg-[#111827]/80 px-3 py-2 text-xs font-bold text-muted transition hover:border-[var(--primary)]/40 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
+        >
+          {item.length > 42 ? `${item.slice(0, 39)}...` : item}
+        </span>
+      ))}
     </div>
   );
 }

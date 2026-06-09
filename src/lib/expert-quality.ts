@@ -163,10 +163,6 @@ export function getProfileCompleteness(
       completed:
         normalizeNumber(input.activeServicesCount ?? input.servicesCount) > 0,
     },
-    {
-      label: "Add availability",
-      completed: normalizeNumber(input.availabilityCount) > 0,
-    },
   ];
 
   const completedItems = checks.filter((check) => check.completed).length;

@@ -40,6 +40,21 @@ const heroTopics = [
   },
 ];
 
+const heroStats = [
+  {
+    value: "Short calls",
+    label: "15–60 minutes with a real person.",
+  },
+  {
+    value: "Clear outcome",
+    label: "Useful next steps after the call.",
+  },
+  {
+    value: "Fair price",
+    label: "Total price visible before booking.",
+  },
+];
+
 export function HeroSection() {
   return (
     <section className="relative overflow-hidden">
@@ -66,12 +81,7 @@ export function HeroSection() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href="/help-me">
-              Describe your problem
-              <Search size={18} />
-            </ButtonLink>
-
-            <ButtonLink href="/experts" variant="secondary">
+            <ButtonLink href="/experts">
               Browse helpers
               <ArrowRight size={18} />
             </ButtonLink>
@@ -79,31 +89,46 @@ export function HeroSection() {
             <ButtonLink href="/sign-up?role=expert" variant="secondary">
               Become a helper
             </ButtonLink>
+
+            <ButtonLink href="/help" variant="secondary">
+              How it works
+            </ButtonLink>
           </div>
 
           <div className="mt-8 rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-sm)] sm:max-w-2xl">
-            <form action="/experts" className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-[var(--background-soft)] px-4">
-                <Search size={18} className="text-[var(--muted-foreground)]" />
+            <form
+              action="/experts"
+              className="flex flex-col gap-3 sm:flex-row sm:items-center"
+            >
+              <label className="sr-only" htmlFor="hero-helper-search">
+                Search helpers
+              </label>
+
+              <div className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-2xl bg-[var(--background-soft)] px-4">
+                <Search size={18} className="shrink-0 text-[var(--muted-foreground)]" />
                 <input
+                  id="hero-helper-search"
                   name="q"
                   type="search"
-                  placeholder="Example: CV review, French document, website bug..."
-                  className="min-h-12 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-[var(--muted-foreground)]"
+                  placeholder="Search: CV review, French document, website bug..."
+                  className="min-h-12 w-full min-w-0 flex-1 border-0 bg-transparent text-sm font-bold outline-none placeholder:text-[var(--muted-foreground)]"
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary min-h-12">
-                Match me
+              <button
+                type="submit"
+                className="btn btn-primary min-h-12 shrink-0 px-6"
+              >
+                Search helpers
                 <ArrowRight size={17} />
               </button>
             </form>
           </div>
 
           <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
-            <HeroStat value="15–60 min" label="focused human calls" />
-            <HeroStat value="Action plan" label="next steps after call" />
-            <HeroStat value="Clear price" label="before checkout" />
+            {heroStats.map((stat) => (
+              <HeroStat key={stat.value} value={stat.value} label={stat.label} />
+            ))}
           </div>
         </div>
 
@@ -150,7 +175,7 @@ function HeroPreview() {
 
               <div>
                 <p className="text-sm font-bold text-white/65">
-                  Problem → person → call → outcome
+                  Topic → helper → call → useful outcome
                 </p>
 
                 <h2 className="mt-2 max-w-xl text-3xl font-black leading-tight tracking-[-0.055em]">
@@ -178,9 +203,9 @@ function HeroPreview() {
         </div>
       </Card>
 
-      <div className="absolute -bottom-7 right-6 hidden rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-md)] sm:block">
+      <div className="mt-4 rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow-md)] sm:ml-auto sm:max-w-[275px]">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
             <ShieldCheck size={20} />
           </div>
 
@@ -200,17 +225,20 @@ function HeroPreview() {
 
 function HeroStat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--card-soft)] p-4 shadow-sm backdrop-blur">
-      <div className="flex items-center gap-2">
-        <CheckCircle2 size={17} className="text-[var(--success)]" />
-        <p className="text-2xl font-black tracking-tight text-[var(--foreground)]">
-          {value}
-        </p>
+    <div className="flex min-h-[128px] flex-col justify-between rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-5 shadow-sm backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-[var(--primary)]/35 hover:shadow-[var(--shadow-sm)]">
+      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--success-soft)] text-[var(--success)]">
+        <CheckCircle2 size={18} />
       </div>
 
-      <p className="mt-1 text-sm leading-5 text-[var(--muted-foreground)]">
-        {label}
-      </p>
+      <div className="mt-4">
+        <p className="text-xl font-black leading-tight tracking-[-0.035em] text-[var(--foreground)]">
+          {value}
+        </p>
+
+        <p className="mt-1 text-sm leading-5 text-[var(--muted-foreground)]">
+          {label}
+        </p>
+      </div>
     </div>
   );
 }

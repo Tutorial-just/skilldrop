@@ -10,7 +10,6 @@ import {
   Power,
   Save,
   Search,
-  Target,
   X,
 } from "lucide-react";
 
@@ -99,20 +98,13 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
             {service.description}
           </p>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <MiniInfo
-              icon={Target}
-              label="Purpose"
-              value="Problem-focused"
-            />
-
-            <MiniInfo
-              icon={Clock3}
-              label="Duration"
-              value={`${service.durationMinutes} min`}
-            />
-
-            <MiniInfo icon={Euro} label="Price" value={`€${service.price}`} />
+          <div className="mt-4 flex flex-wrap gap-2 text-sm font-bold text-[var(--muted-foreground)]">
+            <span className="rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2">
+              {service.durationMinutes} min call
+            </span>
+            <span className="rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2">
+              €{service.price}
+            </span>
           </div>
         </div>
 
@@ -166,17 +158,16 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
             </button>
           </div>
 
-          <div className="mb-5 grid gap-4 md:grid-cols-2">
-            <HelpBox
+          <div className="mb-5 flex flex-wrap gap-2">
+            <TipChip
               icon={Lightbulb}
-              title="Write for buyers"
-              text="Use simple words people would search for: CV, visa, documents, coding, interview, translation, study, relocation or business."
+              label="Write for buyers"
+              title="Use simple search words: CV, visa, documents, coding, interview, translation, study, relocation or business."
             />
-
-            <HelpBox
+            <TipChip
               icon={Search}
-              title="Search matters"
-              text="SkillDrop search uses your offer title and description, so make them specific and problem-focused."
+              label="Search matters"
+              title="SkillDrop search uses your offer title and description, so make them specific and clear."
             />
           </div>
 
@@ -287,59 +278,23 @@ export function ServiceOfferCard({ service }: ServiceOfferCardProps) {
   );
 }
 
-function MiniInfo({
+function TipChip({
   icon: Icon,
   label,
-  value,
-}: {
-  icon: typeof Target;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-3">
-      <div className="flex items-center gap-2 text-[var(--primary-dark)]">
-        <Icon size={15} />
-        <p className="text-xs font-bold uppercase tracking-[0.12em]">
-          {label}
-        </p>
-      </div>
-
-      <p className="mt-2 text-sm font-bold text-[var(--foreground)]">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function HelpBox({
-  icon: Icon,
   title,
-  text,
 }: {
   icon: typeof Lightbulb;
+  label: string;
   title: string;
-  text: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[var(--border)] bg-[var(--background-soft)] p-4">
-      <div className="flex gap-3">
-        <Icon
-          size={18}
-          className="mt-0.5 shrink-0 text-[var(--primary-dark)]"
-        />
-
-        <div>
-          <p className="text-sm font-bold text-[var(--foreground)]">
-            {title}
-          </p>
-
-          <p className="mt-1 text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-            {text}
-          </p>
-        </div>
-      </div>
-    </div>
+    <span
+      title={title}
+      className="inline-flex cursor-help items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-xs font-black text-[var(--muted-foreground)] transition hover:border-[var(--primary)]/40 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
+    >
+      <Icon size={14} />
+      {label}
+    </span>
   );
 }
 
@@ -368,30 +323,20 @@ function Field({
 
 function ExampleBox({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-[24px] border border-[var(--border)] bg-[var(--card-soft)] p-4">
-      <div className="flex gap-3">
-        <BadgeCheck
-          size={18}
-          className="mt-0.5 shrink-0 text-[var(--success)]"
-        />
-
-        <div>
-          <p className="text-sm font-bold text-[var(--foreground)]">
-            {title}
-          </p>
-
-          <div className="mt-3 grid gap-2">
-            {items.map((item) => (
-              <div
-                key={item}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-sm font-medium leading-6 text-[var(--muted-foreground)]"
-              >
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-muted">
+        <BadgeCheck size={14} />
+        {title}
+      </span>
+      {items.map((item) => (
+        <span
+          key={item}
+          title={item}
+          className="cursor-help rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2 text-xs font-bold text-[var(--muted-foreground)] transition hover:border-[var(--primary)]/40 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
+        >
+          {item.length > 44 ? `${item.slice(0, 41)}...` : item}
+        </span>
+      ))}
     </div>
   );
 }

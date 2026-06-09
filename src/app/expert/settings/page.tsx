@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   BadgeCheck,
   CreditCard,
-  Download,
   ExternalLink,
   Eye,
   Globe2,
@@ -15,7 +14,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   Settings,
-  Trash2,
   UserRound,
   WalletCards,
 } from "lucide-react";
@@ -408,51 +406,25 @@ export default async function ExpertSettingsPage({
 
           <ProviderSettingsControls settings={expert.settings} />
 
-          <Card className="p-5 md:p-6">
+          <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
             <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
                 <Badge variant="accent">
-                  <Download size={14} />
-                  Data tools
+                  <ShieldAlert size={14} />
+                  Pause profile
                 </Badge>
 
                 <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
-                  Helper data and exports
+                  Hide your helper profile without deleting your account.
                 </h2>
 
                 <p className="mt-3 max-w-3xl leading-7 text-[var(--muted-foreground)]">
-                  Later this area can include booking export, review export,
-                  invoices, tax documents and account archive.
+                  To pause your activity, turn off “Profile visible” in the Public profile settings above and save. Your account, history and payouts stay protected, but buyers will not discover you in search.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-4 text-sm font-bold text-[var(--muted-foreground)]">
-                Coming soon
-              </div>
-            </div>
-          </Card>
-
-          <Card className="border-[var(--danger)]/20 bg-[var(--danger-soft)] p-5 md:p-6">
-            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div>
-                <Badge>
-                  <Trash2 size={14} />
-                  Danger zone
-                </Badge>
-
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
-                  Sensitive account actions
-                </h2>
-
-                <p className="mt-3 max-w-3xl leading-7 text-[var(--muted-foreground)]">
-                  Later this area can include pause profile, deactivate helper
-                  account, export data and delete account. For now these actions
-                  are disabled to protect your data.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-[var(--danger)]/20 bg-[var(--background-soft)] p-4 text-sm font-bold text-[var(--danger)]">
-                Protected
+              <div className="rounded-2xl border border-[var(--warning)]/20 bg-[var(--background-soft)] p-4 text-sm font-bold text-[var(--warning)]">
+                Safer than delete
               </div>
             </div>
           </Card>

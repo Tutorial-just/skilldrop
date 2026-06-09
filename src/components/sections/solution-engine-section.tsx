@@ -17,8 +17,8 @@ import { Card } from "@/components/ui/card";
 const flowSteps = [
   {
     icon: MessageCircle,
-    title: "Describe the real problem",
-    text: "Write the situation in normal words instead of guessing the perfect category.",
+    title: "Choose the right topic",
+    text: "Start from a clear need, then compare helpers who fit the situation.",
   },
   {
     icon: Target,
@@ -62,19 +62,19 @@ export function SolutionEngineSection() {
             </h2>
 
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-              The strongest flow is simple: describe the problem, compare the
-              most relevant helpers, book a short call and keep a written action
-              plan after the session.
+              The strongest flow is simple: choose a topic, compare relevant
+              helpers, book a short call and keep a written action plan after
+              the session.
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <ButtonLink href="/help-me">
-                Describe a problem
+              <ButtonLink href="/experts">
+                Browse helpers
                 <ArrowRight size={18} />
               </ButtonLink>
 
-              <ButtonLink href="/experts" variant="secondary">
-                Browse helpers
+              <ButtonLink href="/help" variant="secondary">
+                How it works
                 <Search size={18} />
               </ButtonLink>
             </div>
@@ -85,7 +85,7 @@ export function SolutionEngineSection() {
               <div className="flex items-center justify-between gap-4">
                 <Badge variant="accent">
                   <FileText size={14} />
-                  Problem brief
+                  Booking brief
                 </Badge>
 
                 <span className="rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-black text-[var(--success)]">

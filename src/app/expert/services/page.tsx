@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
-  CalendarDays,
   CheckCircle2,
   Clock3,
   Euro,
@@ -164,7 +163,6 @@ export default async function ExpertServicesPage({
   const offerHealth = calculateOfferHealth({
     activeServicesCount: activeServices.length,
     servicesCount: expert.services.length,
-    hasOpenSlots: expert.availability.length > 0,
     hasStripe: Boolean(expert.stripeAccountId),
     hasStrongDescriptions: expert.services.some(
       (service) => service.description.length >= 80,
@@ -229,7 +227,7 @@ export default async function ExpertServicesPage({
                   ) : (
                     <>
                       <ShieldCheck size={14} />
-                      Setup needed
+                      Offer draft
                     </>
                   )}
                 </Badge>
@@ -239,10 +237,6 @@ export default async function ExpertServicesPage({
                   {expert.stripeAccountId ? "Stripe connected" : "Stripe missing"}
                 </Badge>
 
-                <Badge variant={expert.availability.length > 0 ? "success" : "accent"}>
-                  <CalendarDays size={14} />
-                  {expert.availability.length} open slots
-                </Badge>
               </div>
             </div>
 
@@ -252,10 +246,6 @@ export default async function ExpertServicesPage({
                 Public profile
               </ButtonLink>
 
-              <ButtonLink href="/expert/availability" variant="secondary">
-                Availability
-                <ArrowRight size={18} />
-              </ButtonLink>
             </div>
           </div>
 
@@ -285,7 +275,7 @@ export default async function ExpertServicesPage({
               icon={Target}
               label="Offer health"
               value={`${offerHealth}%`}
-              text="Readiness"
+              text="Offer quality"
             />
 
             <MiniStat
@@ -300,8 +290,6 @@ export default async function ExpertServicesPage({
 
       <section className="p-6 md:p-8 lg:p-10">
         <div className="grid gap-6">
-          {!isBookable ? <SetupNeededCard expert={expert} activeServices={activeServices.length} /> : <ReadyCard expertId={expert.id} />}
-
           <div className="grid gap-6 xl:grid-cols-[0.84fr_1.16fr] xl:items-start">
             <div className="grid gap-6">
               <Card className="p-5 md:p-6">
@@ -329,19 +317,23 @@ export default async function ExpertServicesPage({
               </Card>
 
               <Card soft className="p-5 md:p-6">
-                <Badge variant="primary">
+                <Badge variant={offerHealth >= 80 ? "success" : "primary"}>
                   <BadgeCheck size={14} />
-                  Good offer checklist
+                  Offer quality
                 </Badge>
 
+                <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
+                  {offerHealth >= 80 ? "Offers look clean" : "Improve offer clarity"}
+                </h2>
+
+                <p className="mt-3 text-sm font-bold leading-6 text-[var(--muted-foreground)]">
+                  This page focuses only on the offers themselves. Availability is managed separately from your calendar.
+                </p>
+
                 <div className="mt-5 grid gap-3">
-                  <CheckRow done={activeServices.length > 0} text="At least one active offer" />
-                  <CheckRow done={expert.services.some((service) => service.title.length >= 8)} text="Clear problem-focused title" />
-                  <CheckRow done={expert.services.some((service) => service.description.length >= 80)} text="Detailed description" />
-                  <CheckRow done={expert.services.some((service) => service.tags.length > 0)} text="Search tags added" />
-                  <CheckRow done={expert.services.some((service) => service.durationMinutes === 15 || service.durationMinutes === 30)} text="Short, easy-to-book duration" />
-                  <CheckRow done={expert.availability.length > 0} text="Open availability added" />
-                  <CheckRow done={Boolean(expert.stripeAccountId)} text="Stripe payouts connected" />
+                  <InfoRow label="Active offers" value={String(activeServices.length)} />
+                  <InfoRow label="Search tags" value={expert.services.some((service) => service.tags.length > 0) ? "Added" : "Missing"} />
+                  <InfoRow label="Stripe payouts" value={expert.stripeAccountId ? "Connected" : "Not connected"} />
                 </div>
               </Card>
 
@@ -379,14 +371,15 @@ export default async function ExpertServicesPage({
                   connect a buyer problem with the right helper.
                 </p>
 
-                <div className="mt-5 grid gap-3">
+                <div className="mt-5 flex flex-wrap gap-2">
                   {keywordExamples.map((example) => (
-                    <div
+                    <span
                       key={example}
-                      className="rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3 text-sm font-bold text-[var(--muted-foreground)]"
+                      title={example}
+                      className="cursor-help rounded-full border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-xs font-bold text-[var(--muted-foreground)] transition hover:border-[var(--primary)]/40 hover:bg-[var(--primary-soft)] hover:text-[var(--primary-dark)]"
                     >
                       {example}
-                    </div>
+                    </span>
                   ))}
                 </div>
               </Card>
@@ -562,10 +555,13 @@ function ServiceCard({
             </div>
           ) : null}
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <MiniInfo icon={Target} label="Purpose" value="Problem-focused" />
-            <MiniInfo icon={Clock3} label="Duration" value={`${service.durationMinutes} min`} />
-            <MiniInfo icon={Euro} label="Price" value={`€${service.price}`} />
+          <div className="mt-4 flex flex-wrap gap-2 text-sm font-bold text-[var(--muted-foreground)]">
+            <span className="rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2">
+              {service.durationMinutes} min call
+            </span>
+            <span className="rounded-full border border-[var(--border)] bg-[var(--background-soft)] px-3 py-2">
+              €{service.price}
+            </span>
           </div>
         </div>
 
@@ -641,76 +637,6 @@ function Notice({ type, text }: { type: "success" | "danger"; text: string }) {
   return <div className={className}>{text}</div>;
 }
 
-function SetupNeededCard({
-  expert,
-  activeServices,
-}: {
-  expert: { availability: { id: string }[]; stripeAccountId: string | null };
-  activeServices: number;
-}) {
-  return (
-    <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
-      <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--warning)]">
-          <Lightbulb size={24} />
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-black tracking-[-0.04em]">
-            Your offers are not fully ready for paid bookings yet.
-          </h2>
-
-          <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
-            You need at least one active offer, open availability and Stripe
-            payouts connected before buyers can book smoothly.
-          </p>
-        </div>
-
-        <ButtonLink
-          href={
-            activeServices === 0
-              ? "#add-offer"
-              : expert.availability.length === 0
-                ? "/expert/availability"
-                : "/expert/earnings"
-          }
-        >
-          Continue setup
-          <ArrowRight size={18} />
-        </ButtonLink>
-      </div>
-    </Card>
-  );
-}
-
-function ReadyCard({ expertId }: { expertId: string }) {
-  return (
-    <Card className="border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6">
-      <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--success)]">
-          <CheckCircle2 size={24} />
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-black tracking-[-0.04em]">
-            Your profile can accept bookings.
-          </h2>
-
-          <p className="mt-2 leading-7 text-[var(--muted-foreground)]">
-            You have active offers, open slots and payout setup. Keep your offers
-            clear, searchable and easy to book.
-          </p>
-        </div>
-
-        <ButtonLink href={`/experts/${expertId}`}>
-          View profile
-          <Eye size={18} />
-        </ButtonLink>
-      </div>
-    </Card>
-  );
-}
-
 function MiniStat({
   icon: Icon,
   label,
@@ -743,31 +669,6 @@ function MiniStat({
   );
 }
 
-function MiniInfo({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--background-soft)] p-3">
-      <div className="flex items-center gap-2 text-[var(--primary-dark)]">
-        <Icon size={15} />
-        <p className="text-xs font-bold uppercase tracking-[0.12em]">
-          {label}
-        </p>
-      </div>
-
-      <p className="mt-2 text-sm font-bold text-[var(--foreground)]">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function InfoRow({
   label,
   value,
@@ -796,26 +697,6 @@ function InfoRow({
   );
 }
 
-function CheckRow({ done, text }: { done: boolean; text: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] p-3">
-      <div
-        className={
-          done
-            ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--success-soft)] text-[var(--success)]"
-            : "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]"
-        }
-      >
-        {done ? <CheckCircle2 size={16} /> : <Clock3 size={16} />}
-      </div>
-
-      <p className="text-sm font-medium text-[var(--muted-foreground)]">
-        {text}
-      </p>
-    </div>
-  );
-}
-
 function EmptyState() {
   return (
     <div className="rounded-[26px] border border-dashed border-[var(--border-strong)] bg-[var(--card-soft)] p-8 text-center">
@@ -838,14 +719,12 @@ function EmptyState() {
 function calculateOfferHealth({
   activeServicesCount,
   servicesCount,
-  hasOpenSlots,
   hasStripe,
   hasStrongDescriptions,
   hasSearchTags,
 }: {
   activeServicesCount: number;
   servicesCount: number;
-  hasOpenSlots: boolean;
   hasStripe: boolean;
   hasStrongDescriptions: boolean;
   hasSearchTags: boolean;
@@ -856,7 +735,6 @@ function calculateOfferHealth({
     activeServicesCount >= 2,
     hasStrongDescriptions,
     hasSearchTags,
-    hasOpenSlots,
     hasStripe,
   ];
 

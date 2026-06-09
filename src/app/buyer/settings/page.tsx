@@ -8,7 +8,6 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
-  Download,
   Eye,
   FileText,
   Globe2,
@@ -16,12 +15,10 @@ import {
   Lock,
   Mail,
   Palette,
-  Receipt,
   Save,
   ShieldAlert,
   ShieldCheck,
   Star,
-  Trash2,
   UserRound,
   Video,
   WalletCards,
@@ -619,28 +616,6 @@ export default async function BuyerSettingsPage({
 
           <div className="grid gap-5 xl:grid-cols-2">
             <Card className="p-5 md:p-6">
-              <Badge variant="accent">
-                <Download size={14} />
-                Data tools
-              </Badge>
-
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
-                Data and exports
-              </h2>
-
-              <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
-                Export tools can be added after the main booking and payment
-                flow is stable.
-              </p>
-
-              <div className="mt-6 grid gap-3">
-                <DisabledTool icon={Receipt} label="Export booking history" />
-                <DisabledTool icon={Download} label="Download receipts" />
-                <DisabledTool icon={Star} label="Export reviews" />
-              </div>
-            </Card>
-
-            <Card className="p-5 md:p-6">
               <Badge variant="primary">
                 <ShieldCheck size={14} />
                 Support and safety
@@ -657,44 +632,26 @@ export default async function BuyerSettingsPage({
 
               <div className="mt-6 grid gap-3">
                 <SupportLink icon={HelpCircle} label="Help center" href="/help" />
-                <SupportLink
-                  icon={ShieldCheck}
-                  label="Safety and trust"
-                  href="/legal/safety"
-                />
-                <SupportLink
-                  icon={WalletCards}
-                  label="Refund policy"
-                  href="/legal/refunds"
-                />
+                <SupportLink icon={ShieldCheck} label="Safety and trust" href="/legal/safety" />
+                <SupportLink icon={WalletCards} label="Refund policy" href="/legal/refunds" />
               </div>
             </Card>
+
+            <Card className="border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6">
+              <Badge variant="accent">
+                <ShieldAlert size={14} />
+                Pause buyer activity
+              </Badge>
+
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
+                Keep the account, stop using it whenever you want.
+              </h2>
+
+              <p className="mt-3 leading-7 text-[var(--muted-foreground)]">
+                No account deletion button is shown here. A safer flow is to keep history and payments protected, then contact support only if you really need permanent closure.
+              </p>
+            </Card>
           </div>
-
-          <Card className="border-[var(--danger)]/20 bg-[var(--danger-soft)] p-5 md:p-6">
-            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div>
-                <Badge>
-                  <Trash2 size={14} />
-                  Danger zone
-                </Badge>
-
-                <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--foreground)]">
-                  Sensitive account actions
-                </h2>
-
-                <p className="mt-3 max-w-3xl leading-7 text-[var(--muted-foreground)]">
-                  Account deletion should be handled with confirmation screens,
-                  identity checks and admin-safe audit logs. For now, contact
-                  support if you need to close your account.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-[var(--danger)]/20 bg-[var(--background-soft)] p-4 text-sm font-bold text-[var(--danger)]">
-                Contact support
-              </div>
-            </div>
-          </Card>
         </div>
       </section>
     </main>

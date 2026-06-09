@@ -112,8 +112,8 @@ export function ProviderSettingsControls({
         >
           <CheckboxRow
             name="profileVisible"
-            label="Profile visible"
-            description="Allow buyers to discover your profile in search."
+            label="Profile visible / active"
+            description="Turn this off to pause your helper profile without deleting your account."
             defaultChecked={currentSettings.profileVisible}
           />
 

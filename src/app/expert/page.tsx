@@ -25,9 +25,6 @@ import {
   WalletCards,
   Zap,
 } from "lucide-react";
-import { getExpertQuality } from "@/lib/expert-quality";
-import { ExpertProfileCompletenessCard } from "@/components/experts/expert-profile-completeness-card";
-import { ExpertVerificationCard } from "@/components/experts/expert-verification-card";
 import { requireRole } from "@/lib/auth/get-current-user";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Badge } from "@/components/ui/badge";
@@ -234,12 +231,6 @@ export default async function ExpertDashboardPage({
   const isBookable =
     activeServices.length > 0 && openSlots.length > 0 && hasStripePayouts;
 
-  const missingBookableSteps = [
-    activeServices.length === 0 ? "create an active offer" : null,
-    openSlots.length === 0 ? "add availability" : null,
-    !hasStripePayouts ? "finish Stripe payouts" : null,
-  ].filter(Boolean) as string[];
-
   const nextSetupHref =
     activeServices.length === 0
       ? "/expert/services"
@@ -308,63 +299,18 @@ export default async function ExpertDashboardPage({
     0,
   );
 
-  const quality = getExpertQuality({
-    image: expert.user.avatarUrl,
-    headline: expert.headline,
-    bio: expert.bio,
-    country: expert.country,
-    timezone: expert.timezone,
-    languages: expert.languages,
-    skills: expert.skills,
-    totalSessions: expert.totalSessions,
-    completedCalls: expert.totalSessions,
-    totalReviews: expert.totalReviews,
-    rating: expert.rating,
-    servicesCount: expert.services.length,
-    activeServicesCount: activeServices.length,
-    availabilityCount: expert.availability.length,
-    isManuallyVerified: expert.isVerified,
-  });
+  const profileCompleted =
+    Boolean(expert.headline?.trim()) &&
+    bio.trim().length >= 120 &&
+    expert.skills.length >= 3 &&
+    expert.languages.length > 0 &&
+    activeServices.length > 0;
 
-  const checklist = [
-    {
-      title: "Public profile",
-      text: "Headline, long bio, languages and 3+ skills.",
-      done:
-        Boolean(expert.headline?.trim()) &&
-        bio.trim().length >= 120 &&
-        expert.skills.length >= 3 &&
-        expert.languages.length > 0,
-      href: "/expert/profile",
-    },
-    {
-      title: "Bookable offer",
-      text: "At least one active service with clear result.",
-      done: activeServices.length > 0,
-      href: "/expert/services",
-    },
-    {
-      title: "Open calendar",
-      text: "Availability for the next few days.",
-      done: openSlots.length > 0,
-      href: "/expert/availability",
-    },
-    {
-      title: "Payouts ready",
-      text: "Stripe onboarding submitted and payouts enabled.",
-      done: hasStripePayouts,
-      href: "/expert/earnings",
-    },
-    {
-      title: "First trust signal",
-      text: "At least one review or 3 completed calls.",
-      done: expert.totalReviews > 0 || expert.totalSessions >= 3,
-      href: "/expert/stats",
-    },
-  ];
-
-  const completedChecklist = checklist.filter((item) => item.done).length;
-  const setupProgress = Math.round((completedChecklist / checklist.length) * 100);
+  const workHealthLabel = isBookable
+    ? "Ready for bookings"
+    : profileCompleted
+      ? "Profile completed"
+      : "Profile in progress";
 
   const activeServiceCategoryIds = Array.from(
     new Set(activeServices.map((service) => service.categoryId).filter(Boolean)),
@@ -449,7 +395,7 @@ export default async function ExpertDashboardPage({
 
                   <Badge variant={isBookable ? "success" : "accent"}>
                     {isBookable ? <CheckCircle2 size={14} /> : <ListChecks size={14} />}
-                    {isBookable ? "Bookable" : "Setup required"}
+                    {isBookable ? "Bookable" : workHealthLabel}
                   </Badge>
 
                   {disputedBookings.length > 0 ? (
@@ -471,7 +417,7 @@ export default async function ExpertDashboardPage({
 
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
                 <HeroStat label="Today" value={`${todaysBookings.length} calls`} hint={`${todaysOpenSlots.length} open windows`} />
-                <HeroStat label="Setup" value={`${setupProgress}%`} hint={`${completedChecklist}/${checklist.length} ready`} />
+                <HeroStat label="Availability" value={`${openSlots.length} windows`} hint={`${todaysOpenSlots.length} today`} />
                 <HeroStat label="Net confirmed" value={formatMoney(upcomingRevenueCents)} hint="Estimated helper net" />
               </div>
             </div>
@@ -492,16 +438,15 @@ export default async function ExpertDashboardPage({
                 </div>
 
                 <div className="mt-6 space-y-3">
-                  <ReadinessLine label="Offer" done={activeServices.length > 0} />
-                  <ReadinessLine label="Availability" done={openSlots.length > 0} />
-                  <ReadinessLine label="Payouts" done={hasStripePayouts} />
-                  <ReadinessLine label="Trust" done={expert.isVerified || expert.totalReviews > 0} />
+                  <StatusLine label="Profile" value={profileCompleted ? "Completed" : "In progress"} done={profileCompleted} />
+                  <StatusLine label="Offers" value={`${activeServices.length} active`} done={activeServices.length > 0} />
+                  <StatusLine label="Payouts" value={hasStripePayouts ? "Ready" : "Not ready"} done={hasStripePayouts} />
                 </div>
               </div>
 
               <div className="mt-6 grid gap-3">
-                <ButtonLink href={isBookable ? `/experts/${expert.id}` : nextSetupHref}>
-                  {isBookable ? "View public profile" : "Complete setup"}
+                <ButtonLink href={isBookable || profileCompleted ? `/experts/${expert.id}` : nextSetupHref}>
+                  {isBookable ? "View public profile" : profileCompleted ? "View public profile" : "Improve profile"}
                   <ArrowRight size={18} />
                 </ButtonLink>
 
@@ -533,12 +478,13 @@ export default async function ExpertDashboardPage({
               completedWithoutOutcomeCount={completedWithoutOutcome.length}
             />
 
-            <SetupCommandCenter
+            <WorkStatusPanel
               isBookable={isBookable}
-              missingBookableSteps={missingBookableSteps}
+              profileCompleted={profileCompleted}
+              hasAvailability={openSlots.length > 0}
+              hasStripePayouts={hasStripePayouts}
+              activeServicesCount={activeServices.length}
               nextSetupHref={nextSetupHref}
-              checklist={checklist}
-              completedChecklist={completedChecklist}
             />
           </div>
 
@@ -684,16 +630,6 @@ export default async function ExpertDashboardPage({
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <ExpertProfileCompletenessCard quality={quality} />
-            <ExpertVerificationCard
-              totalSessions={expert.totalSessions}
-              totalReviews={expert.totalReviews}
-              rating={expert.rating}
-              isVerified={expert.isVerified}
-            />
-          </div>
-
           <UnreadNotificationsCard userId={expert.user.id} email={helperEmail} />
         </div>
       </section>
@@ -711,12 +647,12 @@ function HeroStat({ label, value, hint }: { label: string; value: string; hint: 
   );
 }
 
-function ReadinessLine({ label, done }: { label: string; done: boolean }) {
+function StatusLine({ label, value, done }: { label: string; value: string; done: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 py-3">
       <p className="text-sm font-black">{label}</p>
-      <span className={done ? "text-[var(--success)]" : "text-[var(--accent)]"}>
-        {done ? <CheckCircle2 size={18} /> : <Clock3 size={18} />}
+      <span className={done ? "text-sm font-black text-[var(--success)]" : "text-sm font-black text-[var(--muted-foreground)]"}>
+        {value}
       </span>
     </div>
   );
@@ -857,47 +793,63 @@ function NextCallPanel({
   );
 }
 
-function SetupCommandCenter({
+function WorkStatusPanel({
   isBookable,
-  missingBookableSteps,
+  profileCompleted,
+  hasAvailability,
+  hasStripePayouts,
+  activeServicesCount,
   nextSetupHref,
-  checklist,
-  completedChecklist,
 }: {
   isBookable: boolean;
-  missingBookableSteps: string[];
+  profileCompleted: boolean;
+  hasAvailability: boolean;
+  hasStripePayouts: boolean;
+  activeServicesCount: number;
   nextSetupHref: string;
-  checklist: { title: string; text: string; done: boolean; href: string }[];
-  completedChecklist: number;
 }) {
+  const title = isBookable
+    ? "Ready for paid bookings"
+    : profileCompleted
+      ? "Profile completed"
+      : "Your work status";
+
+  const text = isBookable
+    ? "Your offers, calendar and payouts are ready. Keep your availability fresh and focus on calls."
+    : profileCompleted
+      ? "Your public profile is clean. Add availability when you want to appear bookable to buyers."
+      : "Finish the profile once, then this dashboard becomes your daily work cockpit.";
+
   return (
-    <Card className={isBookable ? "border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6" : "border-[var(--warning)]/20 bg-[var(--warning-soft)] p-5 md:p-6"}>
+    <Card className={isBookable ? "border-[var(--success)]/20 bg-[var(--success-soft)] p-5 md:p-6" : "p-5 md:p-6"}>
       <div className="flex items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--background-soft)] text-[var(--primary-dark)]">
-          {isBookable ? <CheckCircle2 size={22} /> : <ShieldCheck size={22} />}
+          {isBookable || profileCompleted ? <CheckCircle2 size={22} /> : <ShieldCheck size={22} />}
         </div>
         <div>
-          <Badge variant={isBookable ? "success" : "accent"}>
-            {completedChecklist}/{checklist.length} complete
+          <Badge variant={isBookable || profileCompleted ? "success" : "primary"}>
+            {isBookable ? "Bookable" : profileCompleted ? "Profile completed" : "One-time setup"}
           </Badge>
-          <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">
-            {isBookable ? "Ready for paid bookings" : "Finish your launch setup"}
-          </h2>
-          <p className="mt-2 text-sm font-semibold leading-6 text-muted">
-            {isBookable
-              ? "Your offer, calendar and payout setup are ready. Keep availability fresh."
-              : `Next: ${missingBookableSteps.join(", ")}.`}
-          </p>
+          <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">{title}</h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-muted">{text}</p>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-2">
-        {checklist.map((item) => <ChecklistRow key={item.title} item={item} />)}
+      <div className="mt-6 grid gap-3">
+        <MoneyRow label="Active offers" value={String(activeServicesCount)} />
+        <MoneyRow label="Payouts" value={hasStripePayouts ? "Ready" : "Not ready"} />
+        <MoneyRow label="Availability" value={hasAvailability ? "Open windows added" : "No open windows"} />
       </div>
 
+      {!hasAvailability ? (
+        <div className="mt-5 rounded-[22px] border border-[var(--warning)]/20 bg-[var(--warning-soft)] p-4 text-sm font-bold leading-6 text-[var(--warning)]">
+          Reminder: add availability only when you are ready to receive bookings.
+        </div>
+      ) : null}
+
       <div className="mt-6">
-        <ButtonLink href={nextSetupHref}>
-          {isBookable ? "View buyer profile" : "Continue setup"}
+        <ButtonLink href={isBookable ? "/expert/bookings" : nextSetupHref}>
+          {isBookable ? "Open bookings" : profileCompleted ? "Manage availability" : "Improve profile"}
           <ArrowRight size={18} />
         </ButtonLink>
       </div>
