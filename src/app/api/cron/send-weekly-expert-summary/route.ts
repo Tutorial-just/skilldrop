@@ -15,9 +15,16 @@ function isAuthorized(request: Request) {
   return authHeader === `Bearer ${expectedSecret}`;
 }
 
+function isUpcomingBookingStatus(status: BookingStatus) {
+  return status === BookingStatus.PAID || status === BookingStatus.CONFIRMED;
+}
+
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized" },
+      { status: 401 },
+    );
   }
 
   const now = new Date();
@@ -71,12 +78,15 @@ export async function GET(request: Request) {
   let sent = 0;
 
   for (const expert of experts) {
-    if (!expert.user.email) {
+    const expertEmail = expert.user.email;
+
+    if (!expertEmail) {
       continue;
     }
 
     const upcomingCalls = expert.bookings.filter(
-      (booking) => booking.startTime >= now && [BookingStatus.PAID, BookingStatus.CONFIRMED].includes(booking.status),
+      (booking) =>
+        booking.startTime >= now && isUpcomingBookingStatus(booking.status),
     );
 
     const completedCalls = expert.bookings.filter(
@@ -91,7 +101,7 @@ export async function GET(request: Request) {
     );
 
     await sendWeeklyExpertSummaryEmail({
-      expertEmail: expert.user.email,
+      expertEmail,
       expertName: expert.user.name,
       upcomingCalls: upcomingCalls.length,
       completedCalls: completedCalls.length,
