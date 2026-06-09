@@ -21,7 +21,19 @@ function getDashboardHref(role?: string | null) {
   return "/buyer";
 }
 
-export default async function SignInPage() {
+type SignInPageProps = {
+  searchParams?: Promise<{
+    error?: string;
+    next?: string;
+  }>;
+};
+
+export default async function SignInPage({ searchParams }: SignInPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const safeNext =
+    resolvedSearchParams.next?.startsWith("/") && !resolvedSearchParams.next.startsWith("//")
+      ? resolvedSearchParams.next
+      : "";
   const supabase = await createClient();
 
   const {
@@ -72,7 +84,16 @@ export default async function SignInPage() {
             Sign in
           </h2>
 
+          {resolvedSearchParams.error ? (
+            <div className="mt-5 rounded-2xl border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger)]">
+              {resolvedSearchParams.error === "auth-config-missing"
+                ? "Authentication is not configured yet. Add Supabase environment variables before launching."
+                : resolvedSearchParams.error}
+            </div>
+          ) : null}
+
           <form action={signInAction} className="mt-7 grid gap-5">
+            <input type="hidden" name="next" value={safeNext} />
             <div>
               <label htmlFor="email" className="text-sm font-black">
                 Email

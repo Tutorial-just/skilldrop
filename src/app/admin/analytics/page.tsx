@@ -53,9 +53,11 @@ export default async function AdminAnalyticsPage() {
     }),
   ]);
 
-  const eventCount = new Map(events.map((event) => [event.event, event._count._all]));
-  const helpRequestCount = helpRequests.reduce((sum, row) => sum + row._count._all, 0);
-  const bookingCount = bookings.reduce((sum, row) => sum + row._count._all, 0);
+  const eventCount = new Map<string, number>(
+    events.map((event) => [String(event.event), Number(event._count._all)]),
+  );
+  const helpRequestCount = helpRequests.reduce((sum, row) => sum + Number(row._count._all), 0);
+  const bookingCount = bookings.reduce((sum, row) => sum + Number(row._count._all), 0);
   const bookingStarted = eventCount.get("BOOKING_STARTED") ?? 0;
   const helpCreated = eventCount.get("HELP_REQUEST_CREATED") ?? 0;
   const conversionRate = helpCreated > 0 ? Math.round((bookingStarted / helpCreated) * 100) : 0;

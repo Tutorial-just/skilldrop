@@ -21,6 +21,14 @@ function redirectWithError(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
+function createSafeRedirectPath(value: string) {
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    return null;
+  }
+
+  return value;
+}
+
 async function getRedirectPathForUser({
   email,
   role,
@@ -105,6 +113,7 @@ export async function signInAction(formData: FormData) {
 
   const email = getStringValue(formData, "email").toLowerCase();
   const password = getStringValue(formData, "password");
+  const nextPath = createSafeRedirectPath(getStringValue(formData, "next"));
 
   if (!email || !password) {
     redirectWithError("/sign-in", "Please enter your email and password.");
@@ -133,7 +142,7 @@ export async function signInAction(formData: FormData) {
     role,
   });
 
-  redirect(redirectPath);
+  redirect(nextPath ?? redirectPath);
 }
 
 export async function signOutAction() {

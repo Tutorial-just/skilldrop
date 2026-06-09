@@ -33,7 +33,9 @@ export default async function SeoCategoryPage({ params }: { params: Promise<{ sl
 
   if (!category || !category.isActive) notFound();
 
-  const experts = Array.from(new Map(category.services.map((service) => [service.expert.id, service.expert])).values()).slice(0, 6);
+  const experts = Array.from(
+    new Map(category.services.map((service) => [service.expert.id, service.expert])).values(),
+  ).slice(0, 6) as any[];
 
   return (
     <main>
