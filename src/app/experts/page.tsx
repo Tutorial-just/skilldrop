@@ -17,7 +17,13 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
-import { HelpRequestStatus, HelpType, HelpUrgency } from "@prisma/client";
+import {
+  HelpRequestStatus,
+  HelpType,
+  HelpUrgency,
+  ServiceModerationStatus,
+  type Prisma,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { calculateWorldClassMatchScore } from "@/lib/matching";
@@ -211,15 +217,20 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     helpRequest?.preferredLanguage?.trim().toLowerCase() ??
     resolvedSearchParams.language?.trim().toLowerCase() ??
     "";
+
   const categorySlug =
     helpRequest?.subcategory?.slug ??
     helpRequest?.category?.slug ??
     resolvedSearchParams.category?.trim().toLowerCase() ??
     "";
-  const helpType = helpRequest?.helpType ?? parseHelpType(resolvedSearchParams.helpType);
+
+  const helpType =
+    helpRequest?.helpType ?? parseHelpType(resolvedSearchParams.helpType);
+
   const urgency = helpRequest
     ? helpUrgencyToParam(helpRequest.urgency)
     : resolvedSearchParams.urgency?.trim().toLowerCase() ?? "";
+
   const sort =
     urgency === "today" ? "soonest" : (resolvedSearchParams.sort ?? "best");
 
@@ -234,42 +245,42 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
   const searchTerms = getSearchTerms(query);
   const hasSearch = searchTerms.length > 0;
 
-  const textSearchOr = hasSearch
-    ? searchTerms.flatMap((term) => [
+  const textSearchOr: Prisma.ExpertProfileWhereInput[] = hasSearch
+    ? searchTerms.flatMap((term): Prisma.ExpertProfileWhereInput[] => [
         {
           headline: {
             contains: term,
-            mode: "insensitive" as const,
+            mode: "insensitive",
           },
         },
         {
           bio: {
             contains: term,
-            mode: "insensitive" as const,
+            mode: "insensitive",
           },
         },
         {
           country: {
             contains: term,
-            mode: "insensitive" as const,
+            mode: "insensitive",
           },
         },
         {
           services: {
             some: {
               isActive: true,
-              moderationStatus: "APPROVED",
+              moderationStatus: ServiceModerationStatus.APPROVED,
               OR: [
                 {
                   title: {
                     contains: term,
-                    mode: "insensitive" as const,
+                    mode: "insensitive",
                   },
                 },
                 {
                   description: {
                     contains: term,
-                    mode: "insensitive" as const,
+                    mode: "insensitive",
                   },
                 },
               ],
@@ -295,7 +306,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       services: {
         some: {
           isActive: true,
-          moderationStatus: "APPROVED",
+          moderationStatus: ServiceModerationStatus.APPROVED,
           ...(maxPrice
             ? {
                 priceCents: {
@@ -364,7 +375,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       services: {
         where: {
           isActive: true,
-          moderationStatus: "APPROVED",
+          moderationStatus: ServiceModerationStatus.APPROVED,
           ...(maxPrice
             ? {
                 priceCents: {
@@ -500,6 +511,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
           helpType,
           maxPrice,
         });
+
         const aScore = calculateServiceFitScore({
           service: a,
           query,
@@ -579,6 +591,7 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
       return aTime - bTime;
     });
   }
+
   const totalMatchedExperts = experts.length;
 
   const totalPages = Math.max(
@@ -612,7 +625,11 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
     Boolean(requestId) ||
     sort !== "best";
 
-  if (requestId && helpRequest?.status === HelpRequestStatus.OPEN && totalMatchedExperts > 0) {
+  if (
+    requestId &&
+    helpRequest?.status === HelpRequestStatus.OPEN &&
+    totalMatchedExperts > 0
+  ) {
     await prisma.helpRequest.updateMany({
       where: {
         id: requestId,
@@ -718,7 +735,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
           <form action="/experts" className="mt-8">
             <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card-soft)] p-3 shadow-[var(--shadow-sm)] backdrop-blur">
-              {requestId ? <input type="hidden" name="requestId" value={requestId} /> : null}
+              {requestId ? (
+                <input type="hidden" name="requestId" value={requestId} />
+              ) : null}
 
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="flex min-h-12 flex-1 items-center gap-3 rounded-2xl bg-[var(--background-soft)] px-4">
@@ -765,7 +784,9 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
 
                 <select
                   name="maxPrice"
-                  defaultValue={maxPrice ? String(Math.round(maxPrice / 100)) : ""}
+                  defaultValue={
+                    maxPrice ? String(Math.round(maxPrice / 100)) : ""
+                  }
                   className="min-h-12 rounded-2xl border border-[var(--border)] bg-[var(--card-soft)] px-4 text-sm font-black text-[var(--muted-foreground)] outline-none"
                 >
                   <option value="">Any service price</option>
@@ -916,9 +937,14 @@ export default async function ExpertsPage({ searchParams }: ExpertsPageProps) {
               <>
                 <div className="grid gap-5">
                   {visibleExperts.map((expert) => (
-                    <ExpertSearchCard key={expert.id} expert={expert} requestId={requestId} />
+                    <ExpertSearchCard
+                      key={expert.id}
+                      expert={expert}
+                      requestId={requestId}
+                    />
                   ))}
                 </div>
+
                 {totalMatchedExperts > EXPERTS_PAGE_SIZE ? (
                   <PaginationControls
                     page={safePage}
@@ -1153,6 +1179,7 @@ function ExpertSearchCard({
   const startingPrice = expert.services[0]?.priceCents ?? null;
   const nextSlot = expert.availability[0] ?? null;
   const displayName = expert.user.name || expert.user.email;
+
   const avatarLetter = (
     expert.user.name?.charAt(0) ||
     expert.user.email.charAt(0) ||
@@ -1212,6 +1239,7 @@ function ExpertSearchCard({
     nextSlot,
     problemSolvedRate,
   });
+
   const visibleMatchReasons = Array.from(
     new Set([...(expert.matchReasons ?? []), ...matchReasons]),
   ).slice(0, 6);
@@ -1439,7 +1467,9 @@ function buildExpertProfileHref({
 
   const queryString = params.toString();
 
-  return queryString ? `/experts/${expertId}?${queryString}` : `/experts/${expertId}`;
+  return queryString
+    ? `/experts/${expertId}?${queryString}`
+    : `/experts/${expertId}`;
 }
 
 function getMatchReasons({
@@ -1672,7 +1702,6 @@ function normalizeSearchTerm(value: string) {
     .replace(/\s+/g, " ");
 }
 
-
 function calculateServiceFitScore({
   service,
   query,
@@ -1740,7 +1769,8 @@ function calculateServiceFitScore({
 
   if (
     categorySlug &&
-    (normalizedCategory === categorySlug || normalizedSubcategory === categorySlug)
+    (normalizedCategory === categorySlug ||
+      normalizedSubcategory === categorySlug)
   ) {
     score += 35;
   }
