@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       },
       user: {
         email: {
-          not: null,
+          not: "",
         },
       },
     },
